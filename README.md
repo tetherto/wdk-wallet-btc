@@ -4,6 +4,7 @@
 - **Description**: Initializes a new instance of the `WalletManagerBtc` class.
 - **Parameters**:
   - `seedPhrase` (string): seed phrase of account
+  - `path` (string): BIP84 derivitation path without the index.
   - `config` (Object, optional): Configuration options for the `WalletManagerBtc` instance.
     - `network` (string, optional): The Bitcoin network to use (e.g., 'regtest', 'bitcoin'). Defaults to `bitcoin`.
     - `host` (string, optional): The Electrum server hostname. Defaults to 'electrum.blockstream.info'.
@@ -28,6 +29,13 @@
 - **Returns**: `Promise<BitcoinAccount>`
   - `publicKey` (string): The public key in hex format.
   - `privateKey` (string): The private key in WIF format.
+ 
+#### getFeeRate
+- **Description**: Fetches recommended Bitcoin fee rates from the Mempool.space API.
+- **Parameters**:
+- **Returns**: Promise<{ slow: number, fast: number }>
+    - `slow` (number): Fee rate in sat/vB targeting confirmation within ~60 minutes.
+    - `fast` (number): Fee rate in sat/vB targeting confirmation in the next block.
 
 ### WalletAccountBtc
 
@@ -69,3 +77,12 @@
     - `to` (string): The recipient address.
     - `value` (number): The amount to send in bitcoin.
 - **Returns**: `Promise<String>`: The transaction txid.
+
+##### getAccountByPath
+- **Description**: Returns the wallet account at a specific BIP-84/BIP-44 derivation path.
+- **Parameters**:
+  - `path` (string): The full derivation path (e.g. `"m/84'/0'/0'/0/1"` or `"/0'/1/2"`).  
+    If it starts with `/`, it is appended to the manager’s base BIP-84 path.
+- **Returns**: `Promise<WalletAccountBtc>`
+  - An instance of `WalletAccountBtc` configured for the given path.
+

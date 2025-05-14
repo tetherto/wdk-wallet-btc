@@ -82,7 +82,7 @@ export default class WalletAccountBtc {
    *
    * @returns {Promise<string>} The account's address.
    */
-  async getAddress() {
+  async getAddress () {
     return this.#address
   }
 
@@ -123,16 +123,16 @@ export default class WalletAccountBtc {
    * @param {BtcTransaction} tx - The transaction to send.
    * @returns {Promise<string>} The transaction's hash.
    */
-    async sendTransaction ({ to, value }) {
-      const tx = await this.#createTransaction({ recipient: to, amount: value })
-      try {
-        await this.#broadcastTransaction(tx.hex)
-      } catch (err) {
-        console.log(err)
-        throw new Error('failed to broadcast tx')
-      }
-      return tx.txid
+  async sendTransaction ({ to, value }) {
+    const tx = await this.#createTransaction({ recipient: to, amount: value })
+    try {
+      await this.#broadcastTransaction(tx.hex)
+    } catch (err) {
+      console.log(err)
+      throw new Error('failed to broadcast tx')
     }
+    return tx.txid
+  }
 
   async #createTransaction ({ recipient, amount }) {
     let feeRate
@@ -271,12 +271,12 @@ export default class WalletAccountBtc {
     }
   }
 
-  #satsToBtc(sats) {
+  #satsToBtc (sats) {
     const SATOSHIS_PER_BTC = new BigNumber('100000000')
-    return new BigNumber(sats).dividedBy(SATOSHIS_PER_BTC).toFixed(8) 
+    return new BigNumber(sats).dividedBy(SATOSHIS_PER_BTC).toFixed(8)
   }
 
-  async getBalance() {
+  async getBalance () {
     const addr = await this.getAddress()
     const res = await this.#electrumClient.getBalance(addr)
     const btc = this.#satsToBtc(res.confirmed)

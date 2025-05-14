@@ -93,7 +93,6 @@ describe("WalletManagerBtc Signing and Transaction Tests", () => {
   });
 
   test("should support deriv paths ", async () => {
-
     const path = 'm/84\'/0\'/1\'/0'
     const seedPhrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
     const wm = new WalletManagerBtc(seedPhrase, path, {
@@ -109,6 +108,22 @@ describe("WalletManagerBtc Signing and Transaction Tests", () => {
   });
 
 
+  test("should return fee rate", async () => {
+    const { slow, fast } = await walletManager.getFeeRate()
+
+    expect(typeof slow).toBe('number')
+    expect(typeof fast).toBe('number')
+  });
+
+  it('returns a WalletAccountBtc with the correct properties', async () => {
+    const seedPhrase = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
+    const manager = new WalletManagerBtc(seedPhrase)
+
+    const path = "m/84'/0'/0'/3/1"
+    const account = await manager.getAccountByPath(path)
+    expect(account.path).toBe(path)
+
+  })
 
   test(
     "should send a transaction successfully",

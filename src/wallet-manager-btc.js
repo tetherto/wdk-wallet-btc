@@ -17,6 +17,7 @@ import ecc from '@bitcoinerlab/secp256k1'
 import { BIP32Factory } from 'bip32'
 import { generateMnemonic, validateMnemonic, mnemonicToSeedSync } from 'bip39'
 import { payments } from 'bitcoinjs-lib'
+import https from 'https'
 
 import ElectrumClient from './electrum-client.js'
 import WalletAccountBtc from './wallet-account-btc.js'
@@ -34,7 +35,7 @@ export default class WalletManagerBtc {
    * Creates a new wallet manager for the bitcoin blockchain.
    *
    * @param {string} seedPhrase - The wallet's [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) seed phrase.
-   * @param {string} path - Derivation path 
+   * @param {string} path - Derivation path
    * @param {Object} [config] - The configuration object.
    * @param {string} [config.host] - The electrum server's hostname (default: "electrum.blockstream.info").
    * @param {number} [config.port] - The electrum server's port (default: 50001).
@@ -47,7 +48,7 @@ export default class WalletManagerBtc {
 
     this.#hdPath = path || BIP_84_BTC_DERIVATION_PATH
 
-    if(this.#hdPath.split("/")[1] !== "84'") throw new Error('Must be a BIP84 hd path')
+    if (this.#hdPath.split('/')[1] !== "84'") throw new Error('Must be a BIP84 hd path')
 
     this.#seedPhrase = seedPhrase
 
@@ -94,18 +95,7 @@ export default class WalletManagerBtc {
   async getAccount (index = 0) {
     const path = this.#getBIP84HDPathString(index)
 
-    const child = this.#deriveChild(this.#seedPhrase, path)
-
-    const address = payments.p2wpkh({
-      pubkey: child.publicKey,
-      network: this.#electrumClient.network
-    })
-      .address
-
-    const keyPair = {
-      publicKey: child.publicKey.toString('hex'),
-      privateKey: child.toWIF()
-    }
+    const { address, keyPair } = this.#getAccountAttributes(path)
 
     return new WalletAccountBtc({
       path,
@@ -135,5 +125,69 @@ export default class WalletManagerBtc {
     const seed = mnemonicToSeedSync(mnemonic)
     const root = bip32.fromSeed(seed)
     return root
+  }
+
+  #getAccountAttributes (path) {
+    const child = this.#deriveChild(this.#seedPhrase, path)
+
+    const address = payments.p2wpkh({
+      pubkey: child.publicKey,
+      network: this.#electrumClient.network
+    }).address
+
+    const keyPair = {
+      publicKey: child.publicKey.toString('hex'),
+      privateKey: child.toWIF()
+    }
+
+    return {
+      address, keyPair
+    }
+  }
+
+  /**
+ * Fetches recommended Bitcoin fee rates from the Mempool.space API.
+ *
+ * @returns {Promise<{ slow: number, fast: number }>}
+ *   A promise that resolves to an object containing:
+ *   - slow: fee rate in sat/vB targeting confirmation within ~60 minutes
+ *   - fast: fee rate in sat/vB targeting confirmation in the next block
+ * @throws {Error} If the response cannot be parsed as JSON or the request fails
+ */
+  getFeeRate () {
+    return new Promise((resolve, reject) => {
+      https.get('https://mempool.space/api/v1/fees/recommended', (res) => {
+        let raw = ''
+        res.on('data', chunk => raw += chunk)
+        res.on('end', () => {
+          try {
+            const { fastestFee, hourFee } = JSON.parse(raw)
+            resolve({ slow: hourFee, fast: fastestFee })
+          } catch (err) {
+            reject(err)
+          }
+        })
+      }).on('error', reject)
+    })
+  }
+
+  /**
+   * Returns the wallet account at a specific BIP-84/BIP-44 derivation path.
+   *
+   * @param {string} path - The full derivation path (e.g. "m/84'/0'/0'/0/1" or "/0'/1/2").
+   *   If it starts with "/", it will be appended to the base BIP-84 path.
+   * @returns {Promise<WalletAccountBtc>} The account for that path.
+   */
+  async getAccountByPath (path) {
+    const { address, keyPair } = this.#getAccountAttributes(path)
+
+    return new WalletAccountBtc({
+      path,
+      index: path.split('/').pop(),
+      address,
+      keyPair,
+      electrumClient: this.#electrumClient,
+      bip32: this.#seedToBip32(this.#seedPhrase)
+    })
   }
 }

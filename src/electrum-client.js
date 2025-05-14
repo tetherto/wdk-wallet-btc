@@ -142,15 +142,6 @@ export default class ElectrumClient {
     })
   }
 
-  async getBalance (address) {
-    const scriptHash = this.getScriptHash(address)
-    const result = await this.#request('blockchain.scripthash.get_balance', [scriptHash])
-    return {
-      confirmed: result.confirmed,
-      unconfirmed: result.unconfirmed
-    }
-  }
-
   async getHistory (address) {
     const scriptHash = this.getScriptHash(address)
     return await this.#request('blockchain.scripthash.get_history', [scriptHash])
