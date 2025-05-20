@@ -30,7 +30,7 @@
   - `publicKey` (string): The public key in hex format.
   - `privateKey` (string): The private key in WIF format.
  
-#### getFeeRate
+#### getFeeRates
 - **Description**: Fetches recommended Bitcoin fee rates from the Mempool.space API.
 - **Parameters**:
 - **Returns**: Promise<{ slow: number, fast: number }>

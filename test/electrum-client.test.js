@@ -15,8 +15,11 @@
 "use strict";
 
 import ElectrumClient from "../src/electrum-client.js";
-import config from "./test.opts.json"
+
+import config from "./test.config.json" with { type: "json" }
+
 let client;
+
 const { testAddress, testTxid } = config
 
 beforeAll(async () => {
@@ -115,4 +118,3 @@ describe("ElectrumClient Error Handling", () => {
     await expect(client.broadcastTransaction(invalidTx)).rejects.toThrow();
   });
 });
-

@@ -15,7 +15,8 @@
 "use strict";
 
 import WalletManagerBtc from "../src/wallet-manager-btc.js";
-import config from "./test.opts.json"
+
+import config from "./test.config.json" with { type: "json" }
 
 let walletManager;
 
@@ -30,7 +31,6 @@ beforeAll(async () => {
 });
 
 describe("WalletManagerBtc Signing and Transaction Tests", () => {
-
   test("account attributes match BIP84 test vectors", async () => {
     //Source: https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki#test-vectors
     const seedPhrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
@@ -46,6 +46,7 @@ describe("WalletManagerBtc Signing and Transaction Tests", () => {
     expect(addr).toEqual("bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu")
     expect(account.path).toEqual("m/84'/0'/0'/0/0")
   });
+
   test("should sign a message", async () => {
     const account = await walletManager.getAccount();
     const signature = await account.sign("Hello, world!");
@@ -107,7 +108,6 @@ describe("WalletManagerBtc Signing and Transaction Tests", () => {
     expect(oldAccount.path).toEqual("m/84'/0'/0'/0/0")
   });
 
-
   test("should return fee rate", async () => {
     const { slow, fast } = await walletManager.getFeeRate()
 
@@ -163,10 +163,4 @@ describe("WalletManagerBtc Signing and Transaction Tests", () => {
     },
     30000 
   );
-
-
-
-
-
 });
-
