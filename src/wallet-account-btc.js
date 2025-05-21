@@ -13,9 +13,15 @@
 // limitations under the License.
 'use strict'
 
-import { crypto, Psbt } from 'bitcoinjs-lib'
+import { crypto, payments, Psbt } from 'bitcoinjs-lib'
+import { validateMnemonic, mnemonicToSeedSync } from 'bip39'
+import { BIP32Factory } from 'bip32'
+
+import ecc from '@bitcoinerlab/secp256k1'
 
 import BigNumber from 'bignumber.js'
+
+import ElectrumClient from './electrum-client.js'
 
 const DUST_LIMIT = 546
 
@@ -43,22 +49,42 @@ const DUST_LIMIT = 546
  * @property {string} [recipient] - The receiving address for outgoing transfers.
  */
 
-export default class WalletAccountBtc {
-  #path
-  #index
-  #address
-  #keyPair
+/**
+ * @typedef {Object} BtcWalletConfig
+ * @property {string} [host] - The electrum server's hostname (default: "electrum.blockstream.info").
+ * @property {number} [port] - The electrum server's port (default: 50001).
+ * @property {string} [network] - The name of the network to use; available values: "bitcoin", "regtest", "testnet" (default: "bitcoin").
+ */
 
+const bip32 = BIP32Factory(ecc)
+
+const BIP_84_BTC_DERIVATION_PATH_PREFIX = "m/84'/0'"
+
+export default class WalletAccountBtc {
   #electrumClient
   #bip32
 
-  constructor ({ path, address, keyPair, electrumClient, bip32 }) {
-    this.#path = path
-    this.#address = address
-    this.#keyPair = keyPair
+  #path
+  #address
+  #keyPair
 
-    this.#electrumClient = electrumClient
-    this.#bip32 = bip32
+  /**
+   * Creates a new bitcoin wallet account.
+   *
+   * @param {string} seedPhrase - The bip-39 mnemonic.
+   * @param {string} path - The BIP-84 derivation path (e.g. "0'/0/0").
+   * @param {BtcWalletConfig} [config] - The configuration object.
+   */
+  constructor (seedPhrase, path, config) {
+    if (!validateMnemonic(seedPhrase)) {
+      throw new Error('The seed phrase is invalid.')
+    }
+
+    this.#electrumClient = new ElectrumClient(config)
+
+    this.#bip32 = WalletAccountBtc.#seedPhraseToBip32(seedPhrase)
+
+    this.#initialize(path)
   }
 
   /**
@@ -269,6 +295,23 @@ export default class WalletAccountBtc {
     return transfers
   }
 
+  #initialize (path) {
+    const wallet = this.#bip32.derivePath(path)
+
+    this.#path = `${BIP_84_BTC_DERIVATION_PATH_PREFIX}/${path}`
+
+    this.#address = payments.p2wpkh({
+      pubkey: wallet.publicKey,
+      network: this.#electrumClient.network
+    })
+      .address
+
+    this.#keyPair = {
+      publicKey: wallet.publicKey.toString('hex'),
+      privateKey: wallet.toWIF()
+    }
+  }
+
   async #getTransaction ({ recipient, amount }) {
     const address = await this.getAddress()
     const utxoSet = await this.#getUtxos(amount, address)
@@ -383,5 +426,11 @@ export default class WalletAccountBtc {
 
   async #broadcastTransaction (txHex) {
     return await this.#electrumClient.broadcastTransaction(txHex)
+  }
+
+  static #seedPhraseToBip32 (seedPhrase) {
+    const seed = mnemonicToSeedSync(seedPhrase)
+    const root = bip32.fromSeed(seed)
+    return root
   }
 }

@@ -1,32 +1,12 @@
-/**
- * @typedef {Object} KeyPair
- * @property {string} publicKey - The public key.
- * @property {string} privateKey - The private key.
- */
-/**
- * @typedef {Object} BtcTransaction
- * @property {string} to - The transaction's recipient.
- * @property {number} value - The amount of bitcoins to send to the recipient (in satoshis).
- */
-/**
- * @typedef {Object} BtcTransfer
- * @property {string} txid - The transaction's id.
- * @property {string} address - The user's own address.
- * @property {number} vout - The index of the output in the transaction.
- * @property {number} height - The block height (if unconfirmed, 0).
- * @property {number} value - The value of the transfer (in bitcoin).
- * @property {"incoming" | "outgoing"} direction - The direction of the transfer.
- * @property {number} [fee] - The fee paid for the full transaction (in bitcoin).
- * @property {string} [recipient] - The receiving address for outgoing transfers.
- */
 export default class WalletAccountBtc {
-    constructor({ path, address, keyPair, electrumClient, bip32 }: {
-        path: any;
-        address: any;
-        keyPair: any;
-        electrumClient: any;
-        bip32: any;
-    });
+    /**
+     * Creates a new bitcoin wallet account.
+     *
+     * @param {string} seedPhrase - The bip-39 mnemonic.
+     * @param {string} path - The BIP-84 derivation path (e.g. "0'/0/0").
+     * @param {BtcWalletConfig} [config] - The configuration object.
+     */
+    constructor(seedPhrase: string, path: string, config?: BtcWalletConfig);
     /**
      * The derivation path of this account (see [BIP-84](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki)).
      *
@@ -162,4 +142,18 @@ export type BtcTransfer = {
      * - The receiving address for outgoing transfers.
      */
     recipient?: string;
+};
+export type BtcWalletConfig = {
+    /**
+     * - The electrum server's hostname (default: "electrum.blockstream.info").
+     */
+    host?: string;
+    /**
+     * - The electrum server's port (default: 50001).
+     */
+    port?: number;
+    /**
+     * - The name of the network to use; available values: "bitcoin", "regtest", "testnet" (default: "bitcoin").
+     */
+    network?: string;
 };
