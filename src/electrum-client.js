@@ -50,9 +50,29 @@ export default class ElectrumClient {
   connect () {
     return new Promise((resolve, reject) => {
       try {
+        const socketOptions = {
+          port: this.#port,
+          host: this.#host,
+          // Add socket options to handle address reuse and keep-alive
+          reuseAddress: true,
+          noDelay: true,
+          keepAlive: true,
+          keepAliveInitialDelay: 60000, // 60 seconds
+          // Add timeout to prevent hanging connections
+          timeout: 30000 // 30 seconds
+        }
+
         const socket = this.#protocol === 'tcp'
-          ? _netConnect(this.#port, this.#host)
-          : __tlsConnect(this.#port, this.#host)
+          ? _netConnect(socketOptions)
+          : __tlsConnect(socketOptions)
+
+        // Add timeout handler
+        socket.setTimeout(30000)
+        socket.on('timeout', () => {
+          socket.destroy()
+          this.#connected = false
+          reject(new Error('Connection timeout'))
+        })
 
         socket.on('connect', () => {
           this.#socket = socket
@@ -63,15 +83,33 @@ export default class ElectrumClient {
 
         socket.on('error', (error) => {
           this.#connected = false
+          // Clean up socket on error
+          if (this.#socket) {
+            this.#socket.destroy()
+            this.#socket = null
+          }
           reject(error)
         })
 
         socket.on('close', () => {
           this.#connected = false
+          this.#socket = null
+          // Clear pending requests on close
+          this.#pendingRequests.clear()
+        })
+
+        socket.on('end', () => {
+          this.#connected = false
+          this.#socket = null
         })
       } catch (error) {
         console.error('Failed to connect:', error)
         this.#connected = false
+        // Ensure socket cleanup on error
+        if (this.#socket) {
+          this.#socket.destroy()
+          this.#socket = null
+        }
         reject(error)
       }
     })
@@ -114,18 +152,47 @@ export default class ElectrumClient {
   }
 
   async disconnect () {
-    if (this.#socket && this.#connected) {
-      this.#socket.end()
-      this.#connected = false
-    }
+    return new Promise((resolve) => {
+      if (this.#socket && this.#connected) {
+        // Set up one-time close handler for cleanup
+        this.#socket.once('close', () => {
+          this.#connected = false
+          this.#socket = null
+          this.#pendingRequests.clear()
+          resolve()
+        })
+
+        // End the socket gracefully
+        try {
+          this.#socket.end()
+        } catch (error) {
+          console.error('Error during disconnect:', error)
+          // Force destroy if graceful shutdown fails
+          this.#socket.destroy()
+          this.#socket = null
+          this.#connected = false
+          this.#pendingRequests.clear()
+          resolve()
+        }
+      } else {
+        resolve()
+      }
+    })
   }
 
-  async #request (method, params = []) {
+  async #request (method, params = [], retries = 2) {
     if (!this.isConnected()) {
       try {
         await this.connect()
       } catch (connectError) {
-        throw new Error(`Failed to connect before request: ${connectError.message}`)
+        console.error('Connection error:', connectError)
+        if (retries > 0) {
+          console.log(`Retrying connection, ${retries} attempts remaining`)
+          // Wait before retry
+          await new Promise(resolve => setTimeout(resolve, 1000))
+          return this.#request(method, params, retries - 1)
+        }
+        throw new Error(`Failed to connect after retries: ${connectError.message}`)
       }
     }
 
@@ -137,8 +204,33 @@ export default class ElectrumClient {
         params
       }
 
-      this.#pendingRequests.set(id, { resolve, reject })
-      this.#socket.write(JSON.stringify(request) + '\n')
+      // Set timeout for request
+      const timeoutId = setTimeout(() => {
+        this.#pendingRequests.delete(id)
+        reject(new Error('Request timeout'))
+      }, 30000) // 30 second timeout
+
+      this.#pendingRequests.set(id, {
+        resolve: (result) => {
+          clearTimeout(timeoutId)
+          resolve(result)
+        },
+        reject: (error) => {
+          clearTimeout(timeoutId)
+          reject(error)
+        }
+      })
+
+      try {
+        if (!this.#socket || !this.#connected) {
+          throw new Error('Socket not connected')
+        }
+        this.#socket.write(JSON.stringify(request) + '\n')
+      } catch (error) {
+        clearTimeout(timeoutId)
+        this.#pendingRequests.delete(id)
+        reject(error)
+      }
     })
   }
 

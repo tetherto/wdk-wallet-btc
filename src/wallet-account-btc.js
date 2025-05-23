@@ -159,7 +159,7 @@ export default class WalletAccountBtc {
   async sendTransaction ({ to, value }) {
     const tx = await this.#getTransaction({ recipient: to, amount: value })
 
-    const _ = await this.#broadcastTransaction(tx.hex)
+    await this.#broadcastTransaction(tx.hex)
 
     return tx.txid
   }
@@ -172,7 +172,7 @@ export default class WalletAccountBtc {
    */
   async quoteTransaction ({ to, value }) {
     const tx = await this.#getTransaction({ recipient: to, amount: value })
-    
+
     return +tx.fee
   }
 
@@ -191,17 +191,17 @@ export default class WalletAccountBtc {
 
   /**
    * Returns the balance of the account for a specific token.
-   * 
+   *
    * @param {string} tokenAddress - The smart contract address of the token.
    * @returns {Promise<number>} The token balance.
    */
-  async getTokenBalance(tokenAddress) {
-    throw new Error("Method not supported on the bitcoin blockchain.")
+  async getTokenBalance (tokenAddress) {
+    throw new Error('Method not supported on the bitcoin blockchain.')
   }
 
   /**
   * Returns the bitcoin transfers history of the account.
-  * 
+  *
    * @param {Object} [options] - The options.
    * @param {"incoming" | "outgoing" | "all"} [options.direction] - If set, only returns transfers with the given direction (default: "all").
    * @param {number} [options.limit] - The number of transfers to return (default: 10).
