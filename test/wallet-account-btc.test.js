@@ -18,6 +18,7 @@ import { __mockBehaviors } from './__mocks__/electrum-client.js'
 describe('WalletAccountBtc', () => {
   const seed = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
   const path = "0'/0/0"
+  const recipient = 'mocked-btc-recipient'
   let WalletAccountBtc
   let account
 
@@ -32,36 +33,48 @@ describe('WalletAccountBtc', () => {
     account = new WalletAccountBtc(seed, path, { network: 'regtest' })
   })
 
+  afterEach(() => {
+    jest.clearAllMocks()
+  })
+
   test('returns the correct address using mocked bitcoinjs-lib', async () => {
     const address = await account.getAddress()
+
     expect(address).toBe('mocked-btc-address')
   })
 
   test('generates a valid base64-encoded signature from sign()', async () => {
     const signature = await account.sign('hello world')
+
     expect(typeof signature).toBe('string')
     expect(() => Buffer.from(signature, 'base64')).not.toThrow()
   })
 
   test('verifies a message signed with the same key', async () => {
     const signature = await account.sign('hello world')
+
     const isValid = await account.verify('hello world', signature)
+
     expect(isValid).toBe(true)
   })
 
   test('returns confirmed balance from mocked electrum client', async () => {
     const balance = await account.getBalance()
+
     expect(balance).toBe(100_000)
   })
 
   test('returns NaN when balance response is undefined', async () => {
     __mockBehaviors.getBalance.mockResolvedValueOnce({})
+
     const balance = await account.getBalance()
+
     expect(balance).toBeNaN()
   })
 
   test('throws error when electrum client fails to get balance', async () => {
     __mockBehaviors.getBalance.mockRejectedValueOnce(new Error('Disconnected'))
+
     await expect(account.getBalance()).rejects.toThrow('Disconnected')
   })
 
@@ -72,7 +85,9 @@ describe('WalletAccountBtc', () => {
   test('fails verification if message content is altered', async () => {
     verify.mockReturnValueOnce(false)
     const signature = await account.sign('hello world')
+
     const isValid = await account.verify('tampered', signature)
+
     expect(isValid).toBe(false)
   })
 
@@ -82,7 +97,7 @@ describe('WalletAccountBtc', () => {
     __mockBehaviors.getFeeEstimate.mockResolvedValueOnce(0.00001)
 
     const txid = await account.sendTransaction({
-      to: 'mocked-btc-recipient',
+      to: recipient,
       value: 1000
     })
 
@@ -91,13 +106,15 @@ describe('WalletAccountBtc', () => {
 
   test('throws when no UTXOs are available', async () => {
     await expect(account.sendTransaction({
-      to: 'mocked-btc-recipient',
+      to: recipient,
       value: 1000
     })).rejects.toThrow('No unspent outputs available.')
   })
 
   test('index getter parses derivation path correctly', () => {
-    expect(account.index).toBe(0)
+    const index = account.index
+
+    expect(index).toBe(0)
   })
 
   test('returns numeric fee from quoteTransaction', async () => {
@@ -106,7 +123,7 @@ describe('WalletAccountBtc', () => {
     __mockBehaviors.getFeeEstimate.mockResolvedValueOnce(0.00001)
 
     const fee = await account.quoteTransaction({
-      to: 'mocked-btc-recipient',
+      to: recipient,
       value: 1000
     })
 
@@ -116,7 +133,9 @@ describe('WalletAccountBtc', () => {
 
   test('returns empty array when no transfer history exists', async () => {
     __mockBehaviors.getHistory.mockResolvedValueOnce([])
+
     const transfers = await account.getTransfers()
+
     expect(Array.isArray(transfers)).toBe(true)
     expect(transfers.length).toBe(0)
   })
@@ -130,7 +149,7 @@ describe('WalletAccountBtc', () => {
     })
 
     await expect(account.sendTransaction({
-      to: 'mocked-btc-recipient',
+      to: recipient,
       value: 546
     })).rejects.toThrow('The amount must be bigger than the dust limit')
   })
@@ -144,7 +163,7 @@ describe('WalletAccountBtc', () => {
     })
 
     await expect(account.sendTransaction({
-      to: 'mocked-btc-recipient',
+      to: recipient,
       value: 5000
     })).rejects.toThrow('Insufficient balance to send the transaction.')
   })
@@ -159,7 +178,7 @@ describe('WalletAccountBtc', () => {
     __mockBehaviors.getFeeEstimate.mockResolvedValueOnce(0.1)
 
     await expect(account.sendTransaction({
-      to: 'mocked-btc-recipient',
+      to: recipient,
       value: 1000
     })).rejects.toThrow('Insufficient balance to send the transaction.')
   })
@@ -174,7 +193,7 @@ describe('WalletAccountBtc', () => {
     __mockBehaviors.getFeeEstimate.mockResolvedValueOnce(0)
 
     const txid = await account.sendTransaction({
-      to: 'mocked-btc-recipient',
+      to: recipient,
       value: 600
     })
 
