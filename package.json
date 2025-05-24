@@ -7,6 +7,8 @@
   "scripts": {
     "build:types": "rimraf *.d.ts **/*.d.ts; tsc",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:unit": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathIgnorePatterns=integration",
+    "test:integration": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathPattern=integration",
     "lint": "standard",
     "lint:fix": "standard --fix"
   },
