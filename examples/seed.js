@@ -1,6 +1,5 @@
 // npm i davi0kprogramsthings/wdk-wallet-btc#develop
 // npm i bip39
-// npm i libsodium-wrappers-sumo
 
 import WalletManagerBtc from '../index.js'
 import { mnemonicToSeedSync } from 'bip39'

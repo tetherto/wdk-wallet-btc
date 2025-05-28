@@ -15,7 +15,7 @@
 
 import { generateMnemonic, validateMnemonic } from 'bip39'
 
-import sodium from 'libsodium-wrappers-sumo'
+import sodium from 'sodium-universal'
 
 import WalletAccountBtc from './wallet-account-btc.js'
 
@@ -99,7 +99,7 @@ export default class WalletManagerBtc {
    * Close the wallet manager and erase the seed buffer.
    */
   close () {
-    sodium.memzero(this.#seedBuffer)
+    sodium.sodium_memzero(this.#seedBuffer)
 
     this.#seedBuffer = null
     this.#config = null

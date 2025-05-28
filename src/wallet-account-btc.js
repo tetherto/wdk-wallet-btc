@@ -16,7 +16,7 @@
 import { crypto, payments, Psbt } from 'bitcoinjs-lib'
 import { BIP32Factory } from 'bip32'
 
-import sodium from 'libsodium-wrappers-sumo'
+import sodium from 'sodium-universal'
 
 import ecc from '@bitcoinerlab/secp256k1'
 
@@ -455,15 +455,15 @@ export default class WalletAccountBtc {
    */
   close () {
     // Zero out all sensitive buffers
-    sodium.memzero(this.#privateKeyBuffer)
-    sodium.memzero(this.#chainCodeBuffer)
-    sodium.memzero(this.#masterKeyAndChainCodeBuffer)
+    sodium.sodium_memzero(this.#privateKeyBuffer)
+    sodium.sodium_memzero(this.#chainCodeBuffer)
+    sodium.sodium_memzero(this.#masterKeyAndChainCodeBuffer)
 
-    sodium.memzero(this.#keyPair.privateKey)
-    sodium.memzero(this.#keyPair.publicKey)
+    sodium.sodium_memzero(this.#keyPair.privateKey)
+    sodium.sodium_memzero(this.#keyPair.publicKey)
 
-    sodium.memzero(this.#bip32.__Q)
-    sodium.memzero(this.#bip32.__D)
+    sodium.sodium_memzero(this.#bip32.__Q)
+    sodium.sodium_memzero(this.#bip32.__D)
 
     // Null out all references
     this.#bip32 = null
