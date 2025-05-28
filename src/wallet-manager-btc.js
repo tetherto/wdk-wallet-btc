@@ -15,6 +15,8 @@
 
 import { generateMnemonic, validateMnemonic } from 'bip39'
 
+import sodium from 'libsodium-wrappers-sumo'
+
 import WalletAccountBtc from './wallet-account-btc.js'
 
 const MEMPOOL_SPACE_URL = 'https://mempool.space'
@@ -22,21 +24,17 @@ const MEMPOOL_SPACE_URL = 'https://mempool.space'
 /** @typedef {import('./wallet-account-btc.js').BtcWalletConfig} BtcWalletConfig */
 
 export default class WalletManagerBtc {
-  #seedPhrase
+  #seedBuffer
   #config
 
   /**
    * Creates a new wallet manager for the bitcoin blockchain.
    *
-   * @param {string} seedPhrase - The wallet's [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) seed phrase.
+   * @param {Uint8Array} seedBuffer - Uint8Array seed buffer.
    * @param {BtcWalletConfig} [config] - The configuration object.
    */
-  constructor (seedPhrase, config = {}) {
-    if (!WalletManagerBtc.isValidSeedPhrase(seedPhrase)) {
-      throw new Error('The seed phrase is invalid.')
-    }
-
-    this.#seedPhrase = seedPhrase
+  constructor (seedBuffer, config = {}) {
+    this.#seedBuffer = seedBuffer
 
     this.#config = config
   }
@@ -58,15 +56,6 @@ export default class WalletManagerBtc {
    */
   static isValidSeedPhrase (seedPhrase) {
     return validateMnemonic(seedPhrase)
-  }
-
-  /**
-   * The seed phrase of the wallet.
-   *
-   * @type {string}
-   */
-  get seedPhrase () {
-    return this.#seedPhrase
   }
 
   /**
@@ -92,7 +81,7 @@ export default class WalletManagerBtc {
    * @returns {Promise<WalletAccountBtc>} The account.
    */
   async getAccountByPath (path) {
-    return new WalletAccountBtc(this.#seedPhrase, path, this.#config)
+    return new WalletAccountBtc(this.#seedBuffer, path, this.#config)
   }
 
   /**
@@ -104,5 +93,15 @@ export default class WalletManagerBtc {
     const response = await fetch(`${MEMPOOL_SPACE_URL}/api/v1/fees/recommended`)
     const { fastestFee, hourFee } = await response.json()
     return { normal: hourFee, fast: fastestFee }
+  }
+
+  /**
+   * Close the wallet manager and erase the seed buffer.
+   */
+  close () {
+    sodium.memzero(this.#seedBuffer)
+
+    this.#seedBuffer = null
+    this.#config = null
   }
 }

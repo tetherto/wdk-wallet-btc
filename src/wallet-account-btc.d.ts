@@ -2,11 +2,11 @@ export default class WalletAccountBtc {
     /**
      * Creates a new bitcoin wallet account.
      *
-     * @param {string} seedPhrase - The bip-39 mnemonic.
+     * @param {Uint8Array} seedBuffer - Uint8Array seed buffer.
      * @param {string} path - The BIP-84 derivation path (e.g. "0'/0/0").
      * @param {BtcWalletConfig} [config] - The configuration object.
      */
-    constructor(seedPhrase: string, path: string, config?: BtcWalletConfig);
+    constructor(seedBuffer: Uint8Array, path: string, config?: BtcWalletConfig);
     /**
      * The derivation path of this account (see [BIP-84](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki)).
      *
@@ -87,17 +87,21 @@ export default class WalletAccountBtc {
         limit?: number;
         skip?: number;
     }): Promise<BtcTransfer[]>;
+    /**
+     * Close the wallet manager and erase the seed buffer.
+     */
+    close(): void;
     #private;
 }
 export type KeyPair = {
     /**
      * - The public key.
      */
-    publicKey: string;
+    publicKey: Uint8Array;
     /**
      * - The private key.
      */
-    privateKey: string;
+    privateKey: Uint8Array;
 };
 export type BtcTransaction = {
     /**

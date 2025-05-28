@@ -14,10 +14,16 @@
 'use strict'
 
 import { crypto, payments, Psbt } from 'bitcoinjs-lib'
-import { validateMnemonic, mnemonicToSeedSync } from 'bip39'
 import { BIP32Factory } from 'bip32'
 
+import sodium from 'libsodium-wrappers-sumo'
+
 import ecc from '@bitcoinerlab/secp256k1'
+
+import * as tools from 'uint8array-tools';
+
+import { hmac } from '@noble/hashes/hmac';
+import { sha512 } from '@noble/hashes/sha512';
 
 import BigNumber from 'bignumber.js'
 
@@ -27,8 +33,8 @@ const DUST_LIMIT = 546
 
 /**
  * @typedef {Object} KeyPair
- * @property {string} publicKey - The public key.
- * @property {string} privateKey - The private key.
+ * @property {Uint8Array} publicKey - The public key.
+ * @property {Uint8Array} privateKey - The private key.
  */
 
 /**
@@ -60,9 +66,25 @@ const bip32 = BIP32Factory(ecc)
 
 const BIP_84_BTC_DERIVATION_PATH_PREFIX = "m/84'/0'"
 
+const BITCOIN = {
+  messagePrefix: '\x18Bitcoin Signed Message:\n',
+  bech32: 'bc',
+  bip32: {
+      public: 0x0488b21e,
+      private: 0x0488ade4,
+  },
+  pubKeyHash: 0x00,
+  scriptHash: 0x05,
+  wif: 0x80,
+};
+
 export default class WalletAccountBtc {
   #electrumClient
   #bip32
+
+  #masterKeyAndChainCodeBuffer
+  #privateKeyBuffer
+  #chainCodeBuffer
 
   #path
   #address
@@ -71,18 +93,18 @@ export default class WalletAccountBtc {
   /**
    * Creates a new bitcoin wallet account.
    *
-   * @param {string} seedPhrase - The bip-39 mnemonic.
+   * @param {Uint8Array} seedBuffer - Uint8Array seed buffer.
    * @param {string} path - The BIP-84 derivation path (e.g. "0'/0/0").
    * @param {BtcWalletConfig} [config] - The configuration object.
    */
-  constructor (seedPhrase, path, config) {
-    if (!validateMnemonic(seedPhrase)) {
-      throw new Error('The seed phrase is invalid.')
-    }
-
+  constructor (seedBuffer, path, config) {
     this.#electrumClient = new ElectrumClient(config)
 
-    this.#bip32 = WalletAccountBtc.#seedPhraseToBip32(seedPhrase)
+    this.#masterKeyAndChainCodeBuffer = hmac(sha512, tools.fromUtf8('Bitcoin seed'), seedBuffer)
+    this.#privateKeyBuffer = this.#masterKeyAndChainCodeBuffer.slice(0, 32)
+    this.#chainCodeBuffer = this.#masterKeyAndChainCodeBuffer.slice(32)
+
+    this.#bip32 = bip32.fromPrivateKey(Buffer.from(this.#privateKeyBuffer), Buffer.from(this.#chainCodeBuffer), BITCOIN)
 
     this.#initialize(path)
   }
@@ -296,9 +318,9 @@ export default class WalletAccountBtc {
   }
 
   #initialize (path) {
-    const wallet = this.#bip32.derivePath(path)
-
     this.#path = `${BIP_84_BTC_DERIVATION_PATH_PREFIX}/${path}`
+
+    const wallet = this.#bip32.derivePath(this.#path)
 
     this.#address = payments.p2wpkh({
       pubkey: wallet.publicKey,
@@ -307,8 +329,8 @@ export default class WalletAccountBtc {
       .address
 
     this.#keyPair = {
-      publicKey: wallet.publicKey.toString('hex'),
-      privateKey: wallet.toWIF()
+      publicKey: wallet.publicKey,
+      privateKey: this.#privateKeyBuffer
     }
   }
 
@@ -374,7 +396,7 @@ export default class WalletAccountBtc {
             {
               masterFingerprint: this.#bip32.fingerprint,
               path: this.path,
-              pubkey: Buffer.from(this.keyPair.publicKey, 'hex')
+              pubkey: this.keyPair.publicKey
             }
           ]
         })
@@ -428,9 +450,28 @@ export default class WalletAccountBtc {
     return await this.#electrumClient.broadcastTransaction(txHex)
   }
 
-  static #seedPhraseToBip32 (seedPhrase) {
-    const seed = mnemonicToSeedSync(seedPhrase)
-    const root = bip32.fromSeed(seed)
-    return root
+  /**
+   * Close the wallet manager and erase the seed buffer.
+   */
+  close () {
+    // Zero out all sensitive buffers
+    sodium.memzero(this.#privateKeyBuffer)
+    sodium.memzero(this.#chainCodeBuffer)
+    sodium.memzero(this.#masterKeyAndChainCodeBuffer)
+
+    sodium.memzero(this.#keyPair.privateKey)
+    sodium.memzero(this.#keyPair.publicKey)
+
+    sodium.memzero(this.#bip32.__Q)
+    sodium.memzero(this.#bip32.__D)
+
+    // Null out all references
+    this.#bip32 = null
+    this.#keyPair = null
+    this.#address = null
+    this.#path = null
+    this.#privateKeyBuffer = null
+    this.#chainCodeBuffer = null
+    this.#masterKeyAndChainCodeBuffer = null
   }
 }

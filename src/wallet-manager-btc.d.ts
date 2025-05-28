@@ -16,16 +16,10 @@ export default class WalletManagerBtc {
     /**
      * Creates a new wallet manager for the bitcoin blockchain.
      *
-     * @param {string} seedPhrase - The wallet's [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) seed phrase.
+     * @param {Uint8Array} seedBuffer - Uint8Array seed buffer.
      * @param {BtcWalletConfig} [config] - The configuration object.
      */
-    constructor(seedPhrase: string, config?: BtcWalletConfig);
-    /**
-     * The seed phrase of the wallet.
-     *
-     * @type {string}
-     */
-    get seedPhrase(): string;
+    constructor(seedBuffer: Uint8Array, config?: BtcWalletConfig);
     /**
      * Returns the wallet account at a specific index (see [BIP-84](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki)).
      *
@@ -55,6 +49,10 @@ export default class WalletManagerBtc {
         normal: number;
         fast: number;
     }>;
+    /**
+     * Close the wallet manager and erase the seed buffer.
+     */
+    close(): void;
     #private;
 }
 export type BtcWalletConfig = import("./wallet-account-btc.js").BtcWalletConfig;

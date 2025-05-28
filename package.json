@@ -15,7 +15,9 @@
     "bignumber.js": "^9.2.1",
     "bip32": "^3.1.0",
     "bip39": "^3.1.0",
-    "bitcoinjs-lib": "^6.1.0"
+    "bitcoinjs-lib": "^6.1.0",
+    "libsodium-wrappers-sumo": "^0.7.15",
+    "uint8array-tools": "^0.0.9"
   },
   "devDependencies": {
     "brittle": "^3.13.1",
@@ -25,6 +27,8 @@
     "typescript": "^5.8.3"
   },
   "standard": {
-    "env": ["jest"]
+    "env": [
+      "jest"
+    ]
   }
 }
