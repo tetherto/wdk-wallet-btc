@@ -16,6 +16,7 @@
 import { connect as _netConnect } from 'net'
 import { connect as __tlsConnect } from 'tls'
 import { networks, address as _address, crypto } from 'bitcoinjs-lib'
+import BigNumber from 'bignumber.js'
 
 export default class ElectrumClient {
   #network
@@ -233,7 +234,20 @@ export default class ElectrumClient {
   }
 
   async getTransaction (txid) {
-    return await this.#request('blockchain.transaction.get', [txid, true])
+    const tx = await this.#request('blockchain.transaction.get', [txid, true])
+
+    if (Array.isArray(tx.vout)) {
+      tx.vout.forEach(vout => {
+        if (typeof vout.value === 'number') {
+          vout.value = new BigNumber(vout.value)
+            .multipliedBy(1e8)
+            .integerValue(BigNumber.ROUND_CEIL)
+            .toNumber()
+        }
+      })
+    }
+
+    return tx
   }
 
   async broadcastTransaction (txHex) {
@@ -241,7 +255,8 @@ export default class ElectrumClient {
   }
 
   async getFeeEstimate (blocks = 1) {
-    return await this.#request('blockchain.estimatefee', [blocks])
+    const feeBtcPerKb = await this.#request('blockchain.estimatefee', [blocks])
+    return new BigNumber(feeBtcPerKb).multipliedBy(100_000).integerValue(BigNumber.ROUND_CEIL)
   }
 
   getScriptHash (address) {
