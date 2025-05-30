@@ -3,14 +3,19 @@ import { execSync } from 'child_process'
 
 jest.setTimeout(30000)
 
+// top-level cache for mining address
+let minerAddr = null
+
 // helper to mine a block and ensure electrum is synced
 const mineBlock = async (account) => {
-  const minerAddr = execSync(
-    `bitcoin-cli -regtest -datadir=$HOME/.bitcoin -rpcwallet=testwallet getnewaddress`
-  ).toString().trim()
+  if (!minerAddr) {
+    minerAddr = execSync(
+      `bitcoin-cli -regtest -datadir=$HOME/.bitcoin -rpcwallet=testwallet getnewaddress`
+    ).toString().trim()
+  }
 
   execSync(`bitcoin-cli -regtest -datadir=$HOME/.bitcoin generatetoaddress 1 ${minerAddr}`)
-  await new Promise(resolve => setTimeout(resolve, 1000))
+  await new Promise(resolve => setTimeout(resolve, 5000))
 
   // ensure electrum syncs
   if (account) {
