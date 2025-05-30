@@ -91,15 +91,6 @@ Electrum RPC server running on 127.0.0.1:50001
 **Important**:
 - After every transaction, you should mine a new block using generatetoaddress 1 <miner_addr>. This prevents "too-long-mempool-chain" errors. You could start `bitcoind` with flags that increase ancestor/descendant limits – but this introduces non-default behavior and can mask real-world issues.
 - Always wait around 1.5 seconds after mining a block to allow Electrum to pick up the new block. If you skip this delay, Electrum may not reflect the most recent changes.
----
-
-## Step 3: Run Integration Tests
-
-From the root of the `wdk-wallet-btc` project:
-
-```bash
-npm run test:integration
-```
 
 ---
 
