@@ -26,6 +26,7 @@ const MEMPOOL_SPACE_URL = 'https://mempool.space'
 export default class WalletManagerBtc {
   #seedBuffer
   #config
+  #accounts
 
   /**
    * Creates a new wallet manager for the bitcoin blockchain.
@@ -35,7 +36,7 @@ export default class WalletManagerBtc {
    */
   constructor (seedBuffer, config = {}) {
     this.#seedBuffer = seedBuffer
-
+    this.#accounts = new Set()
     this.#config = config
   }
 
@@ -68,7 +69,9 @@ export default class WalletManagerBtc {
    * @returns {Promise<WalletAccountBtc>} The account.
   */
   async getAccount (index = 0) {
-    return await this.getAccountByPath(`0'/0/${index}`)
+    const account = await this.getAccountByPath(`0'/0/${index}`)
+    this.#accounts.add(account)
+    return account
   }
 
   /**
@@ -81,7 +84,9 @@ export default class WalletManagerBtc {
    * @returns {Promise<WalletAccountBtc>} The account.
    */
   async getAccountByPath (path) {
-    return new WalletAccountBtc(this.#seedBuffer, path, this.#config)
+    const account = new WalletAccountBtc(this.#seedBuffer, path, this.#config)
+    this.#accounts.add(account)
+    return account
   }
 
   /**
@@ -99,6 +104,9 @@ export default class WalletManagerBtc {
    * Close the wallet manager and erase the seed buffer.
    */
   close () {
+    for (const account of this.#accounts) account.close()
+    this.#accounts.clear()
+
     sodium.sodium_memzero(this.#seedBuffer)
 
     this.#seedBuffer = null

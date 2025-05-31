@@ -2,6 +2,7 @@
 // npm i bip39
 
 import WalletManagerBtc from '../index.js'
+import sodium from 'sodium-universal'
 import { mnemonicToSeedSync } from 'bip39'
 
 const seedPhrase = WalletManagerBtc.getRandomSeedPhrase()
@@ -27,7 +28,7 @@ console.log('Signature:', signature)
 console.log('Is the signature valid?', await accountFromSeed.verify(message, signature))
 
 // we can erase seed buffer
-await walletFromSeed.close()
+sodium.sodium_memzero(seedBuffer)
 
 const signature2 = await accountFromSeed.sign(message)
 console.log('Signature 2:', signature2)
