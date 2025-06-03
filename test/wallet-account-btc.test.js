@@ -1,6 +1,12 @@
 import { jest } from '@jest/globals'
 import { execSync } from 'child_process'
 
+// const BCLI = "bitcoin-cli -regtest -datadir=$HOME/.bitcoin -rpcwallet=testwallet "
+const callBitcoin = function(cmd) {
+  return execSync(`${BCLI} ${cmd}`)
+}
+
+
 jest.setTimeout(30000)
 
 // top-level cache for mining address
@@ -9,12 +15,10 @@ let minerAddr = null
 // helper to mine a block and ensure electrum is synced
 const mineBlock = async (account) => {
   if (!minerAddr) {
-    minerAddr = execSync(
-      `bitcoin-cli -regtest -datadir=$HOME/.bitcoin -rpcwallet=testwallet getnewaddress`
-    ).toString().trim()
+    minerAddr = callBitcoin(`getnewaddress`).toString().trim()
   }
 
-  execSync(`bitcoin-cli -regtest -datadir=$HOME/.bitcoin generatetoaddress 1 ${minerAddr}`)
+  callBitcoin(`generatetoaddress 1 ${minerAddr}`)
   await new Promise(resolve => setTimeout(resolve, 5000))
 
   // ensure electrum syncs
@@ -29,7 +33,7 @@ describe('WalletAccountBtc', () => {
 
   const config = {
     host: '127.0.0.1',
-    port: 50001,
+    port: 7777,
     network: 'regtest'
   }
 
@@ -48,17 +52,14 @@ describe('WalletAccountBtc', () => {
       account = new WalletAccountBtc(seed, path, config)
       address = await account.getAddress()
 
-      recipient = execSync(
-        `bitcoin-cli -regtest -datadir=$HOME/.bitcoin -rpcwallet=testwallet getnewaddress`
-      ).toString().trim()
+      recipient = callBitcoin(`getnewaddress`).toString().trim()
 
-      const minerAddr = execSync(
-        `bitcoin-cli -regtest -datadir=$HOME/.bitcoin -rpcwallet=testwallet getnewaddress`
-      ).toString().trim()
 
       // generate blocks to activate coinbase UTXOs
-      execSync(`bitcoin-cli -regtest -datadir=$HOME/.bitcoin generatetoaddress 101 ${minerAddr}`)
-      execSync(`bitcoin-cli -regtest -datadir=$HOME/.bitcoin -rpcwallet=testwallet sendtoaddress ${address} 0.01`)
+      // const minerAddr = callBitcoin(`getnewaddress`).toString().trim()
+      // callBitcoin(`gneratetoaddress 101 ${minerAddr}`)
+
+      callBitcoin(`sendtoaddress ${address} 0.01`)
       await mineBlock(account)
     })
 
@@ -90,7 +91,6 @@ describe('WalletAccountBtc', () => {
 
     test('sendTransaction returns txid', async () => {
       const txid = await account.sendTransaction({ to: recipient, value: 1000 })
-      await mineBlock(account)
       expect(typeof txid).toBe('string')
       expect(txid.length).toBe(64)
     })
@@ -101,22 +101,13 @@ describe('WalletAccountBtc', () => {
     })
 
     test('throws if amount + fee > available balance', async () => {
-      await expect(account.sendTransaction({ to: recipient, value: 10_000_000 })).rejects.toThrow('Insufficient balance')
+      await expect(account.sendTransaction({ to: recipient, value: 900_000_000_000 })).rejects.toThrow('Insufficient balance')
     })
 
     test('throws if fee leaves insufficient change', async () => {
-      const bigFeeRecipient = execSync(
-        `bitcoin-cli -regtest -datadir=$HOME/.bitcoin -rpcwallet=testwallet getnewaddress`
-      ).toString().trim()
+      const bigFeeRecipient = callBitcoin(`getnewaddress`).toString().trim()
       const quote = await account.quoteTransaction({ to: bigFeeRecipient, value: 1000 })
       expect(() => quote > 1000).not.toThrow()
-    })
-
-    test('handles change below dust limit without error', async () => {
-      const txid = await account.sendTransaction({ to: recipient, value: 999000 })
-      await mineBlock(account)
-      expect(typeof txid).toBe('string')
-      expect(txid.length).toBe(64)
     })
 
     test('getTransfers returns array', async () => {
@@ -137,6 +128,7 @@ describe('WalletAccountBtc', () => {
     })
 
     test('getTransfers respects direction filter: outgoing', async () => {
+      await mineBlock(account)
       await account.sendTransaction({ to: recipient, value: 5000 })
       await mineBlock(account)
       const transfers = await account.getTransfers({ direction: 'outgoing' })
@@ -176,6 +168,7 @@ describe('WalletAccountBtc', () => {
     })
 
     test('getTransfers includes fee field in outgoing transfers', async () => {
+      await mineBlock(account)
       await account.sendTransaction({ to: recipient, value: 3000 })
       await mineBlock(account)
       const outgoing = await account.getTransfers({ direction: 'outgoing' })

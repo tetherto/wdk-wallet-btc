@@ -320,9 +320,7 @@ export default class WalletAccountBtc {
     const utxoSet = await this.#getUtxos(amount, address)
     const feeEstimate = await this.#electrumClient.getFeeEstimate()
 
-    const feeRate = new BigNumber(feeEstimate).multipliedBy(100_000)
-
-    return await this.#getRawTransaction(utxoSet, amount, recipient, feeRate)
+    return await this.#getRawTransaction(utxoSet, amount, recipient, feeEstimate)
   }
 
   async #getUtxos (amount, address) {
