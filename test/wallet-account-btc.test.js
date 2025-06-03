@@ -5,15 +5,11 @@ import { execSync } from 'child_process'
 
 jest.setTimeout(30000)
 
-// load config from environment
 const DATA_DIR = process.env.DATA_DIR || `${process.env.HOME}/.bitcoin`
 const BCLI = `bitcoin-cli -regtest -datadir=${DATA_DIR} -rpcwallet=testwallet`
 const callBitcoin = cmd => execSync(`${BCLI} ${cmd}`)
 
-// top-level cache for mining address
 let minerAddr = null
-
-// helper to mine a block and ensure electrum is synced
 const mineBlock = async (account) => {
   if (!minerAddr) {
     minerAddr = callBitcoin(`getnewaddress`).toString().trim()
@@ -22,7 +18,6 @@ const mineBlock = async (account) => {
   callBitcoin(`generatetoaddress 1 ${minerAddr}`)
   await new Promise(resolve => setTimeout(resolve, 5000))
 
-  // ensure electrum syncs
   if (account) {
     await account.getBalance()
   }
@@ -31,8 +26,6 @@ const mineBlock = async (account) => {
 describe('WalletAccountBtc', () => {
   const seed = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
   const path = "0'/0/0"
-
-  // use env for electrum connection config
   const config = {
     host: process.env.HOST || '127.0.0.1',
     port: Number(process.env.PORT || 7777),
@@ -52,9 +45,7 @@ describe('WalletAccountBtc', () => {
     beforeAll(async () => {
       account = new WalletAccountBtc(seed, path, config)
       address = await account.getAddress()
-
       recipient = callBitcoin(`getnewaddress`).toString().trim()
-
       callBitcoin(`sendtoaddress ${address} 0.01`)
       await mineBlock(account)
     })
@@ -101,9 +92,11 @@ describe('WalletAccountBtc', () => {
     })
 
     test('throws if fee leaves insufficient change', async () => {
-      const bigFeeRecipient = callBitcoin(`getnewaddress`).toString().trim()
-      const quote = await account.quoteTransaction({ to: bigFeeRecipient, value: 1000 })
-      expect(() => quote > 1000).not.toThrow()
+      const lowBalanceAccount = new WalletAccountBtc(seed, "0'/0/30", config)
+      const addr = await lowBalanceAccount.getAddress()
+      callBitcoin(`sendtoaddress ${addr} 0.00001`)
+      await mineBlock(lowBalanceAccount)
+      await expect(lowBalanceAccount.sendTransaction({ to: recipient, value: 1000 })).rejects.toThrow('Insufficient balance')
     })
 
     test('getTransfers returns array', async () => {

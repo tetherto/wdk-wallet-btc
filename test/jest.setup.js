@@ -42,12 +42,6 @@ export default async () => {
     -minrelaytxfee=0.00000100 \
     -datadir=${DATA_DIR}`)
 
-    const cookiePath = path.join(DATA_DIR, 'regtest', '.cookie')
-    for (let i = 0; i < 10; i++) {
-        if (fs.existsSync(cookiePath)) break
-        execSync('sleep 0.5')
-    }
-
     execSync(`sleep 3`)
     console.log('✅ bitcoind started.')
 
