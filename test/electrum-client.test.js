@@ -12,13 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-"use strict";
+'use strict'
 
-import ElectrumClient from "../src/electrum-client.js";
+import ElectrumClient from '../src/electrum-client.js'
+import { readFileSync } from 'fs'
+import { fileURLToPath } from 'url'
+import { dirname, join } from 'path'
 
-import config from "./test.config.json" with { type: "json" }
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
+const config = JSON.parse(readFileSync(join(__dirname, 'test.config.json'), 'utf8'))
 
-let client;
+let client
 
 const { testAddress, testTxid } = config
 
@@ -26,95 +31,95 @@ beforeAll(async () => {
   client = new ElectrumClient({
     port: config.port,
     host: config.host,
-    network: config.network,
-  });
-  await client.connect();
-});
+    network: config.network
+  })
+  await client.connect()
+})
 
 afterAll(async () => {
   if (client.isConnected()) {
-    await client.disconnect();
+    await client.disconnect()
   }
-});
+})
 
-describe("ElectrumClient Basic Connectivity", () => {
-  test("should connect to Electrum server", () => {
-    expect(client.isConnected()).toBe(true);
-  });
-});
+describe('ElectrumClient Basic Connectivity', () => {
+  test('should connect to Electrum server', () => {
+    expect(client.isConnected()).toBe(true)
+  })
+})
 
-describe("ElectrumClient Wallet Operations", () => {
-  test("should get balance for test address", async () => {
-    const balance = await client.getBalance(testAddress);
-    expect(balance).toHaveProperty("confirmed");
-    expect(balance).toHaveProperty("unconfirmed");
-    expect(typeof balance.confirmed).toBe("number");
-    expect(typeof balance.unconfirmed).toBe("number");
-  });
+describe('ElectrumClient Wallet Operations', () => {
+  test('should get balance for test address', async () => {
+    const balance = await client.getBalance(testAddress)
+    expect(balance).toHaveProperty('confirmed')
+    expect(balance).toHaveProperty('unconfirmed')
+    expect(typeof balance.confirmed).toBe('number')
+    expect(typeof balance.unconfirmed).toBe('number')
+  })
 
-  test("should get history for test address", async () => {
-    const history = await client.getHistory(testAddress);
-    expect(Array.isArray(history)).toBe(true);
+  test('should get history for test address', async () => {
+    const history = await client.getHistory(testAddress)
+    expect(Array.isArray(history)).toBe(true)
     if (history.length > 0) {
-      const tx = history[0];
-      expect(tx).toHaveProperty("tx_hash");
-      expect(tx).toHaveProperty("height");
+      const tx = history[0]
+      expect(tx).toHaveProperty('tx_hash')
+      expect(tx).toHaveProperty('height')
     }
-  });
+  })
 
-  test("should get unspent outputs for test address", async () => {
-    const unspent = await client.getUnspent(testAddress);
-    expect(Array.isArray(unspent)).toBe(true);
+  test('should get unspent outputs for test address', async () => {
+    const unspent = await client.getUnspent(testAddress)
+    expect(Array.isArray(unspent)).toBe(true)
     if (unspent.length > 0) {
-      const utxo = unspent[0];
-      expect(utxo).toHaveProperty("tx_hash");
-      expect(utxo).toHaveProperty("tx_pos");
-      expect(utxo).toHaveProperty("value");
-      expect(utxo).toHaveProperty("height");
+      const utxo = unspent[0]
+      expect(utxo).toHaveProperty('tx_hash')
+      expect(utxo).toHaveProperty('tx_pos')
+      expect(utxo).toHaveProperty('value')
+      expect(utxo).toHaveProperty('height')
     }
-  });
+  })
 
-  test("should get transaction details", async () => {
-    const tx = await client.getTransaction(testTxid);
-    expect(typeof tx).toBe("object");
-    expect(tx).toHaveProperty("hash");
-    expect(tx).toHaveProperty("txid");
-  });
+  test('should get transaction details', async () => {
+    const tx = await client.getTransaction(testTxid)
+    expect(typeof tx).toBe('object')
+    expect(tx).toHaveProperty('hash')
+    expect(tx).toHaveProperty('txid')
+  })
 
-  test("should get fee estimates", async () => {
-    const fee = await client.getFeeEstimate(1);
-    expect(typeof fee).toBe("number");
-    expect(fee).toBeGreaterThan(0);
-  });
+  test('should get fee estimates', async () => {
+    const fee = await client.getFeeEstimate(1)
+    expect(typeof fee).toBe('number')
+    expect(fee).toBeGreaterThan(0)
+  })
 
-  test("should handle script hash calculation", () => {
-    const scriptHash = client.getScriptHash(testAddress);
-    expect(typeof scriptHash).toBe("string");
-    expect(scriptHash.length).toBe(64);
-  });
+  test('should handle script hash calculation', () => {
+    const scriptHash = client.getScriptHash(testAddress)
+    expect(typeof scriptHash).toBe('string')
+    expect(scriptHash.length).toBe(64)
+  })
 
-  test("should handle disconnection and reconnection", async () => {
-    await client.disconnect();
-    expect(client.isConnected()).toBe(false);
+  test('should handle disconnection and reconnection', async () => {
+    await client.disconnect()
+    expect(client.isConnected()).toBe(false)
 
-    await client.connect();
-    expect(client.isConnected()).toBe(true);
-  });
-});
+    await client.connect()
+    expect(client.isConnected()).toBe(true)
+  })
+})
 
-describe("ElectrumClient Error Handling", () => {
-  test("should handle invalid address", async () => {
-    const invalidAddress = "invalid-address";
-    await expect(client.getBalance(invalidAddress)).rejects.toThrow();
-  });
+describe('ElectrumClient Error Handling', () => {
+  test('should handle invalid address', async () => {
+    const invalidAddress = 'invalid-address'
+    await expect(client.getBalance(invalidAddress)).rejects.toThrow()
+  })
 
-  test("should handle invalid transaction ID", async () => {
-    const invalidTxid = "invalid-txid";
-    await expect(client.getTransaction(invalidTxid)).rejects.toThrow();
-  });
+  test('should handle invalid transaction ID', async () => {
+    const invalidTxid = 'invalid-txid'
+    await expect(client.getTransaction(invalidTxid)).rejects.toThrow()
+  })
 
-  test("should handle invalid broadcast", async () => {
-    const invalidTx = "invalid-transaction-hex";
-    await expect(client.broadcastTransaction(invalidTx)).rejects.toThrow();
-  });
-});
+  test('should handle invalid broadcast', async () => {
+    const invalidTx = 'invalid-transaction-hex'
+    await expect(client.broadcastTransaction(invalidTx)).rejects.toThrow()
+  })
+})

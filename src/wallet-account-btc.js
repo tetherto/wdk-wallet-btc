@@ -43,9 +43,9 @@ const DUST_LIMIT = 546
  * @property {string} address - The user's own address.
  * @property {number} vout - The index of the output in the transaction.
  * @property {number} height - The block height (if unconfirmed, 0).
- * @property {number} value - The value of the transfer (in bitcoin).
+ * @property {number} value - The value of the transfer (in satoshis).
  * @property {"incoming" | "outgoing"} direction - The direction of the transfer.
- * @property {number} [fee] - The fee paid for the full transaction (in bitcoin).
+ * @property {number} [fee] - The fee paid for the full transaction (in satoshis).
  * @property {string} [recipient] - The receiving address for outgoing transfers.
  */
 
@@ -318,9 +318,7 @@ export default class WalletAccountBtc {
   async #getTransaction ({ recipient, amount }) {
     const address = await this.getAddress()
     const utxoSet = await this.#getUtxos(amount, address)
-    const feeEstimate = await this.#electrumClient.getFeeEstimate()
-
-    const feeRate = new BigNumber(feeEstimate).multipliedBy(100_000)
+    const feeRate = await this.#electrumClient.getFeeEstimate()
 
     return await this.#getRawTransaction(utxoSet, amount, recipient, feeRate)
   }
