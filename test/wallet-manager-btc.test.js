@@ -1,113 +1,109 @@
-import { jest } from '@jest/globals'
-import mockWalletAccountBtc from './__mocks__/wallet-account-btc.js'
+import { describe, test, expect, beforeEach } from '@jest/globals'
+import { mnemonicToSeedSync } from 'bip39'
 
-jest.unstable_mockModule('../src/wallet-account-btc.js', () => ({
-  default: mockWalletAccountBtc
-}))
+import WalletManagerBtc from '../src/wallet-manager-btc.js'
+import WalletAccountBtc from '../src/wallet-account-btc.js'
 
-const { default: WalletManagerBtc } = await import('../src/wallet-manager-btc.js')
-const { default: WalletAccountBtc } = await import('../src/wallet-account-btc.js')
+const SEED_PHRASE = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
+const INVALID_SEED_PHRASE = 'this is not valid mnemonic'
+const SEED = mnemonicToSeedSync(SEED_PHRASE)
 
 describe('WalletManagerBtc', () => {
-  const validMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
-  const invalidMnemonic = 'this is not valid mnemonic'
+  let wallet
 
   beforeEach(() => {
-    mockWalletAccountBtc.mockClear()
-    global.fetch = undefined // reset fetch between tests
+    wallet = new WalletManagerBtc(SEED_PHRASE)
   })
 
-  test('getRandomSeedPhrase returns a valid BIP-39 mnemonic', () => {
-  const mnemonic = WalletManagerBtc.getRandomSeedPhrase()
-    expect(typeof mnemonic).toBe('string')
-    expect(WalletManagerBtc.isValidSeedPhrase(mnemonic)).toBe(true)
+  describe('constructor', () => {
+    test('should successfully initialize a wallet manager for the given seed phrase', () => {
+      const wallet = new WalletManagerBtc(SEED_PHRASE)
+      expect(wallet.seedPhrase).toBe(SEED_PHRASE)
+    })
+
+    test('should successfully initialize a wallet manager for the given seed buffer', () => {
+      const wallet = new WalletManagerBtc(SEED)
+      expect(wallet.seedPhrase).toEqual(SEED)
+    })
+
+    test('should throw if the seed phrase is invalid', () => {
+      expect(() => { new WalletManagerBtc(INVALID_SEED_PHRASE) })
+        .toThrow('The seed phrase is invalid.')
+    })
   })
 
-  test('isValidSeedPhrase returns true for a valid seed phrase', () => {
-  const result = WalletManagerBtc.isValidSeedPhrase(validMnemonic)
-    expect(result).toBe(true)
+  describe('static getRandomSeedPhrase', () => {
+    test('should generate a valid 12-word seed phrase', () => {
+      const seedPhrase = WalletManagerBtc.getRandomSeedPhrase()
+      const words = seedPhrase.trim().split(/\s+/)
+      expect(words).toHaveLength(12)
+      words.forEach(word => {
+        expect(typeof word).toBe('string')
+        expect(word.length).toBeGreaterThan(0)
+      })
+      expect(WalletManagerBtc.isValidSeedPhrase(seedPhrase)).toBe(true)
+    })
   })
 
-  test('isValidSeedPhrase returns false for an invalid seed phrase', () => {
-  const result = WalletManagerBtc.isValidSeedPhrase(invalidMnemonic)
-    expect(result).toBe(false)
+  describe('static isValidSeedPhrase', () => {
+    test('should return true for a valid seed phrase', () => {
+      expect(WalletManagerBtc.isValidSeedPhrase(SEED_PHRASE)).toBe(true)
+    })
+
+    test('should return false for an invalid seed phrase', () => {
+      expect(WalletManagerBtc.isValidSeedPhrase(INVALID_SEED_PHRASE)).toBe(false)
+    })
+
+    test('should return false for an empty string', () => {
+      expect(WalletManagerBtc.isValidSeedPhrase('')).toBe(false)
+    })
   })
 
-  test('constructor throws an error for invalid seed phrase', () => {
-    
-    expect(() => new WalletManagerBtc(invalidMnemonic)).toThrow('The seed phrase is invalid.')
+  describe('getAccount', () => {
+    test('should return the account at index 0 by default', async () => {
+      const account = await wallet.getAccount()
+      expect(account).toBeInstanceOf(WalletAccountBtc)
+      expect(account.index).toBe(0)
+    })
+
+    test('should return the account at the given index', async () => {
+      const account = await wallet.getAccount(3)
+      expect(account).toBeInstanceOf(WalletAccountBtc)
+      expect(account.index).toBe(3)
+    })
+
+    test('should throw if the index is a negative number', async () => {
+      await expect(wallet.getAccount(-1)).rejects.toThrow(/Expected BIP32Path/)
+    })
   })
 
-  describe('instance methods', () => {
-    let manager
-
-    beforeEach(() => {
-      manager = new WalletManagerBtc(validMnemonic)
-    })
-      
-    test('isValidSeedPhrase returns true for Buffer input', () => {
-      const buf = Buffer.from('hello')
-      expect(WalletManagerBtc.isValidSeedPhrase(buf)).toBe(true)
+  describe('getAccountByPath', () => {
+    test('should return the account with the given path', async () => {
+      const account = await wallet.getAccountByPath("1'/2/3")
+      expect(account).toBeInstanceOf(WalletAccountBtc)
+      expect(account.path).toBe("m/84'/0'/1'/2/3")
     })
 
-    test('getFeeRates throws if fetch fails', async () => {
-      global.fetch = jest.fn(() => Promise.reject(new Error('network down')))
-      await expect(manager.getFeeRates()).rejects.toThrow('network down')
+    test('should throw if the path is invalid', async () => {
+      await expect(wallet.getAccountByPath("a'/b/c")).rejects.toThrow(/Expected BIP32Path/)
     })
+  })
 
-    test('getFeeRates throws if response is not valid JSON', async () => {
-      global.fetch = jest.fn(() => Promise.resolve({ json: () => { throw new Error('invalid json') } }))
-      await expect(manager.getFeeRates()).rejects.toThrow('invalid json')
-    })
-
-    test('constructor stores and propagates config correctly', async () => {
-      const config = { host: 'localhost', port: 60001 }
-      const managerWithConfig = new WalletManagerBtc(validMnemonic, config)
-      await managerWithConfig.getAccountByPath("0'/0/2")
-      expect(WalletAccountBtc).toHaveBeenCalledWith(validMnemonic, "0'/0/2", config)
-    })
-
-    test('getAccount and getAccountByPath return different instances', async () => {
-      const a1 = await manager.getAccount(2)
-      const a2 = await manager.getAccountByPath("0'/0/2")
-      expect(a1).not.toBe(a2)
-    })
-
-    test('getAccount calls WalletAccountBtc with correct path and returns mocked address', async () => {
-      const account = await manager.getAccount(1)
-      expect(WalletAccountBtc).toHaveBeenCalledWith(validMnemonic, "0'/0/1", {})
-      expect(account).toHaveProperty('address', 'btc-mocked-address')
-    })
-
-    test('getAccountByPath calls WalletAccountBtc with specified path and returns mocked address', async () => {
-      const account = await manager.getAccountByPath("0'/0/0")
-      expect(WalletAccountBtc).toHaveBeenCalledWith(validMnemonic, "0'/0/0", {})
-      expect(account).toHaveProperty('address', 'btc-mocked-address')
-    })
-
-    test('getFeeRates returns normal and fast fee rates from API response', async () => {
-      const mockResponse = { fastestFee: 100, hourFee: 50 }
-      global.fetch = jest.fn(() =>
+  describe('getFeeRates', () => {
+    test('should return the correct fee rates', async () => {
+      global.fetch = () =>
         Promise.resolve({
-          json: () => Promise.resolve(mockResponse)
+          json: () => Promise.resolve({ fastestFee: 100, hourFee: 50 })
         })
-      )
 
-      const fees = await manager.getFeeRates()
-      expect(fees).toEqual({ normal: 50, fast: 100 })
-      expect(fetch).toHaveBeenCalledWith('https://mempool.space/api/v1/fees/recommended')
+      const feeRates = await wallet.getFeeRates()
+      expect(feeRates.normal).toBe(50)
+      expect(feeRates.fast).toBe(100)
     })
 
-    test('seedPhrase getter returns the correct seed phrase', () => {
-      const phrase = manager.seedPhrase
-      expect(phrase).toBe(validMnemonic)
-    })
-
-    test('getAccount defaults to index 0', async () => {
-      const account = await manager.getAccount()
-      expect(WalletAccountBtc).toHaveBeenCalledWith(validMnemonic, "0'/0/0", {})
-      expect(account).toHaveProperty('address', 'btc-mocked-address')
+    test('should throw if the wallet cannot fetch fee rates', async () => {
+      global.fetch = () => Promise.reject(new Error('network failure'))
+      await expect(wallet.getFeeRates()).rejects.toThrow('network failure')
     })
   })
-
 })

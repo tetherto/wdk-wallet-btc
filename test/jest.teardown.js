@@ -1,4 +1,3 @@
-// tests/jest.teardown.js
 import 'dotenv/config'
 import { execSync } from 'child_process'
 

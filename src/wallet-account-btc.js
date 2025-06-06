@@ -76,8 +76,12 @@ export default class WalletAccountBtc {
    * @param {BtcWalletConfig} [config] - The configuration object.
    */
   constructor (seedPhrase, path, config) {
-    if (!validateMnemonic(seedPhrase)) {
-      throw new Error('The seed phrase is invalid.')
+    if (typeof seedPhrase === 'string') {
+      if (!validateMnemonic(seedPhrase)) {
+        throw new Error('The seed phrase is invalid.')
+      }
+
+      seedPhrase = mnemonicToSeedSync(seedPhrase)
     }
 
     this.#electrumClient = new ElectrumClient(config)

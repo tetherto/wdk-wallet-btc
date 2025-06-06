@@ -1,7 +1,5 @@
 import 'dotenv/config'
 import { execSync, spawn } from 'child_process'
-import fs from 'fs'
-import path from 'path'
 
 const DATA_DIR = process.env.DATA_DIR || `${process.env.HOME}/.bitcoin`
 const HOST = process.env.HOST || '127.0.0.1'
