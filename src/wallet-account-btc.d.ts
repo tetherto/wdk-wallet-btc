@@ -1,4 +1,5 @@
 export default class WalletAccountBtc {
+    static "__#2@#seedPhraseToBip32"(seedPhrase: any): any;
     /**
      * Creates a new bitcoin wallet account.
      *
