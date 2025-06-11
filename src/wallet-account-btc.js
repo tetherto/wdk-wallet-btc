@@ -20,10 +20,10 @@ import sodium from 'sodium-universal'
 
 import ecc from '@bitcoinerlab/secp256k1'
 
-import * as tools from 'uint8array-tools';
+import * as tools from 'uint8array-tools'
 
-import { hmac } from '@noble/hashes/hmac';
-import { sha512 } from '@noble/hashes/sha512';
+import { hmac } from '@noble/hashes/hmac'
+import { sha512 } from '@noble/hashes/sha512'
 
 import BigNumber from 'bignumber.js'
 
@@ -70,13 +70,13 @@ const BITCOIN = {
   messagePrefix: '\x18Bitcoin Signed Message:\n',
   bech32: 'bc',
   bip32: {
-      public: 0x0488b21e,
-      private: 0x0488ade4,
+    public: 0x0488b21e,
+    private: 0x0488ade4
   },
   pubKeyHash: 0x00,
   scriptHash: 0x05,
-  wif: 0x80,
-};
+  wif: 0x80
+}
 
 export default class WalletAccountBtc {
   #electrumClient
@@ -451,9 +451,9 @@ export default class WalletAccountBtc {
   }
 
   /**
-   * Close the wallet manager and erase the seed buffer.
+   * Disposes the wallet account, erasing all buffers.
    */
-  close () {
+  dispose () {
     // Zero out all sensitive buffers
     sodium.sodium_memzero(this.#privateKeyBuffer)
     sodium.sodium_memzero(this.#chainCodeBuffer)

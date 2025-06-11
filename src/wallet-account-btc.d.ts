@@ -88,9 +88,9 @@ export default class WalletAccountBtc {
         skip?: number;
     }): Promise<BtcTransfer[]>;
     /**
-     * Close the wallet manager and erase the seed buffer.
+     * Disposes the wallet account, erasing all buffers.
      */
-    close(): void;
+    dispose(): void;
     #private;
 }
 export type KeyPair = {
