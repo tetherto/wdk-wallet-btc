@@ -88,15 +88,6 @@ export class UnsupportedOperationError extends Error {
 
 /** @implements {IWalletAccount} */
 export default class WalletAccountBtc {
-  _electrumClient
-  _bip32
-  _masterKeyAndChainCodeBuffer
-  _privateKeyBuffer
-  _chainCodeBuffer
-  _path
-  _address
-  _keyPair
-
   /**
    * Creates a new bitcoin wallet account.
    *
