@@ -160,7 +160,7 @@ describe('WalletManagerBtc Signing and Transaction Tests', () => {
       const account = await walletManager.getAccount()
       const to = 'bcrt1q03lzm6tjtlng04lchtlpfk9hp93f5yrgklavtv'
       const value = 10000
-      const fee = await account.quoteTransaction({ to, value })
+      const fee = await account.quoteSendTransaction({ to, value })
       expect(fee > 0).toBe(true)
       expect(Number.isInteger(fee)).toBe(true)
     },
