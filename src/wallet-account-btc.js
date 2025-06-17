@@ -91,14 +91,14 @@ export default class WalletAccountBtc {
    * Creates a new bitcoin wallet account.
    *
    * @param {Uint8Array} seedBuffer - Uint8Array seed buffer.
-   * @param {string} path - The BIP-84 derivation path (e.g. "0'/0/0").
+   * @param {string} path - The BIP-44 derivation path (e.g. "0'/0/0").
    * @param {BtcWalletConfig} [config] - The configuration object.
    */
   constructor (seedBuffer, path, config) {
     /** @private @type {ElectrumClient} */
     this._electrumClient = new ElectrumClient(config)
 
-    if(!config.bip) config.bip = 84
+    if(!config.bip) config.bip = 44
     if(![84,44].includes(config.bip)) throw new Error('Only BIP 84 and 44 supported')
 
     this._addrBip = `m/${config.bip}'/0'`

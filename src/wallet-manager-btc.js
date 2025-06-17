@@ -30,7 +30,7 @@ export default class WalletManagerBtc extends AbstractWalletManager {
    * Creates a new wallet manager for the bitcoin blockchain.
    *
    * @param {string | Uint8Array} seed - The wallet's [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) seed phrase.
-   * @param {number}  bip - The address type, default to 84
+   * @param {number}  bip - The address type, default to 44
    * @param {BtcWalletConfig} [config] - The configuration object.
    */
   constructor (seed, config = {}) {
