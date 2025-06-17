@@ -53,9 +53,14 @@ import ElectrumClient from './electrum-client.js'
  */
 
 /**
+ * @typedef {44 | 84} Bip
+ */
+
+/**
  * @typedef {Object} BtcWalletConfig
  * @property {string} [host] - The electrum server's hostname (default: "electrum.blockstream.info").
  * @property {number} [port] - The electrum server's port (default: 50001).
+ * @property {Bip} [bip=44] - The BIP address type. Allowed values: 44 or 84.
  * @property {string} [network] - The name of the network to use; available values: "bitcoin", "regtest", "testnet" (default: "bitcoin").
  */
 

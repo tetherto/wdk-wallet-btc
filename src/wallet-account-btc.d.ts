@@ -21,7 +21,7 @@ export default class WalletAccountBtc implements IWalletAccount {
     /** @private @type {ElectrumClient} */
     private _electrumClient;
     _addrBip: string;
-    _bip: any;
+    _bip: Bip;
     /** @private @type {Uint8Array} */
     private _masterKeyAndChainCodeBuffer;
     /** @private @type {Uint8Array} */
@@ -160,6 +160,7 @@ export type BtcTransfer = {
      */
     recipient?: string;
 };
+export type Bip = 44 | 84;
 export type BtcWalletConfig = {
     /**
      * - The electrum server's hostname (default: "electrum.blockstream.info").
@@ -169,6 +170,10 @@ export type BtcWalletConfig = {
      * - The electrum server's port (default: 50001).
      */
     port?: number;
+    /**
+     * - The BIP address type. Allowed values: 44 or 84.
+     */
+    bip?: Bip;
     /**
      * - The name of the network to use; available values: "bitcoin", "regtest", "testnet" (default: "bitcoin").
      */
