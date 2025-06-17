@@ -18,22 +18,35 @@ export default class WalletAccountBtc implements IWalletAccount {
      * @param {BtcWalletConfig} [config] - The configuration object.
      */
     constructor(seedBuffer: Uint8Array, path: string, config?: BtcWalletConfig);
-    _electrumClient: any;
-    _bip32: any;
-    _masterKeyAndChainCodeBuffer: any;
-    _privateKeyBuffer: any;
-    _chainCodeBuffer: any;
-    _path: any;
-    _address: any;
-    _keyPair: any;
-    get path(): any;
+    /** @private @type {ElectrumClient} */
+    private _electrumClient;
+    _addrBip: string;
+    _bip: any;
+    /** @private @type {Uint8Array} */
+    private _masterKeyAndChainCodeBuffer;
+    /** @private @type {Uint8Array} */
+    private _privateKeyBuffer;
+    /** @private @type {Uint8Array} */
+    private _chainCodeBuffer;
+    /** @private @type {import('bip32').BIP32Interface} */
+    private _bip32;
+    get path(): string;
     get index(): number;
-    get keyPair(): any;
+    get keyPair(): {
+        publicKey: any;
+        privateKey: Uint8Array<ArrayBufferLike>;
+    };
     /**
      * @private
      * @param {string} path
      */
     private _initialize;
+    _path: string;
+    _address: any;
+    _keyPair: {
+        publicKey: any;
+        privateKey: Uint8Array<ArrayBufferLike>;
+    };
     getAddress(): Promise<any>;
     sign(message: any): Promise<any>;
     verify(message: any, signature: any): Promise<any>;

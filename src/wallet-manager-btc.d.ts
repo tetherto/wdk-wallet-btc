@@ -8,6 +8,7 @@ export default class WalletManagerBtc {
      * Creates a new wallet manager for the bitcoin blockchain.
      *
      * @param {string | Uint8Array} seed - The wallet's [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) seed phrase.
+     * @param {number}  bip - The address type, default to 84
      * @param {BtcWalletConfig} [config] - The configuration object.
      */
     constructor(seed: string | Uint8Array, config?: BtcWalletConfig);
@@ -31,3 +32,4 @@ export default class WalletManagerBtc {
 export type FeeRates = any;
 export type WalletAccountBtc = import("./wallet-account-btc.js").default;
 export type BtcWalletConfig = import("./wallet-account-btc.js").BtcWalletConfig;
+import WalletAccountBtc from './wallet-account-btc.js';
