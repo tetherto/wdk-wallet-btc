@@ -22,6 +22,7 @@ import { hmac } from '@noble/hashes/hmac'
 import { sha512 } from '@noble/hashes/sha512'
 import BigNumber from 'bignumber.js'
 import ElectrumClient from './electrum-client.js'
+import * as bip39 from 'bip39'
 
 /**
  * @typedef {import('@wdk/wallet').KeyPair} KeyPair
@@ -95,11 +96,11 @@ export default class WalletAccountBtc {
   /**
    * Creates a new bitcoin wallet account.
    *
-   * @param {Uint8Array} seedBuffer - Uint8Array seed buffer.
+   * @param {string | Uint8Array} seed - The wallet's [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) seed phrase.
    * @param {string} path - The BIP-44 derivation path (e.g. "0'/0/0").
    * @param {BtcWalletConfig} [config] - The configuration object.
    */
-  constructor (seedBuffer, path, config) {
+  constructor (seed, path, config) {
     /** @private @type {ElectrumClient} */
     this._electrumClient = new ElectrumClient(config)
 
@@ -108,10 +109,18 @@ export default class WalletAccountBtc {
 
     this._addrBip = `m/${config.bip}'/0'`
     this._bip = config.bip
+    
+    if (typeof seed === 'string') {
+      if (!bip39.validateMnemonic(seed)) {
+        throw new Error('The seed phrase is invalid.')
+      }
+
+      seed = bip39.mnemonicToSeedSync(seed)
+    }
 
     /** @private @type {Uint8Array} */
     this._masterKeyAndChainCodeBuffer =
-      hmac(sha512, tools.fromUtf8('Bitcoin seed'), seedBuffer)
+      hmac(sha512, tools.fromUtf8('Bitcoin seed'), seed)
 
     /** @private @type {Uint8Array} */
     this._privateKeyBuffer = this._masterKeyAndChainCodeBuffer.slice(0, 32)

@@ -7,10 +7,10 @@ import WalletManagerBtc from '../src/wallet-manager-btc.js'
 
 // Values not verified against third party source
 const SEED_PHRASE = 'cook voyage document eight skate token alien guide drink uncle term abuse'
-const PUBLIC_KEY = '038b3e304b15f9fd0439ffc37cdae3c9feb1b892f7f45ed859c49a5940d9d327dd'
-const PRIVATE_KEY = '118,241,93,91,104,120,112,186,130,53,116,23,189,1,179,174,76,80,182,187,237,242,142,71,234,179,155,97,211,146,62,115'
-const ADDRESS = 'bcrt1q83020gdrr9de3r238vtawd92nyh2jtzx5khjwv'
-const VALID_SIG = '1BSKnoYsXjzt1bi4w7PhbJXhZYZgsBUwRzBCFtO9TXMGT+PLDVlcKB5myagYzERiuppOcktfuyVhwkkoyxI3HQ=='
+const PUBLIC_KEY = '035a48902f37c03901f36fea0a06aef2be29d9c55da559f5bd02c2d02d2b516382'
+const PRIVATE_KEY = '170,26,138,140,72,251,7,239,209,57,72,171,218,122,161,127,137,16,169,183,131,128,152,205,161,117,120,143,39,4,50,136'
+const ADDRESS = 'bcrt1qxn0te9ecv864wtu53cccjhuuy5dphvemjt58ge'
+const VALID_SIG = 'rmTLtHci+vomyNFSWZ867+msWmYl3oM6l8pHmIIn9BQ1bFihyUzWOGMF6yskNexI7lXvJ4nM+jYeESRVvRiVCQ=='
 
 const ACCOUNT_INDEX = 0
 const ACCOUNT_PATH = "0'/0/0"
