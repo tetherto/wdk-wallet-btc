@@ -1,17 +1,21 @@
 {
-    "include": [
-      "index.js",
-      "src/wallet-manager-btc.js",
-      "src/wallet-account-btc.js"
-    ],
-    "compilerOptions": {
-      "target": "ES2015",
-      "module": "NodeNext",
-      "moduleResolution": "nodenext",
-      "allowJs": true,
-      "declaration": true,
-      "emitDeclarationOnly": true,
-      "noResolve": true,
-      "skipLibCheck": true
-    }
+  "include": [
+    "index.js",
+    "src/wallet-manager-btc.js",
+    "src/wallet-account-btc.js"
+  ],
+  "compilerOptions": {
+    "target": "ES2015",
+    "module": "NodeNext",
+    "moduleResolution": "nodenext",
+    "allowJs": true,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "noResolve": true,
+    "skipLibCheck": true,
+    "typeRoots": [
+      "./node_modules/@types",
+      "./node_modules/@wdk"
+    ]
   }
+}
