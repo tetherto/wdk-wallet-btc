@@ -189,7 +189,7 @@ export default class WalletAccountBtc {
    * @param {BtcTransaction} tx - The transaction.
    * @returns {Promise<Omit<BtcTransactionResult, 'hash'>>} The transaction's quotes.
    */
-  async quoteTransaction ({ to, value }) {
+  async quoteSendTransaction ({ to, value }) {
     const tx = await this._getTransaction({ recipient: to, amount: value })
     return +tx.fee
   }

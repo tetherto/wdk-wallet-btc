@@ -99,9 +99,9 @@ describe('WalletAccountBtc', () => {
     })
   })
 
-  describe('quoteTransaction', () => {
+  describe('quoteSendTransaction', () => {
     test('should return the expected fee', async () => {
-      const fee = await account.quoteTransaction({ to: recipient, value: 1000 })
+      const fee = await account.quoteSendTransaction({ to: recipient, value: 1000 })
       expect(typeof fee).toBe('number')
       expect(fee).toBeGreaterThan(0)
     })
