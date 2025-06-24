@@ -22,7 +22,8 @@ function isUint8 (v) {
 const config = {
   host: process.env.TEST_ELECTRUM_SERVER_HOST || '127.0.0.1',
   port: Number(process.env.TEST_ELECTRUM_SERVER_PORT || 7777),
-  network: 'regtest'
+  network: 'regtest',
+  bip : 84
 }
 
 let minerAddr = null

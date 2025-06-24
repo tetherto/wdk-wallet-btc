@@ -170,9 +170,7 @@ export async function startBitcoin () {
 
 export async function stopBitcoin () {
   try {
-    console.log('Removing regtest chain data...')
     execSync(`rm -rf ${DATA_DIR}`)
-    console.log('Chain data removed.')
     execSync(`mkdir -p ${DATA_DIR}`)
   } catch {
     console.log('Failed to remove chain data.')
