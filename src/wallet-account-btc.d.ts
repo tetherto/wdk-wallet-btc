@@ -1,5 +1,5 @@
 export default class WalletAccountBtc {
-    static "__#2@#seedPhraseToBip32"(seedPhrase: any): any;
+    static _seedPhraseToBip32(seedPhrase: any): any;
     /**
      * Creates a new bitcoin wallet account.
      *
@@ -8,6 +8,8 @@ export default class WalletAccountBtc {
      * @param {BtcWalletConfig} [config] - The configuration object.
      */
     constructor(seedPhrase: string, path: string, config?: BtcWalletConfig);
+    _electrumClient: any;
+    _bip32: any;
     /**
      * The derivation path of this account (see [BIP-84](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki)).
      *
@@ -76,7 +78,7 @@ export default class WalletAccountBtc {
     getTokenBalance(tokenAddress: string): Promise<number>;
     /**
     * Returns the bitcoin transfers history of the account.
-    *
+     *
      * @param {Object} [options] - The options.
      * @param {"incoming" | "outgoing" | "all"} [options.direction] - If set, only returns transfers with the given direction (default: "all").
      * @param {number} [options.limit] - The number of transfers to return (default: 10).
@@ -88,7 +90,28 @@ export default class WalletAccountBtc {
         limit?: number;
         skip?: number;
     }): Promise<BtcTransfer[]>;
-    #private;
+    _initialize(path: any): void;
+    _path: string;
+    _address: any;
+    _keyPair: {
+        publicKey: any;
+        privateKey: any;
+    };
+    _getTransaction({ recipient, amount }: {
+        recipient: any;
+        amount: any;
+    }): Promise<{
+        txid: any;
+        hex: any;
+        fee: any;
+    }>;
+    _getUtxos(amount: any, address: any): Promise<any[]>;
+    _getRawTransaction(utxoSet: any, amount: any, recipient: any, feeRate: any): Promise<{
+        txid: any;
+        hex: any;
+        fee: any;
+    }>;
+    _broadcastTransaction(txHex: any): Promise<any>;
 }
 export type KeyPair = {
     /**
@@ -128,7 +151,7 @@ export type BtcTransfer = {
      */
     height: number;
     /**
-     * - The value of the transfer (in bitcoin).
+     * - The value of the transfer (in satoshis).
      */
     value: number;
     /**
@@ -136,7 +159,7 @@ export type BtcTransfer = {
      */
     direction: "incoming" | "outgoing";
     /**
-     * - The fee paid for the full transaction (in bitcoin).
+     * - The fee paid for the full transaction (in satoshis).
      */
     fee?: number;
     /**
