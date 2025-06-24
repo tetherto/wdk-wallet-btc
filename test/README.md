@@ -102,35 +102,10 @@ bitcoin-cli -regtest -datadir=<your-datadir> -rpcwallet=testwallet getbalance
 
 ### Step 2: Install and Run Electrum Server
 
+Setup your `test/run-electrum.sh` to enable test script to start your electrum instance
+
 ---
 
-### Troubleshooting
-
-* **Electrs fails to start or can't find `.cookie`**
-  Ensure you're pointing to `--daemon-dir=<your-datadir>` and `bitcoind` is running.
-
-* **Electrs returns 401 / auth errors**
-  Make sure `.cookie` is present. Do not use `--auth` if you're relying on cookie-based auth.
-
-* **Can't broadcast tx or wallet is empty**
-  Confirm 101 blocks have been mined after funding the wallet address:
-
-  ```bash
-  bitcoin-cli -regtest -datadir=<your-datadir> -rpcwallet=testwallet getwalletinfo
-  ```
-
-* **Enable more detailed Electrs logs:**
-
-  ```bash
-  RUST_LOG=debug electrs --network regtest --daemon-dir <your-datadir> --electrum-rpc-addr 127.0.0.1:50001
-  ```
-
-* **Check balances or transactions manually:**
-
-  ```bash
-  bitcoin-cli -regtest -datadir=<your-datadir> -rpcwallet=testwallet listunspent
-  bitcoin-cli -regtest -datadir=<your-datadir> getrawtransaction <txid> true
-  ```
 
 ---
 
