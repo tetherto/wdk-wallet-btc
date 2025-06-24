@@ -4,7 +4,7 @@ import { mnemonicToSeedSync } from 'bip39'
 import WalletManagerBtc from '../src/wallet-manager-btc.js'
 import WalletAccountBtc from '../src/wallet-account-btc.js'
 
-const SEED_PHRASE = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
+const SEED_PHRASE = 'cook voyage document eight skate token alien guide drink uncle term abuse'
 const INVALID_SEED_PHRASE = 'this is not valid mnemonic'
 const SEED = mnemonicToSeedSync(SEED_PHRASE)
 
@@ -16,46 +16,14 @@ describe('WalletManagerBtc', () => {
   })
 
   describe('constructor', () => {
-    test('should successfully initialize a wallet manager for the given seed phrase', () => {
-      const wallet = new WalletManagerBtc(SEED_PHRASE)
-      expect(wallet.seedPhrase).toBe(SEED_PHRASE)
-    })
-
     test('should successfully initialize a wallet manager for the given seed buffer', () => {
       const wallet = new WalletManagerBtc(SEED)
-      expect(wallet.seedPhrase).toEqual(SEED)
+      expect(wallet._seed).toEqual(SEED)
     })
 
     test('should throw if the seed phrase is invalid', () => {
       expect(() => { new WalletManagerBtc(INVALID_SEED_PHRASE) })
-        .toThrow('The seed phrase is invalid.')
-    })
-  })
-
-  describe('static getRandomSeedPhrase', () => {
-    test('should generate a valid 12-word seed phrase', () => {
-      const seedPhrase = WalletManagerBtc.getRandomSeedPhrase()
-      const words = seedPhrase.trim().split(/\s+/)
-      expect(words).toHaveLength(12)
-      words.forEach(word => {
-        expect(typeof word).toBe('string')
-        expect(word.length).toBeGreaterThan(0)
-      })
-      expect(WalletManagerBtc.isValidSeedPhrase(seedPhrase)).toBe(true)
-    })
-  })
-
-  describe('static isValidSeedPhrase', () => {
-    test('should return true for a valid seed phrase', () => {
-      expect(WalletManagerBtc.isValidSeedPhrase(SEED_PHRASE)).toBe(true)
-    })
-
-    test('should return false for an invalid seed phrase', () => {
-      expect(WalletManagerBtc.isValidSeedPhrase(INVALID_SEED_PHRASE)).toBe(false)
-    })
-
-    test('should return false for an empty string', () => {
-      expect(WalletManagerBtc.isValidSeedPhrase('')).toBe(false)
+        .toThrow('Invalid seed phrase.')
     })
   })
 

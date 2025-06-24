@@ -163,7 +163,12 @@ export default class WalletAccountBtc {
   async verify (message, signature) {
     const messageHash = crypto.sha256(Buffer.from(message))
     const signatureBuffer = Buffer.from(signature, 'base64')
-    return this._bip32.verify(messageHash, signatureBuffer)
+    try {
+      const z = this._bip32.verify(messageHash, signatureBuffer)
+      return z
+    } catch(_) {
+      return false
+    }
   }
 
   /**
@@ -175,10 +180,7 @@ export default class WalletAccountBtc {
   async sendTransaction ({ to, value }) {
     const tx = await this._getTransaction({ recipient: to, amount: value })
     await this._broadcastTransaction(tx.hex)
-    return {
-      hash: tx.txid,
-      fee: +tx.fee
-    }
+    return tx.txid
   }
 
   /**
@@ -189,9 +191,7 @@ export default class WalletAccountBtc {
    */
   async quoteSendTransaction ({ to, value }) {
     const tx = await this._getTransaction({ recipient: to, amount: value })
-    return {
-      fee: +tx.fee
-    }
+    return +tx.fee
   }
 
   /**
@@ -230,8 +230,6 @@ export default class WalletAccountBtc {
     const { direction = 'all', limit = 10, skip = 0 } = options
     const address = await this.getAddress()
     const history = await this._electrumClient.getHistory(address)
-
-    const history = await this.#electrumClient.getHistory(address)
 
     const isAddressMatch = (scriptPubKey, addr) => {
       if (!scriptPubKey) return false

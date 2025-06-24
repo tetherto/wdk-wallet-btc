@@ -42,7 +42,10 @@ export async function callBitcoin(cmd) {
 
 export async function currentElectrumBlock() {
   return electrum.getCurrentBlockHeight()
-  
+}
+
+export async function getTransaction(txid) {
+  return electrum.getTransaction(txid)
 }
 
 export async function mineBlock (minerAddr) {

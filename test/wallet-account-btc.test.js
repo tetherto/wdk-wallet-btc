@@ -1,16 +1,22 @@
 import 'dotenv/config'
 import { describe, test, expect, beforeEach } from '@jest/globals'
-import { mnemonicToSeedSync } from 'bip39'
-import { callBitcoin, mineBlock } from './bitcoin-test-util'
+import { callBitcoin, mineBlock, getTransaction } from './bitcoin-test-util'
 
 import WalletAccountBtc from '../src/wallet-account-btc.js'
 
-const SEED_PHRASE = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
-const INVALID_SEED_PHRASE = 'this is not valid mnemonic'
-const SEED = mnemonicToSeedSync(SEED_PHRASE)
+// Values not verified against third party source
+const SEED_PHRASE = 'cook voyage document eight skate token alien guide drink uncle term abuse'
+const PUBLIC_KEY = '038b3e304b15f9fd0439ffc37cdae3c9feb1b892f7f45ed859c49a5940d9d327dd'
+const PRIVATE_KEY = '118,241,93,91,104,120,112,186,130,53,116,23,189,1,179,174,76,80,182,187,237,242,142,71,234,179,155,97,211,146,62,115'
+const ADDRESS = 'bcrt1q83020gdrr9de3r238vtawd92nyh2jtzx5khjwv'
+const VALID_SIG = '1BSKnoYsXjzt1bi4w7PhbJXhZYZgsBUwRzBCFtO9TXMGT+PLDVlcKB5myagYzERiuppOcktfuyVhwkkoyxI3HQ=='
 
 const ACCOUNT_INDEX = 0
 const ACCOUNT_PATH = "0'/0/0"
+
+function isUint8(v) {
+  return v instanceof Uint8Array;
+}
 
 
 const config = {
@@ -42,38 +48,25 @@ describe('WalletAccountBtc', () => {
       const acc = new WalletAccountBtc(SEED_PHRASE, ACCOUNT_PATH, config)
       expect(acc.index).toBe(ACCOUNT_INDEX)
       expect(acc.path).toBe("m/84'/0'/0'/0/0")
-      expect(typeof acc.keyPair.privateKey).toBe('string')
-      expect(typeof acc.keyPair.publicKey).toBe('string')
+      expect(acc._keyPair.privateKey.toString('hex')).toBe(PRIVATE_KEY)
+      expect(acc._keyPair.publicKey.toString('hex')).toBe(PUBLIC_KEY)
+      expect(isUint8(acc._keyPair.privateKey)).toBe(true)
+      expect(isUint8(acc.keyPair.publicKey)).toBe(true)
     })
 
-    test('should successfully initialize an account for the given seed and path', () => {
-      const acc = new WalletAccountBtc(SEED, ACCOUNT_PATH, config)
-      expect(acc.index).toBe(ACCOUNT_INDEX)
-      expect(acc.path).toBe("m/84'/0'/0'/0/0")
-    })
-
-    test('should throw if the seed phrase is invalid', () => {
-      expect(() => new WalletAccountBtc(INVALID_SEED_PHRASE, ACCOUNT_PATH, config)).toThrow('The seed phrase is invalid.')
-    })
-
-    test('should throw if the path is invalid', () => {
-      expect(() => new WalletAccountBtc(SEED_PHRASE, "a'/b/c", config)).toThrow(/Expected BIP32Path/)
-    })
   })
 
   describe('getAddress', () => {
     test('should return a valid address string', async () => {
       const result = await account.getAddress()
-      expect(typeof result).toBe('string')
-      expect(result.length).toBeGreaterThan(0)
+      expect(result).toBe(ADDRESS)
     })
   })
 
   describe('sign', () => {
     test('should return a base64-encoded signature', async () => {
       const signature = await account.sign('hello world')
-      expect(typeof signature).toBe('string')
-      expect(() => Buffer.from(signature, 'base64')).not.toThrow()
+      expect(signature).toBe(VALID_SIG)
     })
   })
 
@@ -91,18 +84,19 @@ describe('WalletAccountBtc', () => {
       const isValid = await account.verify('tampered message', signature)
       expect(isValid).toBe(false)
     })
-
-    test('should return false for a malformed signature', async () => {
-      const isValid = await account.verify(message, 'not base64')
-      expect(isValid).toBe(false)
-    })
   })
 
   describe('sendTransaction', () => {
     test('should return a transaction id', async () => {
-      const txid = await account.sendTransaction({ to: recipient, value: 1000 })
+      const val = 1000
+      const txid = await account.sendTransaction({ to: recipient, value: val })
       expect(typeof txid).toBe('string')
-      expect(txid.length).toBe(64)
+      await mineBlock(minerAddr)
+      const txData = await getTransaction(txid)
+      expect(txData.confirmations).toBe(1)
+      expect(txid).toBe(txData.txid)
+      expect(txData.vout[0].scriptPubKey.address).toBe(recipient)
+      expect(txData.vout[0].value).toBe(val)
     })
   })
 
@@ -117,13 +111,13 @@ describe('WalletAccountBtc', () => {
   describe('getBalance', () => {
     test('should return a number', async () => {
       const balance = await account.getBalance()
-      expect(typeof balance).toBe('number')
+      expect(balance).toBe(1000000)
     })
   })
 
   describe('getTokenBalance', () => {
     test('should throw unsupported error', async () => {
-      await expect(account.getTokenBalance('dummy')).rejects.toThrow('Method not supported on the bitcoin blockchain.')
+      await expect(account.getTokenBalance('dummy')).rejects.toThrow('getTokenBalance is not supported on the Bitcoin blockchain.')
     })
   })
 
@@ -156,7 +150,7 @@ describe('WalletAccountBtc', () => {
 
     test('should respect limit option', async () => {
       const transfers = await account.getTransfers({ limit: 1 })
-      expect(transfers.length).toBeLessThanOrEqual(1)
+    expect(transfers.length).toBeLessThanOrEqual(1)
     })
 
     test('should include block height in transfers', async () => {

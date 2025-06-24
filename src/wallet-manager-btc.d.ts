@@ -31,3 +31,4 @@ export default class WalletManagerBtc {
 export type FeeRates = any;
 export type WalletAccountBtc = import("./wallet-account-btc.js").default;
 export type BtcWalletConfig = import("./wallet-account-btc.js").BtcWalletConfig;
+import WalletAccountBtc from './wallet-account-btc.js';
