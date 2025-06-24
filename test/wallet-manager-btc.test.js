@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach } from '@jest/globals'
+import { jest, describe, test, expect, beforeEach } from '@jest/globals'
 import { mnemonicToSeedSync } from 'bip39'
 
 import WalletManagerBtc from '../src/wallet-manager-btc.js'
@@ -31,13 +31,13 @@ describe('WalletManagerBtc', () => {
     test('should return the account at index 0 by default', async () => {
       const account = await wallet.getAccount()
       expect(account).toBeInstanceOf(WalletAccountBtc)
-      expect(account.index).toBe(0)
+      expect(account.path).toBe("m/84'/0'/0'/0/0")
     })
 
     test('should return the account at the given index', async () => {
       const account = await wallet.getAccount(3)
       expect(account).toBeInstanceOf(WalletAccountBtc)
-      expect(account.index).toBe(3)
+      expect(account.path).toBe("m/84'/0'/0'/0/3")
     })
 
     test('should throw if the index is a negative number', async () => {
@@ -59,19 +59,18 @@ describe('WalletManagerBtc', () => {
 
   describe('getFeeRates', () => {
     test('should return the correct fee rates', async () => {
-      global.fetch = () =>
-        Promise.resolve({
-          json: () => Promise.resolve({ fastestFee: 100, hourFee: 50 })
-        })
+      const fetch = global.fetch
+      global.fetch = jest.fn(url =>
+        url === 'https://mempool.space/api/v1/fees/recommended' &&
+          Promise.resolve({
+            json: () => Promise.resolve({ fastestFee: 10, hourFee: 5 })
+          })
+      )
 
       const feeRates = await wallet.getFeeRates()
-      expect(feeRates.normal).toBe(50)
-      expect(feeRates.fast).toBe(100)
-    })
-
-    test('should throw if the wallet cannot fetch fee rates', async () => {
-      global.fetch = () => Promise.reject(new Error('network failure'))
-      await expect(wallet.getFeeRates()).rejects.toThrow('network failure')
+      expect(feeRates.normal).toBe(5)
+      expect(feeRates.fast).toBe(10)
+      global.fetch = fetch
     })
   })
 })

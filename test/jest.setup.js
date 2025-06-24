@@ -1,9 +1,8 @@
 import { stopBitcoin, startBitcoin } from './bitcoin-test-util.js'
 
 export default async () => {
-  console.log("\n")
+  console.log('\n')
   console.log('🧪 [Test Setup] Initializing Bitcoin regtest environment...')
-
 
   try {
     console.log('⛔ Stopping any previously running bitcoind instance...')
@@ -13,7 +12,6 @@ export default async () => {
   }
 
   await startBitcoin()
-
 
   console.log('🎯 Test environment ready.\n')
 }

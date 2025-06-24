@@ -235,10 +235,11 @@ export default class ElectrumClient {
     return result
   }
 
-  async  getCurrentBlockHeight() {
-    const header = await this._request('blockchain.headers.subscribe', []);
-    return header.height;
+  async getCurrentBlockHeight () {
+    const header = await this._request('blockchain.headers.subscribe', [])
+    return header.height
   }
+
   isConnected () {
     return this._connected
   }

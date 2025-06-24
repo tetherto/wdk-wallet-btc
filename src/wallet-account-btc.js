@@ -166,7 +166,7 @@ export default class WalletAccountBtc {
     try {
       const z = this._bip32.verify(messageHash, signatureBuffer)
       return z
-    } catch(_) {
+    } catch (_) {
       return false
     }
   }
@@ -189,7 +189,7 @@ export default class WalletAccountBtc {
    * @param {BtcTransaction} tx - The transaction.
    * @returns {Promise<Omit<BtcTransactionResult, 'hash'>>} The transaction's quotes.
    */
-  async quoteSendTransaction ({ to, value }) {
+  async quoteTransaction ({ to, value }) {
     const tx = await this._getTransaction({ recipient: to, amount: value })
     return +tx.fee
   }
@@ -301,8 +301,7 @@ export default class WalletAccountBtc {
     const address = await this.getAddress()
     const utxoSet = await this._getUtxos(amount, address)
     const feeEstimate = await this._electrumClient.getFeeEstimate()
-    const feeRate = new BigNumber(feeEstimate).multipliedBy(100_000)
-    return await this._getRawTransaction(utxoSet, amount, recipient, feeRate)
+    return await this._getRawTransaction(utxoSet, amount, recipient, feeEstimate)
   }
 
   async _getUtxos (amount, address) {
@@ -315,7 +314,7 @@ export default class WalletAccountBtc {
       const vout = tx.vout[utxo.tx_pos]
       collected.push({ ...utxo, vout })
       totalCollected = totalCollected.plus(utxo.value)
-      if (totalCollected.isGreaterThanOrEqualTo(amount)) break
+      if (totalCollected.isGreaterThan(amount)) break
     }
     return collected
   }
@@ -348,7 +347,7 @@ export default class WalletAccountBtc {
     let estimatedFee = new BigNumber(feeRate).multipliedBy(dummyTx.virtualSize()).integerValue(BigNumber.ROUND_CEIL)
     estimatedFee = BigNumber.max(estimatedFee, new BigNumber(141))
     psbt = await createPsbt(estimatedFee)
-    
+
     const tx = psbt.extractTransaction()
     return { txid: tx.getId(), hex: tx.toHex(), fee: estimatedFee }
   }

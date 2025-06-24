@@ -3,6 +3,7 @@ import { describe, test, expect, beforeEach } from '@jest/globals'
 import { callBitcoin, mineBlock, getTransaction } from './bitcoin-test-util'
 
 import WalletAccountBtc from '../src/wallet-account-btc.js'
+import WalletManagerBtc from '../src/wallet-manager-btc.js'
 
 // Values not verified against third party source
 const SEED_PHRASE = 'cook voyage document eight skate token alien guide drink uncle term abuse'
@@ -14,14 +15,13 @@ const VALID_SIG = '1BSKnoYsXjzt1bi4w7PhbJXhZYZgsBUwRzBCFtO9TXMGT+PLDVlcKB5myagYz
 const ACCOUNT_INDEX = 0
 const ACCOUNT_PATH = "0'/0/0"
 
-function isUint8(v) {
-  return v instanceof Uint8Array;
+function isUint8 (v) {
+  return v instanceof Uint8Array
 }
-
 
 const config = {
   host: process.env.TEST_ELECTRUM_SERVER_HOST || '127.0.0.1',
-  port: Number(process.env.TEST_ELECTRUM_SERVER_PORT|| 7777),
+  port: Number(process.env.TEST_ELECTRUM_SERVER_PORT || 7777),
   network: 'regtest'
 }
 
@@ -35,9 +35,9 @@ describe('WalletAccountBtc', () => {
   beforeEach(async () => {
     account = new WalletAccountBtc(SEED_PHRASE, ACCOUNT_PATH, config)
     address = await account.getAddress()
-    recipient =(await callBitcoin(`getnewaddress`)).toString().trim()
-    if(!minerAddr) {
-      minerAddr =(await callBitcoin(`getnewaddress`)).toString().trim()
+    recipient = (await callBitcoin('getnewaddress')).toString().trim()
+    if (!minerAddr) {
+      minerAddr = (await callBitcoin('getnewaddress')).toString().trim()
     }
     callBitcoin(`sendtoaddress ${address} 0.01`)
     await mineBlock(minerAddr)
@@ -53,7 +53,6 @@ describe('WalletAccountBtc', () => {
       expect(isUint8(acc._keyPair.privateKey)).toBe(true)
       expect(isUint8(acc.keyPair.publicKey)).toBe(true)
     })
-
   })
 
   describe('getAddress', () => {
@@ -110,7 +109,13 @@ describe('WalletAccountBtc', () => {
 
   describe('getBalance', () => {
     test('should return a number', async () => {
-      const balance = await account.getBalance()
+      await mineBlock(minerAddr)
+      const seedPhrase = WalletManagerBtc.getRandomSeedPhrase()
+      const acct = new WalletAccountBtc(seedPhrase, ACCOUNT_PATH, config)
+      const addr = await acct.getAddress()
+      await callBitcoin(`sendtoaddress ${addr} 0.01`)
+      await mineBlock(minerAddr)
+      const balance = await acct.getBalance()
       expect(balance).toBe(1000000)
     })
   })
@@ -141,7 +146,7 @@ describe('WalletAccountBtc', () => {
 
     test('should respect direction: outgoing', async () => {
       await account.sendTransaction({ to: recipient, value: 1000 })
-      await mineBlock(account)
+      await mineBlock(minerAddr)
       const transfers = await account.getTransfers({ direction: 'outgoing' })
       for (const t of transfers) {
         expect(t.direction).toBe('outgoing')
@@ -150,7 +155,7 @@ describe('WalletAccountBtc', () => {
 
     test('should respect limit option', async () => {
       const transfers = await account.getTransfers({ limit: 1 })
-    expect(transfers.length).toBeLessThanOrEqual(1)
+      expect(transfers.length).toBeLessThanOrEqual(1)
     })
 
     test('should include block height in transfers', async () => {
@@ -170,8 +175,11 @@ describe('WalletAccountBtc', () => {
     })
 
     test('should include fee for outgoing transfers', async () => {
+      await callBitcoin(`sendtoaddress ${address} 0.05`)
+      await mineBlock(minerAddr)
+      const balance = await account.getBalance()
       await account.sendTransaction({ to: recipient, value: 2000 })
-      await mineBlock(account)
+      await mineBlock(minerAddr)
       const transfers = await account.getTransfers({ direction: 'outgoing' })
       for (const t of transfers) {
         expect(t.fee === undefined || typeof t.fee === 'number').toBe(true)
