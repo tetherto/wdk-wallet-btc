@@ -1,0 +1,14 @@
+
+# Delete you data directory for electrum
+
+# rm -rf <data-dir>
+# mkdir -p <data-dir> 
+
+
+# Start electrum in background
+
+#electrs \
+#  --network regtest \
+#  --daemon-dir <your-datadir> \
+#  --electrum-rpc-addr 127.0.0.1:50001 2>&1 &
+

@@ -1,7 +1,7 @@
 import 'dotenv/config'
 import { describe, test, expect, beforeEach } from '@jest/globals'
 import { mnemonicToSeedSync } from 'bip39'
-import { execSync } from 'child_process'
+import { callBitcoin, mineBlock } from './bitcoin-test-util'
 
 import WalletAccountBtc from '../src/wallet-account-btc.js'
 
@@ -12,29 +12,14 @@ const SEED = mnemonicToSeedSync(SEED_PHRASE)
 const ACCOUNT_INDEX = 0
 const ACCOUNT_PATH = "0'/0/0"
 
-const DATA_DIR = process.env.DATA_DIR || `${process.env.HOME}/.bitcoin`
-const BCLI = `bitcoin-cli -regtest -datadir=${DATA_DIR} -rpcwallet=testwallet`
-const callBitcoin = cmd => execSync(`${BCLI} ${cmd}`)
 
 const config = {
-  host: process.env.HOST || '127.0.0.1',
-  port: Number(process.env.PORT || 7777),
+  host: process.env.TEST_ELECTRUM_SERVER_HOST || '127.0.0.1',
+  port: Number(process.env.TEST_ELECTRUM_SERVER_PORT|| 7777),
   network: 'regtest'
 }
 
 let minerAddr = null
-const mineBlock = async (account) => {
-  if (!minerAddr) {
-    minerAddr = callBitcoin(`getnewaddress`).toString().trim()
-  }
-
-  callBitcoin(`generatetoaddress 1 ${minerAddr}`)
-  await new Promise(resolve => setTimeout(resolve, 5000))
-
-  if (account) {
-    await account.getBalance()
-  }
-}
 
 describe('WalletAccountBtc', () => {
   let account
@@ -44,9 +29,12 @@ describe('WalletAccountBtc', () => {
   beforeEach(async () => {
     account = new WalletAccountBtc(SEED_PHRASE, ACCOUNT_PATH, config)
     address = await account.getAddress()
-    recipient = callBitcoin(`getnewaddress`).toString().trim()
+    recipient =(await callBitcoin(`getnewaddress`)).toString().trim()
+    if(!minerAddr) {
+      minerAddr =(await callBitcoin(`getnewaddress`)).toString().trim()
+    }
     callBitcoin(`sendtoaddress ${address} 0.01`)
-    await mineBlock(account)
+    await mineBlock(minerAddr)
   })
 
   describe('constructor', () => {
@@ -214,8 +202,8 @@ describe('WalletAccountBtc', () => {
     test('should throw if change is below dust', async () => {
       const lowBalance = new WalletAccountBtc(SEED_PHRASE, "0'/0/30", config)
       const addr = await lowBalance.getAddress()
-      callBitcoin(`sendtoaddress ${addr} 0.00001`)
-      await mineBlock(lowBalance)
+      callBitcoin(`sendtoaddress "${addr}" 0.00001`)
+      await mineBlock(minerAddr)
       await expect(lowBalance.sendTransaction({ to: recipient, value: 1000 })).rejects.toThrow('Insufficient balance')
     })
   })
