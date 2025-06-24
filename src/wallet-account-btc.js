@@ -53,15 +53,19 @@ import ElectrumClient from './electrum-client.js'
  */
 
 /**
+ * @typedef {44 | 84} Bip
+ */
+
+/**
  * @typedef {Object} BtcWalletConfig
  * @property {string} [host] - The electrum server's hostname (default: "electrum.blockstream.info").
  * @property {number} [port] - The electrum server's port (default: 50001).
+ * @property {Bip} [bip=44] - The BIP address type. Allowed values: 44 or 84.
  * @property {string} [network] - The name of the network to use; available values: "bitcoin", "regtest", "testnet" (default: "bitcoin").
  */
 
 const DUST_LIMIT = 546
 const bip32 = BIP32Factory(ecc)
-const BIP_84_BTC_DERIVATION_PATH_PREFIX = "m/84'/0'"
 
 const BITCOIN = {
   messagePrefix: '\x18Bitcoin Signed Message:\n',
@@ -92,12 +96,18 @@ export default class WalletAccountBtc {
    * Creates a new bitcoin wallet account.
    *
    * @param {Uint8Array} seedBuffer - Uint8Array seed buffer.
-   * @param {string} path - The BIP-84 derivation path (e.g. "0'/0/0").
+   * @param {string} path - The BIP-44 derivation path (e.g. "0'/0/0").
    * @param {BtcWalletConfig} [config] - The configuration object.
    */
   constructor (seedBuffer, path, config) {
     /** @private @type {ElectrumClient} */
     this._electrumClient = new ElectrumClient(config)
+
+    if(!config.bip) config.bip = 44
+    if(![84,44].includes(config.bip)) throw new Error('Only BIP 84 and 44 supported')
+
+    this._addrBip = `m/${config.bip}'/0'`
+    this._bip = config.bip
 
     /** @private @type {Uint8Array} */
     this._masterKeyAndChainCodeBuffer =
@@ -136,14 +146,30 @@ export default class WalletAccountBtc {
    * @param {string} path
    */
   _initialize (path) {
-    this._path = `${BIP_84_BTC_DERIVATION_PATH_PREFIX}/${path}`
+    this._path = `${this._addrBip}/${path}`
 
     const wallet = this._bip32.derivePath(this._path)
 
-    this._address = payments.p2wpkh({
-      pubkey: wallet.publicKey,
-      network: this._electrumClient.network
-    }).address
+    let addr
+    const bip = this._bip
+
+    if (bip === 44) {
+      // BIP44: legacy P2PKH
+      addr = payments.p2pkh({
+        pubkey: wallet.publicKey,
+        network: this._electrumClient.network
+      }).address
+    } else if (bip === 84) {
+      // BIP84: native segwit P2WPKH
+      addr = payments.p2wpkh({
+        pubkey: wallet.publicKey,
+        network: this._electrumClient.network
+      }).address
+    } else {
+      throw new Error(`Unsupported BIP purpose: ${bip}`);
+    }
+
+    this._address = addr
 
     this._keyPair = {
       publicKey: wallet.publicKey,

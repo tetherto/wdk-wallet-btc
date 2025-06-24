@@ -14,12 +14,14 @@ export default class WalletAccountBtc implements IWalletAccount {
      * Creates a new bitcoin wallet account.
      *
      * @param {Uint8Array} seedBuffer - Uint8Array seed buffer.
-     * @param {string} path - The BIP-84 derivation path (e.g. "0'/0/0").
+     * @param {string} path - The BIP-44 derivation path (e.g. "0'/0/0").
      * @param {BtcWalletConfig} [config] - The configuration object.
      */
     constructor(seedBuffer: Uint8Array, path: string, config?: BtcWalletConfig);
     /** @private @type {ElectrumClient} */
     private _electrumClient;
+    _addrBip: string;
+    _bip: Bip;
     /** @private @type {Uint8Array} */
     private _masterKeyAndChainCodeBuffer;
     /** @private @type {Uint8Array} */
@@ -158,6 +160,7 @@ export type BtcTransfer = {
      */
     recipient?: string;
 };
+export type Bip = 44 | 84;
 export type BtcWalletConfig = {
     /**
      * - The electrum server's hostname (default: "electrum.blockstream.info").
@@ -167,6 +170,10 @@ export type BtcWalletConfig = {
      * - The electrum server's port (default: 50001).
      */
     port?: number;
+    /**
+     * - The BIP address type. Allowed values: 44 or 84.
+     */
+    bip?: Bip;
     /**
      * - The name of the network to use; available values: "bitcoin", "regtest", "testnet" (default: "bitcoin").
      */
