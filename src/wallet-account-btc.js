@@ -69,7 +69,7 @@ const MASTER_SECRET = Buffer.from('Bitcoin seed', 'utf8')
 
 const BITCOIN = {
   wif: 0x80,
-  bip32: { 
+  bip32: {
     public: 0x0488b21e,
     private: 0x0488ade4
   },
@@ -86,8 +86,8 @@ initEccLib(ecc)
 function derivePath (seed, path) {
   const masterKeyAndChainCodeBuffer = hmac(sha512, MASTER_SECRET, seed)
 
-  const privateKey = masterKeyAndChainCodeBuffer.slice(0, 32),
-        chainCode = masterKeyAndChainCodeBuffer.slice(32)
+  const privateKey = masterKeyAndChainCodeBuffer.slice(0, 32)
+  const chainCode = masterKeyAndChainCodeBuffer.slice(32)
 
   const wallet = bip32.fromPrivateKey(Buffer.from(privateKey), Buffer.from(chainCode), BITCOIN)
 
@@ -231,7 +231,7 @@ export default class WalletAccountBtc {
   async sendTransaction ({ to, value }) {
     const tx = await this._getTransaction({ recipient: to, amount: value })
 
-    await this._electrumClient.broadcastTransaction(txHex)
+    await this._electrumClient.broadcastTransaction(tx.hex)
 
     return {
       hash: tx.txid,
@@ -241,7 +241,7 @@ export default class WalletAccountBtc {
 
   /**
    * Quotes the costs of a send transaction operation.
-   * 
+   *
    * @see {@link sendTransaction}
    * @param {BtcTransaction} tx - The transaction.
    * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transaction's quotes.
@@ -378,7 +378,7 @@ export default class WalletAccountBtc {
     sodium_memzero(this._account.privateKey)
 
     this._account = undefined
-      
+
     this._electrumClient.disconnect()
   }
 
