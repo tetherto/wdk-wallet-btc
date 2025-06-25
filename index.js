@@ -21,6 +21,7 @@
 
 /** @typedef {import('./src/wallet-manager-btc.js').BtcWalletConfig} BtcWalletConfig */
 /** @typedef {import('./src/wallet-account-btc.js').BtcTransaction} BtcTransaction */
+/** @typedef {import('./src/wallet-account-btc.js').BtcTransfer} BtcTransfer */
 
 export { default } from './src/wallet-manager-btc.js'
 

@@ -99,6 +99,20 @@ export default class WalletAccountBtc implements IWalletAccount {
      */
     quoteTransfer(options: TransferOptions): Promise<Omit<TransferResult, "hash">>;
     /**
+    * Returns the bitcoin transfers history of the account.
+    *
+     * @param {Object} [options] - The options.
+     * @param {"incoming" | "outgoing" | "all"} [options.direction] - If set, only returns transfers with the given direction (default: "all").
+     * @param {number} [options.limit] - The number of transfers to return (default: 10).
+     * @param {number} [options.skip] - The number of transfers to skip (default: 0).
+     * @returns {Promise<BtcTransfer[]>} The bitcoin transfers.
+    */
+    getTransfers(options?: {
+        direction?: "incoming" | "outgoing" | "all";
+        limit?: number;
+        skip?: number;
+    }): Promise<BtcTransfer[]>;
+    /**
      * Disposes the wallet account, erasing the private key from the memory and closing the connection with the electrum server.
      */
     dispose(): void;
@@ -137,4 +151,38 @@ export type BtcWalletConfig = {
      * The name of the network to use (default: "bitcoin").
      */
     network?: "bitcoin" | "regtest" | "testnet";
+};
+export type BtcTransfer = {
+    /**
+     * - The transaction's id.
+     */
+    txid: string;
+    /**
+     * - The user's own address.
+     */
+    address: string;
+    /**
+     * - The index of the output in the transaction.
+     */
+    vout: number;
+    /**
+     * - The block height (if unconfirmed, 0).
+     */
+    height: number;
+    /**
+     * - The value of the transfer (in satoshis).
+     */
+    value: number;
+    /**
+     * - The direction of the transfer.
+     */
+    direction: "incoming" | "outgoing";
+    /**
+     * - The fee paid for the full transaction (in satoshis).
+     */
+    fee?: number;
+    /**
+     * - The receiving address for outgoing transfers.
+     */
+    recipient?: string;
 };

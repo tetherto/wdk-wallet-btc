@@ -7,3 +7,4 @@ export type TransferOptions = import("@wdk/wallet").TransferOptions;
 export type TransferResult = import("@wdk/wallet").TransferResult;
 export type BtcWalletConfig = import("./src/wallet-manager-btc.js").BtcWalletConfig;
 export type BtcTransaction = import("./src/wallet-account-btc.js").BtcTransaction;
+export type BtcTransfer = import("./src/wallet-account-btc.js").BtcTransfer;
