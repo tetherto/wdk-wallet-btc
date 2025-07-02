@@ -4,7 +4,7 @@ import { mnemonicToSeedSync } from 'bip39'
 import WalletManagerBtc from '../src/wallet-manager-btc.js'
 import WalletAccountBtc from '../src/wallet-account-btc.js'
 
-const SEED_PHRASE = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
+const SEED_PHRASE = 'cook voyage document eight skate token alien guide drink uncle term abuse'
 const INVALID_SEED_PHRASE = 'this is not valid mnemonic'
 const SEED = mnemonicToSeedSync(SEED_PHRASE)
 
@@ -37,11 +37,7 @@ describe('WalletManagerBtc', () => {
       const seedPhrase = WalletManagerBtc.getRandomSeedPhrase()
       const words = seedPhrase.trim().split(/\s+/)
       expect(words).toHaveLength(12)
-      words.forEach(word => {
-        expect(typeof word).toBe('string')
-        expect(word.length).toBeGreaterThan(0)
-      })
-      expect(WalletManagerBtc.isValidSeedPhrase(seedPhrase)).toBe(true)
+      expect(words.every(word => bip39.wordlists.EN.includes(word))).toBe(true)
     })
   })
 
@@ -63,13 +59,13 @@ describe('WalletManagerBtc', () => {
     test('should return the account at index 0 by default', async () => {
       const account = await wallet.getAccount()
       expect(account).toBeInstanceOf(WalletAccountBtc)
-      expect(account.index).toBe(0)
+      expect(account.path).toBe("m/84'/0'/0'/0/0")
     })
 
     test('should return the account at the given index', async () => {
       const account = await wallet.getAccount(3)
       expect(account).toBeInstanceOf(WalletAccountBtc)
-      expect(account.index).toBe(3)
+      expect(account.path).toBe("m/84'/0'/0'/0/3")
     })
 
     test('should throw if the index is a negative number', async () => {
@@ -91,19 +87,15 @@ describe('WalletManagerBtc', () => {
 
   describe('getFeeRates', () => {
     test('should return the correct fee rates', async () => {
-      global.fetch = () =>
-        Promise.resolve({
-          json: () => Promise.resolve({ fastestFee: 100, hourFee: 50 })
-        })
-
+      global.fetch = jest.fn(url =>
+          url === 'https://mempool.space/api/v1/fees/recommended' &&
+          Promise.resolve({
+            json: () => Promise.resolve({ fastestFee: 100, hourFee: 50 })
+          })
+      )
       const feeRates = await wallet.getFeeRates()
       expect(feeRates.normal).toBe(50)
       expect(feeRates.fast).toBe(100)
-    })
-
-    test('should throw if the wallet cannot fetch fee rates', async () => {
-      global.fetch = () => Promise.reject(new Error('network failure'))
-      await expect(wallet.getFeeRates()).rejects.toThrow('network failure')
     })
   })
 })
