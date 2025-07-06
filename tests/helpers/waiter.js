@@ -5,11 +5,11 @@ import { execSync } from 'child_process'
 export default class Waiter {
   constructor (rpcDataDir, zmqHost, zmqPort, interval = 50, timeout = 3_000) {
     this._rpcDataDir = rpcDataDir
-    this._sub        = new zmq.Subscriber()
+    this._sub = new zmq.Subscriber()
     this._sub.connect(`tcp://${zmqHost}:${zmqPort}`)
-    this._topics     = new Set()
-    this._interval   = interval
-    this._timeout    = timeout
+    this._topics = new Set()
+    this._interval = interval
+    this._timeout = timeout
   }
 
   // ensure each zmq topic is subscribed to only once

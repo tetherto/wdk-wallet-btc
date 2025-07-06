@@ -31,7 +31,7 @@ const waiter = new Waiter(DATA_DIR, CONFIG.host, ZMQ_PORT)
 describe('WalletAccountBtc', () => {
   let minerAddr
   async function mineBlock () {
-    if (!minerAddr){
+    if (!minerAddr) {
       minerAddr = btc.call('getnewaddress').toString().trim()
     }
     const blockPromise = waiter.waitForBlocks(1)
@@ -48,7 +48,7 @@ describe('WalletAccountBtc', () => {
   }
 
   let account, recipient
-  beforeAll(async () => {    
+  beforeAll(async () => {
     ;({ account, recipient } = await createAndFundAccount())
   })
 
