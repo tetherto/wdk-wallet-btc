@@ -1,5 +1,5 @@
 import 'dotenv/config'
-import { describe, test, expect, beforeEach, beforeAll, jest } from '@jest/globals'
+import { describe, test, expect, beforeAll, afterAll } from '@jest/globals'
 import { mnemonicToSeedSync } from 'bip39'
 import { execSync } from 'child_process'
 
@@ -36,18 +36,18 @@ class BitcoinCli {
 }
 const btc = new BitcoinCli(DATA_DIR)
 
-const mineBlock = async (account) => {
-  const minerAddr = btc.call('getnewaddress').toString().trim()
-
-  btc.call(`generatetoaddress 1 ${minerAddr}`)
-
-  // wait until client and server are in sync
-  if (account) {
-    await account.getBalance()
-  }
-}
-
 describe('WalletAccountBtc', () => {
+  async function mineBlock (account) {
+    const minerAddr = btc.call('getnewaddress').toString().trim()
+
+    btc.call(`generatetoaddress 1 ${minerAddr}`)
+
+    // wait until client and server are in sync
+    if (account) {
+      await account.getBalance()
+    }
+  }
+
   async function createAndFundAccount () {
     const account = new WalletAccountBtc(SEED_PHRASE, RELATIVE_PATH, CONFIG)
     const recipient = btc.call('getnewaddress').toString().trim()
@@ -55,11 +55,15 @@ describe('WalletAccountBtc', () => {
     await mineBlock(account)
     return { account, recipient }
   }
-  
+
   let account, recipient
   beforeAll(async () => {
     ;({ account, recipient } = await createAndFundAccount());
   });
+
+  afterAll(() => {
+    account.dispose()
+  })
 
   describe('constructor', () => {
     test('should successfully initialize an account for the given seed phrase and path', () => {

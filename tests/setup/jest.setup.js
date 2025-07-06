@@ -1,11 +1,12 @@
 import 'dotenv/config'
 import { execSync, spawn } from 'child_process'
+import Waiter from './waiter.js'
 
 const DATA_DIR = process.env.TEST_BITCOIN_CLI_DATA_DIR || `${process.env.HOME}/.bitcoin`
-const HOST = process.env.TEST_ELECTRUM_SERVER_HOST || '127.0.0.1'
-const PORT = process.env.TEST_ELECTRUM_SERVER_PORT || '7777'
-
-let electrsProcess
+const HOST     = process.env.TEST_ELECTRUM_SERVER_HOST || '127.0.0.1'
+const PORT     = process.env.TEST_ELECTRUM_SERVER_PORT || '7777'
+const PORT_NUM = parseInt(PORT, 10)
+const ZMQ_PORT = process.env.TEST_BITCOIN_ZMQ_PORT || '29000'
 
 export default async () => {
   console.log('\n')
@@ -39,33 +40,34 @@ export default async () => {
     -paytxfee=0.00010000 \
     -server=1 \
     -minrelaytxfee=0.00000100 \
+    -zmqpubhashblock=tcp://${HOST}:${ZMQ_PORT} \
     -datadir=${DATA_DIR}`)
 
-  execSync('sleep 3')
+  await Waiter.waitUntilRpcReady(DATA_DIR)
   console.log('✅ bitcoind started.')
 
   console.log('💼 Creating new a wallet...')
   execSync(`bitcoin-cli -regtest -datadir=${DATA_DIR} createwallet testwallet`)
 
   console.log('⛏️ Mining 101 blocks...')
-  const minerAddr = execSync(`bitcoin-cli -regtest -datadir=${DATA_DIR} -rpcwallet=testwallet getnewaddress`)
-    .toString()
-    .trim()
-  execSync(`bitcoin-cli -regtest -datadir=${DATA_DIR} -rpcwallet=testwallet generatetoaddress 101 ${minerAddr}`)
-
-  execSync('sleep 1.5')
+  const minerAddr = execSync(
+    `bitcoin-cli -regtest -datadir=${DATA_DIR} -rpcwallet=testwallet getnewaddress`
+  ).toString().trim()
+  const blocksPromise = Waiter.waitForBlocks(101, HOST, ZMQ_PORT)
+  execSync(
+    `bitcoin-cli -regtest -datadir=${DATA_DIR} -rpcwallet=testwallet generatetoaddress 101 ${minerAddr}`
+  )
+  await blocksPromise
   console.log('✅ Initial funds added.')
 
   console.log('🔌 Starting Electrum server...')
-  electrsProcess = spawn('electrs', [
+  spawn('electrs', [
     '--network', 'regtest',
     '--daemon-dir', DATA_DIR,
     '--electrum-rpc-addr', `${HOST}:${PORT}`
-  ], {
-    stdio: 'inherit'
-  })
+  ], { stdio: 'ignore' })
 
-  execSync('sleep 5')
+  await Waiter.waitUntilPortOpen(HOST, PORT_NUM)
   console.log('✅ Electrum server is running.')
 
   console.log('🎯 Test environment ready.\n')
