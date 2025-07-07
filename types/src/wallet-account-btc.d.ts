@@ -9,9 +9,15 @@ export default class WalletAccountBtc implements IWalletAccount {
      */
     constructor(seed: string | Uint8Array, path: string, config?: BtcWalletConfig);
     /** @private */
+    private _addrBip;
+    /** @private */
+    private _bip;
+    /** @private */
     private _path;
     /** @private */
     private _electrumClient;
+    /** @private */
+    private _masterNode;
     /** @private */
     private _account;
     /** @private */
@@ -133,7 +139,7 @@ export type KeyPair = import("@wdk/wallet").KeyPair;
 export type TransactionResult = import("@wdk/wallet").TransactionResult;
 export type TransferOptions = import("@wdk/wallet").TransferOptions;
 export type TransferResult = import("@wdk/wallet").TransferResult;
-export type IWalletAccount = import("@wdk/wallet").IWalletAccount;
+export type IWalletAccount = any;
 export type BtcTransaction = {
     /**
      * - The transaction's recipient.
@@ -153,6 +159,10 @@ export type BtcWalletConfig = {
      * - The electrum server's port (default: 50001).
      */
     port?: number;
+    /**
+     * - The BIP address type. Allowed values: 44 or 84.
+     */
+    bip?: number;
     /**
      * The name of the network to use (default: "bitcoin").
      */

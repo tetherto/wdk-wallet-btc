@@ -59,7 +59,7 @@ export default class WalletManagerBtc extends WalletManager {
   }
 
   /**
-   * Returns the wallet account at a specific [BIP-84](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki) derivation path.
+   * Returns the wallet account at a configured derivation path.
    *
    * @example
    * // Returns the account with derivation path m/84'/0'/0'/0/1
