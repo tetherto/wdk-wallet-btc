@@ -121,8 +121,8 @@ export default class ElectrumClient {
         const newlineIndex = buffer.indexOf('\n')
         if (newlineIndex === -1) break
 
-        const line = buffer.subarray(0, newlineIndex)
-        buffer = buffer.subarray(newlineIndex + 1)
+        const line = buffer.slice(0, newlineIndex)
+        buffer = buffer.slice(newlineIndex + 1)
 
         try {
           const response = JSON.parse(line)
