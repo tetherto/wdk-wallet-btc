@@ -1,4 +1,3 @@
-// bitcoin-cli.js
 import { execSync } from 'child_process'
 
 export default class BitcoinCli {

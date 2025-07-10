@@ -29,7 +29,7 @@ const CONFIG = {
 }
 
 const btc = new BitcoinCli(DATA_DIR, HOST, ZMQ_PORT, RPC_PORT, 'testwallet')
-const waiter = new Waiter(DATA_DIR, HOST, ZMQ_PORT)
+const waiter = new Waiter(DATA_DIR, HOST, ZMQ_PORT, ELECTRUM_PORT)
 
 describe('WalletAccountBtc', () => {
   let minerAddr

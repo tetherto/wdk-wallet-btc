@@ -2,7 +2,7 @@ import { execSync } from 'child_process'
 import { DATA_DIR, HOST, ELECTRUM_PORT, ZMQ_PORT, RPC_PORT } from '../config.js'
 import { BitcoinCli, Waiter } from '../helpers/index.js'
 
-const waiter = new Waiter(DATA_DIR, HOST, ZMQ_PORT)
+const waiter = new Waiter(DATA_DIR, HOST, ZMQ_PORT, ELECTRUM_PORT)
 const btc = new BitcoinCli(DATA_DIR, HOST, ZMQ_PORT, RPC_PORT, null)
 
 export default async () => {

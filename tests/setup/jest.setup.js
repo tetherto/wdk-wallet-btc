@@ -2,7 +2,7 @@ import { spawn, execSync } from 'child_process'
 import { DATA_DIR, HOST, ELECTRUM_PORT, ZMQ_PORT, RPC_PORT } from '../config.js'
 import { BitcoinCli, Waiter } from '../helpers/index.js'
 
-const waiter = new Waiter(DATA_DIR, HOST, ZMQ_PORT)
+const waiter = new Waiter(DATA_DIR, HOST, ZMQ_PORT, ELECTRUM_PORT)
 const btc = new BitcoinCli(DATA_DIR, HOST, ZMQ_PORT, RPC_PORT)
 
 export default async () => {
@@ -34,6 +34,16 @@ export default async () => {
   await waiter.waitUntilRpcReady()
   console.log('✅ bitcoind started.')
 
+  console.log('🔌 Starting Electrum server...')
+  spawn('electrs', [
+    '--network', 'regtest',
+    '--daemon-dir', DATA_DIR,
+    '--electrum-rpc-addr', `${HOST}:${ELECTRUM_PORT}`
+  ], { stdio: 'ignore' })
+
+  await waiter.waitUntilPortOpen(HOST, ELECTRUM_PORT)
+  console.log('✅ Electrum server is running.')
+
   console.log('💼 Creating new wallet `testwallet`...')
   btc.call('createwallet testwallet')
   btc.setWallet('testwallet')
@@ -44,16 +54,6 @@ export default async () => {
   btc.call(`generatetoaddress 101 ${minerAddr}`)
   await blocksPromise
   console.log('✅ Initial funds added.')
-
-  console.log('🔌 Starting Electrum server...')
-  spawn('electrs', [
-    '--network', 'regtest',
-    '--daemon-dir', DATA_DIR,
-    '--electrum-rpc-addr', `${HOST}:${ELECTRUM_PORT}`
-  ], { stdio: 'ignore' })
-
-  await waiter.waitUntilPortOpen(HOST, ELECTRUM_PORT)
-  console.log('✅ Electrum server is running.')
 
   console.log('🎯 Test environment ready.\n')
 }
