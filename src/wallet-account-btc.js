@@ -46,7 +46,7 @@ import ElectrumClient from './electrum-client.js'
  * @typedef {Object} BtcWalletConfig
  * @property {string} [host] - The electrum server's hostname (default: "electrum.blockstream.info").
  * @property {number} [port] - The electrum server's port (default: 50001).
- * @property {number} [bip=44] - The BIP address type. Allowed values: 44 or 84.
+ * @property {44 | 84} [bip=44] - The BIP address type. Allowed values: 44 or 84.
  * @property {"bitcoin" | "regtest" | "testnet"} [network] The name of the network to use (default: "bitcoin").
  */
 
@@ -100,6 +100,17 @@ function derivePath (seed, path) {
   return { masterNode, account }
 }
 
+function getAddressForBip (bip, pubkey, network) {
+  switch (bip) {
+    case 44:
+      return payments.p2pkh({ pubkey, network }).address
+    case 84:
+      return payments.p2wpkh({ pubkey, network }).address
+    default:
+      throw new Error(`Unsupported BIP type: ${bip}`)
+  }
+}
+
 /** @implements {IWalletAccount} */
 export default class WalletAccountBtc {
   /**
@@ -119,16 +130,13 @@ export default class WalletAccountBtc {
     }
 
     if (!config.bip) config.bip = 44
-    if (!SUPPORTED_BIPS.includes(config.bip)) throw new Error('Only BIP 84 and 44 supported')
+    if (!SUPPORTED_BIPS.includes(config.bip)) throw new Error(`Unsupported BIP type: ${config.bip}`)
 
     /** @private */
-    this._addrBip = `m/${config.bip}'/0'`
+    this._bipPathPrefix = `m/${config.bip}'/0'`
 
     /** @private */
-    this._bip = config.bip
-
-    /** @private */
-    this._path = `${this._addrBip}/${path}`
+    this._path = `${this._bipPathPrefix}/${path}`
 
     /** @private */
     this._electrumClient = new ElectrumClient(config)
@@ -141,21 +149,12 @@ export default class WalletAccountBtc {
     /** @private */
     this._account = account
 
-    let addr
-    if (config.bip === 44) {
-      addr = payments.p2pkh({
-        pubkey: this._account.publicKey,
-        network: this._electrumClient.network
-      }).address
-    } else if (config.bip === 84) {
-      addr = payments.p2wpkh({
-        pubkey: this._account.publicKey,
-        network: this._electrumClient.network
-      }).address
-    }
-
     /** @private */
-    this._address = addr
+    this._address = getAddressForBip(
+      config.bip,
+      account.publicKey,
+      this._electrumClient.network
+    )
   }
 
   /**
