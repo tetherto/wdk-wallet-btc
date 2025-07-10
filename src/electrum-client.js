@@ -113,15 +113,16 @@ export default class ElectrumClient {
   #setupSocket () {
     let buffer = ''
 
+    this.#socket.setEncoding('utf-8')
     this.#socket.on('data', (data) => {
-      buffer += data.toString()
+      buffer += data
 
       while (true) {
         const newlineIndex = buffer.indexOf('\n')
         if (newlineIndex === -1) break
 
-        const line = buffer.slice(0, newlineIndex)
-        buffer = buffer.slice(newlineIndex + 1)
+        const line = buffer.subarray(0, newlineIndex)
+        buffer = buffer.subarray(newlineIndex + 1)
 
         try {
           const response = JSON.parse(line)
