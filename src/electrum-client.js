@@ -113,8 +113,9 @@ export default class ElectrumClient {
   #setupSocket () {
     let buffer = ''
 
+    this.#socket.setEncoding('utf-8')
     this.#socket.on('data', (data) => {
-      buffer += data.toString()
+      buffer += data
 
       while (true) {
         const newlineIndex = buffer.indexOf('\n')
