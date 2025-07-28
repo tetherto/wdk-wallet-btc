@@ -100,17 +100,6 @@ function derivePath (seed, path) {
   return { masterNode, account }
 }
 
-function getAddressForBip (bip, pubkey, network) {
-  switch (bip) {
-    case 44:
-      return payments.p2pkh({ pubkey, network }).address
-    case 84:
-      return payments.p2wpkh({ pubkey, network }).address
-    default:
-      throw new Error(`Unsupported BIP type: ${bip}`)
-  }
-}
-
 /** @implements {IWalletAccount} */
 export default class WalletAccountBtc {
   /**
@@ -129,14 +118,10 @@ export default class WalletAccountBtc {
       seed = bip39.mnemonicToSeedSync(seed)
     }
 
-    if (!config.bip) config.bip = 44
-    if (!SUPPORTED_BIPS.includes(config.bip)) throw new Error(`Unsupported BIP type: ${config.bip}`)
+    const bip = config.bip ?? 44
 
     /** @private */
-    this._bipPathPrefix = `m/${config.bip}'/0'`
-
-    /** @private */
-    this._path = `${this._bipPathPrefix}/${path}`
+    this._path = `m/${bip}/0'/${path}`
 
     /** @private */
     this._electrumClient = new ElectrumClient(config)
@@ -257,6 +242,28 @@ export default class WalletAccountBtc {
     return {
       hash: tx.txid,
       fee: +tx.fee
+    }
+  }
+  
+  /**
+   * Get bitcoin address of a given BIP 
+   * 
+   * @param {Number} bip Address BIP number
+   * @returns {String} Bitcoin address
+   */
+  _getAddressForBip (bip) {
+    const account = {
+      pubkey: this._account.publicKey,
+      network: this._electrumClient.network
+    }
+  
+    switch (bip) {
+      case 44:
+        return payments.p2pkh(account).address
+      case 84:
+        return payments.p2wpkh(account).address
+      default:
+        throw new Error(`Unsupported BIP type: ${bip}`)
     }
   }
 

@@ -59,7 +59,7 @@ export default class WalletManagerBtc extends WalletManager {
   }
 
   /**
-   * Returns the wallet account at a configured derivation path.
+   * Returns the wallet account at a specific derivation path.
    *
    * @example
    * // Returns the account with derivation path m/84'/0'/0'/0/1
