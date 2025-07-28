@@ -29,12 +29,12 @@ import { sodium_memzero } from 'sodium-universal'
 
 import ElectrumClient from './electrum-client.js'
 
+/** @typedef {import('bitcoinjs-lib').Transaction} BtcTransactionReceipt */
+
 /** @typedef {import('@wdk/wallet').KeyPair} KeyPair */
 /** @typedef {import('@wdk/wallet').TransactionResult} TransactionResult */
 /** @typedef {import('@wdk/wallet').TransferOptions} TransferOptions */
 /** @typedef {import('@wdk/wallet').TransferResult} TransferResult */
-/** @typedef {import('bitcoinjs-lib').Transaction} BtcTransactionReceipt */
-
 /** @typedef {import('@wdk/wallet').IWalletAccount} IWalletAccount */
 
 /**
@@ -383,23 +383,14 @@ export default class WalletAccountBtc {
    * @param {string} hash - The transaction's hash.
    * @returns {Promise<BtcTransactionReceipt | null>} - The receipt, or null if the transaction has not been included in a block yet.
    */
-  async getTransactionReceipt(txid) {
-    try {
-      return await this._electrumClient.getTransaction(txid);
-    } catch (error) {
-      const msg = error && error.message ? error.message : '';
-      if (
-        msg.includes('No such mempool transaction') ||
-        msg.includes('No such transaction') ||
-        msg.includes('transaction not found') ||
-        msg.includes('code -5')
-      ) {
-        return null;
-      }
-      throw error;
+  async getTransactionReceipt (hash) {
+    if (!/^[0-9a-fA-F]{64}$/.test(hash)) {
+      throw new Error("The 'getTransactionReceipt(hash)' method requires a valid transaction hash to fetch the receipt.")
     }
+    const receipt = await this._electrumClient.getTransaction(hash)
+    return receipt
   }
-  
+
   /**
    * Disposes the wallet account, erasing the private key from the memory and closing the connection with the electrum server.
    */

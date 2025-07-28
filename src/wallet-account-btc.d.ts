@@ -120,7 +120,7 @@ export default class WalletAccountBtc implements IWalletAccount {
      * @param {string} hash - The transaction's hash.
      * @returns {Promise<BtcTransactionReceipt | null>} - The receipt, or null if the transaction has not been included in a block yet.
      */
-    getTransactionReceipt(txid: any): Promise<BtcTransactionReceipt | null>;
+    getTransactionReceipt(hash: any): Promise<BtcTransactionReceipt | null>;
     /**
      * Disposes the wallet account, erasing the private key from the memory and closing the connection with the electrum server.
      */
@@ -132,11 +132,11 @@ export default class WalletAccountBtc implements IWalletAccount {
     /** @private */
     private _getRawTransaction;
 }
+export type BtcTransactionReceipt = import('bitcoinjs-lib').Transaction;
 export type KeyPair = import("@wdk/wallet").KeyPair;
 export type TransactionResult = import("@wdk/wallet").TransactionResult;
 export type TransferOptions = import("@wdk/wallet").TransferOptions;
 export type TransferResult = import("@wdk/wallet").TransferResult;
-export type BtcTransactionReceipt = import('bitcoinjs-lib').Transaction;
 export type IWalletAccount = import('@wdk/wallet').IWalletAccount;
 export type BtcTransaction = {
     /**

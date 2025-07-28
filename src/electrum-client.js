@@ -57,9 +57,12 @@ export default class ElectrumClient {
 
         socket.setTimeout(30000)
         socket.on('timeout', () => {
+          const error = new Error('Electrum client connection time-out.')
+          error._isConnectionError = true
           socket.destroy()
           this._connected = false
-          reject(new Error('Electrum client connection time-out.'))
+          this._rejectAllPending(error)
+          reject(error)
         })
 
         socket.on('connect', () => {
@@ -70,36 +73,48 @@ export default class ElectrumClient {
         })
 
         socket.on('error', (error) => {
+          error._isConnectionError = true
           this._connected = false
-
           if (this._socket) {
             this._socket.destroy()
             this._socket = null
           }
+          this._rejectAllPending(error)
           reject(error)
         })
 
         socket.on('close', () => {
+          const error = new Error('Electrum socket closed.')
+          error._isConnectionError = true
           this._connected = false
           this._socket = null
-
-          this._pendingRequests.clear()
+          this._rejectAllPending(error)
         })
 
         socket.on('end', () => {
+          const error = new Error('Electrum socket ended.')
+          error._isConnectionError = true
           this._connected = false
           this._socket = null
+          this._rejectAllPending(error)
         })
       } catch (error) {
         this._connected = false
-
         if (this._socket) {
           this._socket.destroy()
           this._socket = null
         }
+        error._isConnectionError = true
         reject(error)
       }
     })
+  }
+
+  _rejectAllPending (error) {
+    for (const { reject } of this._pendingRequests.values()) {
+      reject(error)
+    }
+    this._pendingRequests.clear()
   }
 
   _setupSocket () {
@@ -170,7 +185,6 @@ export default class ElectrumClient {
       } catch (connectError) {
         if (retries > 0) {
           await new Promise(resolve => setTimeout(resolve, 1000))
-
           return this._request(method, params, retries - 1)
         }
         throw new Error(`Failed to connect after retries: ${connectError.message}.`)
@@ -179,15 +193,13 @@ export default class ElectrumClient {
 
     return new Promise((resolve, reject) => {
       const id = Math.floor(Math.random() * 1000000)
-      const request = {
-        id,
-        method,
-        params
-      }
+      const request = { id, method, params }
 
       const timeoutId = setTimeout(() => {
         this._pendingRequests.delete(id)
-        reject(new Error('Electrum client request time-out.'))
+        const error = new Error('Electrum client request time-out.')
+        error._isConnectionError = true
+        reject(error)
       }, 30000)
 
       this._pendingRequests.set(id, {
@@ -197,14 +209,21 @@ export default class ElectrumClient {
         },
         reject: (error) => {
           clearTimeout(timeoutId)
-          reject(error)
+          if (error._isConnectionError === true) {
+            reject(error)
+          } else {
+            resolve(null)
+          }
         }
       })
 
       try {
         if (!this._socket || !this._connected) {
-          throw new Error('Electrum client websocket client not connected.')
+          const error = new Error('Electrum client websocket client not connected.')
+          error._isConnectionError = true
+          throw error
         }
+
         this._socket.write(JSON.stringify(request) + '\n')
       } catch (error) {
         clearTimeout(timeoutId)
@@ -226,13 +245,9 @@ export default class ElectrumClient {
 
   async getTransaction (txid) {
     const rawTxHex = await this._request('blockchain.transaction.get', [txid, false])
-    if (typeof rawTxHex !== 'string') {
-      throw new Error(`Failed to get raw transaction hex for ${txid}. Received: ${JSON.stringify(rawTxHex)}`)
-    }
+    if (typeof rawTxHex !== 'string') return null
 
-    const tx = Transaction.fromHex(rawTxHex)
-
-    return tx
+    return Transaction.fromHex(rawTxHex)
   }
 
   async broadcastTransaction (txHex) {
