@@ -63,7 +63,6 @@ import ElectrumClient from './electrum-client.js'
  */
 
 const DUST_LIMIT = 546
-const SUPPORTED_BIPS = [84, 44]
 
 const MASTER_SECRET = Buffer.from('Bitcoin seed', 'utf8')
 
@@ -135,11 +134,7 @@ export default class WalletAccountBtc {
     this._account = account
 
     /** @private */
-    this._address = getAddressForBip(
-      config.bip,
-      account.publicKey,
-      this._electrumClient.network
-    )
+    this._address = this._getAddressForBip(bip)
   }
 
   /**
@@ -225,7 +220,9 @@ export default class WalletAccountBtc {
    * @returns {Promise<number>} The token balance (in base unit).
    */
   async getTokenBalance (tokenAddress) {
-    throw new Error("The 'getTokenBalance' method is not supported on the bitcoin blockchain.")
+    throw new Error(
+      "The 'getTokenBalance' method is not supported on the bitcoin blockchain."
+    )
   }
 
   /**
@@ -244,11 +241,11 @@ export default class WalletAccountBtc {
       fee: +tx.fee
     }
   }
-  
+
   /**
-   * Get bitcoin address of a given BIP 
-   * 
-   * @param {Number} bip Address BIP number
+   * Get bitcoin address of a given BIP number
+   *
+   * @param {44 | 84} bip - The BIP address type.
    * @returns {String} Bitcoin address
    */
   _getAddressForBip (bip) {
@@ -256,7 +253,7 @@ export default class WalletAccountBtc {
       pubkey: this._account.publicKey,
       network: this._electrumClient.network
     }
-  
+
     switch (bip) {
       case 44:
         return payments.p2pkh(account).address
@@ -289,7 +286,9 @@ export default class WalletAccountBtc {
    * @returns {Promise<TransferResult>} The transfer's result.
    */
   async transfer (options) {
-    throw new Error("The 'transfer' method is not supported on the bitcoin blockchain.")
+    throw new Error(
+      "The 'transfer' method is not supported on the bitcoin blockchain."
+    )
   }
 
   /**
@@ -300,18 +299,20 @@ export default class WalletAccountBtc {
    * @returns {Promise<Omit<TransferResult, 'hash'>>} The transfer's quotes.
    */
   async quoteTransfer (options) {
-    throw new Error("The 'quoteTransfer' method is not supported on the bitcoin blockchain.")
+    throw new Error(
+      "The 'quoteTransfer' method is not supported on the bitcoin blockchain."
+    )
   }
 
   /**
-  * Returns the bitcoin transfers history of the account.
-  *
+   * Returns the bitcoin transfers history of the account.
+   *
    * @param {Object} [options] - The options.
    * @param {"incoming" | "outgoing" | "all"} [options.direction] - If set, only returns transfers with the given direction (default: "all").
    * @param {number} [options.limit] - The number of transfers to return (default: 10).
    * @param {number} [options.skip] - The number of transfers to skip (default: 0).
    * @returns {Promise<BtcTransfer[]>} The bitcoin transfers.
-  */
+   */
   async getTransfers (options = {}) {
     const { direction = 'all', limit = 10, skip = 0 } = options
     const address = await this.getAddress()
@@ -320,14 +321,14 @@ export default class WalletAccountBtc {
     const isAddressMatch = (scriptPubKey, addr) => {
       if (!scriptPubKey) return false
       if (scriptPubKey.address) return scriptPubKey.address === addr
-      if (Array.isArray(scriptPubKey.addresses)) return scriptPubKey.addresses.includes(addr)
+      if (Array.isArray(scriptPubKey.addresses)) { return scriptPubKey.addresses.includes(addr) }
       return false
     }
 
     const extractAddress = (scriptPubKey) => {
       if (!scriptPubKey) return null
       if (scriptPubKey.address) return scriptPubKey.address
-      if (Array.isArray(scriptPubKey.addresses)) return scriptPubKey.addresses[0]
+      if (Array.isArray(scriptPubKey.addresses)) { return scriptPubKey.addresses[0] }
       return null
     }
 
@@ -438,7 +439,12 @@ export default class WalletAccountBtc {
       feeRate = new BigNumber(1)
     }
 
-    const transaction = await this._getRawTransaction(utxoSet, amount, recipient, feeRate)
+    const transaction = await this._getRawTransaction(
+      utxoSet,
+      amount,
+      recipient,
+      feeRate
+    )
 
     return transaction
   }
@@ -446,7 +452,7 @@ export default class WalletAccountBtc {
   /** @private */
   async _getUtxos (amount, address) {
     const unspent = await this._electrumClient.getUnspent(address)
-    if (!unspent || unspent.length === 0) throw new Error('No unspent outputs available.')
+    if (!unspent || unspent.length === 0) { throw new Error('No unspent outputs available.') }
 
     const utxos = []
     let totalCollected = new BigNumber(0)
@@ -471,8 +477,15 @@ export default class WalletAccountBtc {
 
   /** @private */
   async _getRawTransaction (utxoSet, amount, recipient, feeRate) {
-    if (+amount <= DUST_LIMIT) throw new Error(`The amount must be bigger than the dust limit (= ${DUST_LIMIT}).`)
-    const totalInput = utxoSet.reduce((sum, utxo) => sum.plus(utxo.value), new BigNumber(0))
+    if (+amount <= DUST_LIMIT) {
+      throw new Error(
+        `The amount must be bigger than the dust limit (= ${DUST_LIMIT}).`
+      )
+    }
+    const totalInput = utxoSet.reduce(
+      (sum, utxo) => sum.plus(utxo.value),
+      new BigNumber(0)
+    )
 
     const createPsbt = async (fee) => {
       const psbt = new Psbt({ network: this._electrumClient.network })
@@ -480,18 +493,27 @@ export default class WalletAccountBtc {
         psbt.addInput({
           hash: utxo.tx_hash,
           index: utxo.tx_pos,
-          witnessUtxo: { script: Buffer.from(utxo.vout.scriptPubKey.hex, 'hex'), value: utxo.value },
-          bip32Derivation: [{
-            masterFingerprint: this._masterNode.fingerprint,
-            path: this._path,
-            pubkey: this._account.publicKey
-          }]
+          witnessUtxo: {
+            script: Buffer.from(utxo.vout.scriptPubKey.hex, 'hex'),
+            value: utxo.value
+          },
+          bip32Derivation: [
+            {
+              masterFingerprint: this._masterNode.fingerprint,
+              path: this._path,
+              pubkey: this._account.publicKey
+            }
+          ]
         })
       })
       psbt.addOutput({ address: recipient, value: amount })
       const change = totalInput.minus(amount).minus(fee)
-      if (change.isGreaterThan(DUST_LIMIT)) psbt.addOutput({ address: await this.getAddress(), value: change.toNumber() })
-      else if (change.isLessThan(0)) throw new Error('Insufficient balance to send the transaction.')
+      if (change.isGreaterThan(DUST_LIMIT)) {
+        psbt.addOutput({
+          address: await this.getAddress(),
+          value: change.toNumber()
+        })
+      } else if (change.isLessThan(0)) { throw new Error('Insufficient balance to send the transaction.') }
       utxoSet.forEach((_, index) => psbt.signInputHD(index, this._masterNode))
       psbt.finalizeAllInputs()
       return psbt
@@ -499,7 +521,9 @@ export default class WalletAccountBtc {
 
     let psbt = await createPsbt(0)
     const dummyTx = psbt.extractTransaction()
-    let estimatedFee = new BigNumber(feeRate).multipliedBy(dummyTx.virtualSize()).integerValue(BigNumber.ROUND_CEIL)
+    let estimatedFee = new BigNumber(feeRate)
+      .multipliedBy(dummyTx.virtualSize())
+      .integerValue(BigNumber.ROUND_CEIL)
     estimatedFee = BigNumber.max(estimatedFee, new BigNumber(141))
     psbt = await createPsbt(estimatedFee)
     const tx = psbt.extractTransaction()
