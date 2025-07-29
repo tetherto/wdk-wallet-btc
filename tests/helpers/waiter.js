@@ -2,151 +2,148 @@ import net from 'net'
 
 import zmq from 'zeromq'
 
-const DEFAULT_INTERVAL = 50
+const TIMEOUT = 3_000
 
-const DEFAULT_TIMEOUT = 3_000
+const POLLING_INTERVAL = 50
 
 export default class Waiter {
   constructor (bitcoin, config) {
-    this._btc = bitcoin
+    const { host, electrumPort, zmqPort } = config
 
-    const { host, electrumPort, zmqPort, interval, timeout } = config
+    this._bitcoin = bitcoin
 
     this._host = host
     this._port = electrumPort
-    this._sub = new zmq.Subscriber()
-    this._sub.linger = 0
-    this._sub.connect(`tcp://${host}:${zmqPort}`)
 
-    this._interval = interval ?? DEFAULT_INTERVAL
-    this._timeout = timeout ?? DEFAULT_TIMEOUT
-
-    this._topics = new Set()
+    this._subscriber = new zmq.Subscriber({ linger: 0 })
+    this._subscriber.connect(`tcp://${host}:${zmqPort}`)
   }
 
-  async waitUntilRpcReady () {
-    return this._waitUntilCondition(() => {
-      try {
-        this._btc.getBlockchainInfo()
-        return true
-      } catch {
-        return false
-      }
-    })
-  }
-
-  async waitUntilPortOpen (host, port) {
-    return this._waitUntilCondition(() =>
-      new Promise(resolve => {
-        const s = net.createConnection({ host, port }, () => {
-          s.end()
+  async waitUntilPortIsOpen (host, port) {
+    await this._waitUntilCondition(() => {
+      return new Promise(resolve => {
+        const socket = net.createConnection({ host, port }, () => {
+          socket.end()
           resolve(true)
         })
-        s.unref()
-        s.on('error', () => {
-          s.destroy()
-          resolve(false)
-        })
-      })
-    )
-  }
 
-  async waitUntilPortClosed (host, port) {
-    return this._waitUntilCondition(() =>
-      new Promise(resolve => {
-        const s = net.createConnection({ host, port }, () => {
-          s.end()
-          resolve(false)
-        })
-        s.on('error', () => {
-          s.destroy()
-          resolve(true)
-        })
-      })
-    )
-  }
-
-  async waitForBlocks (blocks) {
-    const timeout = new Promise((resolve, reject) => {
-      const t = setTimeout(() => {
-        reject(new Error('Timeout waiting for blocks.'))
-      }, this._timeout)
-      t.unref()
-    })
-
-    const task = (async () => {
-      await this._waitForCoreBlocks(blocks)
-      await this._waitForElectrumSync()
-    })()
-
-    await Promise.race([timeout, task])
-  }
-
-  _ensureTopic (topic) {
-    if (!this._topics.has(topic)) {
-      this._sub.subscribe(topic)
-      this._topics.add(topic)
-    }
-  }
-
-  _getElectrumHeight () {
-    return new Promise((resolve, reject) => {
-      const socket = new net.Socket()
-      socket.setEncoding('utf8')
-      socket.connect(this._port, this._host, () => {
-        socket.write(
-          JSON.stringify({
-            jsonrpc: '2.0',
-            id: 0,
-            method: 'blockchain.headers.subscribe',
-            params: []
-          }) + '\n'
-        )
-      })
-      socket.on('data', chunk => {
-        try {
-          const res = JSON.parse(chunk)
+        socket.on('error', () => {
           socket.destroy()
-          resolve(res.result.height)
-        } catch {
+          resolve(false)
+        })
 
+        socket.unref()
+      })
+    })
+  }
+
+  async waitUntilPortIsClosed (host, port) {
+    await this._waitUntilCondition(() => {
+      return new Promise(resolve => {
+        const socket = net.createConnection({ host, port }, () => {
+          socket.end()
+          resolve(false)
+        })
+
+        socket.on('error', () => {
+          socket.destroy()
+          resolve(true)
+        })
+
+        socket.unref()
+      })
+    })
+  }
+
+  async mine (blocks = 1) {
+    this._subscriber.subscribe('hashblock')
+
+    const miner = this._bitcoin.getNewAddress()
+    this._bitcoin.generateToAddress(blocks, miner)
+    await this._waitForBlocks(blocks)
+  }
+
+  async _waitForBlocks (blocks) {
+    const timeout = new Promise((resolve, reject) =>
+      setTimeout(() => {
+        reject(new Error('Waiter timed out waiting for blocks.'))
+      }, TIMEOUT)
+    )
+
+    const task = async () => {
+      let count = 0
+
+      for await (const [topic] of this._subscriber) {
+        if (topic.toString() === 'hashblock' && ++count === blocks) {
+          break
+        }
+      }
+
+      await this._waitForElectrumServer()
+    }
+
+    await Promise.race([timeout, task()])
+  }
+
+  async _waitForElectrumServer () {
+    const targetBlockCount = this._bitcoin.getBlockCount()
+
+    await this._waitUntilCondition(async () => {
+      const blockCount = await this._getElectrumServerBlockCount()
+
+      return blockCount === targetBlockCount
+    })
+  }
+
+  _getElectrumServerBlockCount () {
+    return new Promise((resolve, reject) => {
+      const socket = net.createConnection({ host: this._host, port: this._port }, () => {
+        const request = {
+          jsonrpc: '2.0',
+          id: 0,
+          method: 'blockchain.headers.subscribe',
+          params: []
+        }
+
+        socket.write(JSON.stringify(request) + '\n')
+      })
+
+      socket.on('data', chunk => {
+        const messages = chunk.toString().split('\n')
+
+        for (const message of messages) {
+          try {
+            const data = JSON.parse(message)
+            socket.end()
+            resolve(data.result.height)
+          } catch (_) {
+
+          }
         }
       })
-      socket.on('error', err => {
+
+      socket.on('error', error => {
         socket.destroy()
-        reject(err)
+        reject(error)
       })
+
+      socket.unref()
     })
   }
 
-  async _waitForCoreBlocks (expected) {
-    this._ensureTopic('hashblock')
+  async _waitUntilCondition (condition) {
+    const timestamp = Date.now()
 
-    let count = 0
-
-    for await (const [topic] of this._sub) {
-      if (topic.toString() === 'hashblock' && ++count >= expected) {
-        return
-      }
-    }
-  }
-
-  async _waitForElectrumSync () {
-    const target = this._btc.getBlockCount()
-    await this._waitUntilCondition(async () => {
-      const height = await this._getElectrumHeight()
-      return height === target
-    })
-  }
-
-  async _waitUntilCondition (fn) {
-    const start = Date.now()
     while (true) {
-      if (await fn()) return
-      if (Date.now() - start > this._timeout) {
-        throw new Error('Timeout waiting for condition.')
+      if (await condition()) {
+        break
       }
-      await new Promise(resolve => setTimeout(resolve, this._interval))
+
+      if (Date.now() - timestamp > TIMEOUT) {
+        throw new Error('Waiter timed out waiting for condition.')
+      }
+
+      await new Promise(resolve => setTimeout(resolve, POLLING_INTERVAL))
     }
   }
 }

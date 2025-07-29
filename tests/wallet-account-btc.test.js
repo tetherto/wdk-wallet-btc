@@ -4,7 +4,7 @@ import { mnemonicToSeedSync } from 'bip39'
 
 import { HOST, PORT, ELECTRUM_PORT, ZMQ_PORT, DATA_DIR } from './config.js'
 
-import BitcoinCli from './helpers/bitcoin-cli.js'
+import { BitcoinCli, Waiter } from './helpers/index.js'
 
 import { WalletAccountBtc } from '../index.js'
 
@@ -28,25 +28,30 @@ const CONFIGURATION = {
   network: 'regtest'
 }
 
-const btc = new BitcoinCli({
-  host: HOST,
-  port: PORT,
-  electrumPort: ELECTRUM_PORT,
-  zmqPort: ZMQ_PORT,
-  dataDir: DATA_DIR,
-  wallet: 'testwallet'
-})
-
 describe('WalletAccountBtc', () => {
+  const bitcoin = new BitcoinCli({
+    host: HOST,
+    port: PORT,
+    zmqPort: ZMQ_PORT,
+    dataDir: DATA_DIR,
+    wallet: 'testwallet'
+  })
+
+  const waiter = new Waiter(bitcoin, {
+    host: HOST,
+    electrumPort: ELECTRUM_PORT,
+    zmqPort: ZMQ_PORT
+  })
+
   let account, recipient
 
   beforeAll(async () => {
     account = new WalletAccountBtc(SEED_PHRASE, "0'/0/0", CONFIGURATION)
-    recipient = btc.getNewAddress()
+    recipient = bitcoin.getNewAddress()
 
-    btc.sendToAddress(ACCOUNT.address, 0.01)
+    bitcoin.sendToAddress(ACCOUNT.address, 0.01)
 
-    await btc.mine()
+    await waiter.mine()
   })
 
   afterAll(() => {
@@ -160,11 +165,11 @@ describe('WalletAccountBtc', () => {
 
       const { hash, fee } = await account.sendTransaction(TRANSACTION)
 
-      const { fees } = btc.getMempoolEntry(hash)
+      const { fees } = bitcoin.getMempoolEntry(hash)
       const baseFee = Math.round(fees.base * 1e+8)
       expect(fee).toBe(baseFee)
 
-      const transaction = btc.getTransaction(hash)
+      const transaction = bitcoin.getTransaction(hash)
       expect(transaction.txid).toBe(hash)
       expect(transaction.details[0].address).toBe(TRANSACTION.to)
 
@@ -226,13 +231,13 @@ describe('WalletAccountBtc', () => {
 
     async function createIncomingTransfer (value) {
       const address = await account.getAddress()
-      const txid = btc.sendToAddress(address, 0.01)
-      await btc.mine()
+      const txid = bitcoin.sendToAddress(address, 0.01)
+      await waiter.mine()
 
-      const transaction = btc.getTransaction(txid)
+      const transaction = bitcoin.getTransaction(txid)
       const fee = Math.round(Math.abs(transaction.fee) * 1e+8)
 
-      const height = btc.getBlockCount()
+      const height = bitcoin.getBlockCount()
 
       return {
         txid,
@@ -249,16 +254,16 @@ describe('WalletAccountBtc', () => {
     async function createOutgoingTransfer () {
       const address = await account.getAddress()
 
-      const recipient = btc.getNewAddress()
+      const recipient = bitcoin.getNewAddress()
 
       const { hash, fee } = await account.sendTransaction({
         to: recipient,
         value: 100_000
       })
 
-      await btc.mine()
+      await waiter.mine()
 
-      const height = btc.getBlockCount()
+      const height = bitcoin.getBlockCount()
 
       return {
         txid: hash,

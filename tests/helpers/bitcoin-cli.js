@@ -1,22 +1,14 @@
 import { execSync } from 'child_process'
 
-import Waiter from './waiter.js'
-
 export default class BitcoinCli {
-  constructor (config) {
-    this._config = config
-
-    this._wallet = config.wallet
-
+  constructor ({ wallet, ...config }) {
     const { host, port, dataDir } = config
 
-    this._app = `bitcoin-cli -regtest -rpcconnect=${host} -rpcport=${port} -datadir=${dataDir}`
+    this._config = config
 
-    this._waiter = new Waiter(this, config)
-  }
+    this._wallet = wallet
 
-  get waiter () {
-    return this._waiter
+    this._cli = `bitcoin-cli -regtest -rpcconnect=${host} -rpcport=${port} -datadir=${dataDir}`
   }
 
   setWallet (wallet) {
@@ -39,12 +31,13 @@ export default class BitcoinCli {
   }
 
   stop () {
-    execSync(`${this._app} stop`, { stdio: 'ignore' })
+    execSync(`${this._cli} stop`, { stdio: 'ignore' })
   }
 
-  call (cmd, { rawResult = false } = { }) {
+  call (cmd, options = { }) {
+    const { rawResult } = options
     const walletFlag = this._wallet ? `-rpcwallet=${this._wallet}` : ''
-    const fullCmd = `${this._app} ${walletFlag} ${cmd}`
+    const fullCmd = `${this._cli} ${walletFlag} ${cmd}`
     const result = execSync(fullCmd).toString().trim()
 
     return rawResult ? result : JSON.parse(result)
@@ -80,13 +73,5 @@ export default class BitcoinCli {
 
   getBlockchainInfo () {
     return this.call('getblockchaininfo')
-  }
-
-  async mine (blocks = 1) {
-    const miner = this.getNewAddress()
-    const promise = this.waiter.waitForBlocks(blocks)
-    this.generateToAddress(blocks, miner)
-
-    await promise
   }
 }
