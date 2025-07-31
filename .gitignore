@@ -1,1 +1,10 @@
+<<<<<<< HEAD
 node_modules
+=======
+node_modules
+coverage
+.env.test
+
+db/
+.bitcoin/
+>>>>>>> develop

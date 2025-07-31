@@ -167,8 +167,8 @@ export default class WalletAccountBtc {
    */
   get keyPair () {
     return {
-      publicKey: this._account.publicKey,
-      privateKey: this._account.privateKey
+      privateKey: new Uint8Array(this._account.privateKey),
+      publicKey: new Uint8Array(this._account.publicKey)
     }
   }
 
@@ -292,9 +292,7 @@ export default class WalletAccountBtc {
   */
   async getTransfers (options = {}) {
     const { direction = 'all', limit = 10, skip = 0 } = options
-
     const address = await this.getAddress()
-
     const history = await this._electrumClient.getHistory(address)
 
     const isAddressMatch = (scriptPubKey, addr) => {
@@ -311,24 +309,30 @@ export default class WalletAccountBtc {
       return null
     }
 
-    const getInputValue = async (vinList) => {
+    // now works with bitcoinjs-lib Transaction.ins
+    const getInputValue = async (ins) => {
       let total = 0
-      for (const vin of vinList) {
+      for (const input of ins) {
         try {
-          const prevTx = await this._electrumClient.getTransaction(vin.txid)
-          const prevVout = prevTx.vout[vin.vout]
-          total += prevVout.value
+          const prevId = Buffer.from(input.hash).reverse().toString('hex')
+          const prevTx = await this._electrumClient.getTransaction(prevId)
+          total += prevTx.outs[input.index].value
         } catch (_) {}
       }
       return total
     }
 
-    const isOutgoingTx = async (vinList) => {
-      for (const vin of vinList) {
+    const isOutgoingTx = async (ins) => {
+      for (const input of ins) {
         try {
-          const prevTx = await this._electrumClient.getTransaction(vin.txid)
-          const prevVout = prevTx.vout[vin.vout]
-          if (isAddressMatch(prevVout.scriptPubKey, address)) return true
+          const prevId = Buffer.from(input.hash).reverse().toString('hex')
+          const prevTx = await this._electrumClient.getTransaction(prevId)
+          const script = prevTx.outs[input.index].script
+          const addr = payments.p2wpkh({
+            output: script,
+            network: this._electrumClient.network
+          }).address
+          if (isAddressMatch({ address: addr }, address)) return true
         } catch (_) {}
       }
       return false
@@ -340,37 +344,42 @@ export default class WalletAccountBtc {
       if (transfers.length >= limit) break
 
       const tx = await this._electrumClient.getTransaction(item.tx_hash)
-      const totalInput = await getInputValue(tx.vin)
-      const totalOutput = tx.vout.reduce((sum, vout) => sum + vout.value, 0)
-      const fee = totalInput > 0 ? +(totalInput - totalOutput).toFixed(8) : null
-      const isOutgoing = await isOutgoingTx(tx.vin)
 
-      for (const [index, vout] of tx.vout.entries()) {
-        const recipient = extractAddress(vout.scriptPubKey)
-        const isToSelf = isAddressMatch(vout.scriptPubKey, address)
+      const totalInput = await getInputValue(tx.ins)
+      const totalOutput = tx.outs.reduce((sum, o) => sum + o.value, 0)
+      const fee = totalInput > 0 ? +(totalInput - totalOutput).toFixed(8) : null
+      const outgoing = await isOutgoingTx(tx.ins)
+
+      for (const [index, out] of tx.outs.entries()) {
+        const hex = out.script.toString('hex')
+        const addr = payments.p2wpkh({
+          output: out.script,
+          network: this._electrumClient.network
+        }).address
+        const spk = { hex, address: addr }
+        const recipient = extractAddress(spk)
+        const isToSelf = isAddressMatch(spk, address)
 
         let directionType = null
-        if (isToSelf && !isOutgoing) directionType = 'incoming'
-        else if (!isToSelf && isOutgoing) directionType = 'outgoing'
-        else if (isToSelf && isOutgoing) directionType = 'change'
+        if (isToSelf && !outgoing) directionType = 'incoming'
+        else if (!isToSelf && outgoing) directionType = 'outgoing'
+        else if (isToSelf && outgoing) directionType = 'change'
         else continue
 
         if (directionType === 'change') continue
         if (direction !== 'all' && direction !== directionType) continue
         if (transfers.length >= limit) break
 
-        const transfer = {
+        transfers.push({
           txid: item.tx_hash,
           height: item.height,
-          value: vout.value,
+          value: out.value,
           vout: index,
           direction: directionType,
           recipient,
           fee,
           address
-        }
-
-        transfers.push(transfer)
+        })
       }
     }
 
