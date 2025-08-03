@@ -116,6 +116,12 @@ export default class WalletAccountBtc implements IWalletAccount {
      * Disposes the wallet account, erasing the private key from the memory and closing the connection with the electrum server.
      */
     dispose(): void;
+    /**
+     * Returns a read-only copy of the account.
+     *
+     * @returns {Promise<never>} The read-only account.
+     */
+    toReadOnlyAccount(): Promise<never>;
     /** @private */
     private _getTransaction;
     /** @private */

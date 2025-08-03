@@ -386,6 +386,15 @@ export default class WalletAccountBtc {
   }
 
   /**
+  * Returns a read-only copy of the account.
+  *
+  * @returns {Promise<never>} The read-only account.
+  */
+  async toReadOnlyAccount () {
+    throw new Error('Read-only accounts are not supported for the bitcoin blockchain.')
+  }
+
+  /**
    * Disposes the wallet account, erasing the private key from the memory and closing the connection with the electrum server.
    */
   dispose () {
