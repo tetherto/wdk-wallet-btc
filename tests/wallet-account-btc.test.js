@@ -68,7 +68,7 @@ describe('WalletAccountBtc', () => {
     account.dispose()
   })
 
-  describe.only('constructor', () => {
+  describe('constructor', () => {
     test('should successfully initialize an account for the given seed phrase and path', () => {
       const account = new WalletAccountBtc(SEED_PHRASE, "0'/0/0")
 
