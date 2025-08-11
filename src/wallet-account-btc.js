@@ -108,7 +108,7 @@ export default class WalletAccountBtc {
    * @param {string} path - The BIP-84 derivation path (e.g. "0'/0/0").
    * @param {BtcWalletConfig} [config] - The configuration object.
    */
-  constructor (seed, path, config) {
+  constructor (seed, path, config = {}) {
     if (typeof seed === 'string') {
       if (!bip39.validateMnemonic(seed)) {
         throw new Error('The seed phrase is invalid.')
@@ -120,7 +120,7 @@ export default class WalletAccountBtc {
     const bip = config.bip ?? 44
 
     /** @private */
-    this._path = `m/${bip}/0'/${path}`
+    this._path = `m/${bip}'/0'/${path}`
 
     /** @private */
     this._electrumClient = new ElectrumClient(config)

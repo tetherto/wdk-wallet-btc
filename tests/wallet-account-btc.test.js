@@ -12,7 +12,7 @@ const SEED_PHRASE = 'cook voyage document eight skate token alien guide drink un
 const INVALID_SEED_PHRASE = 'invalid seed phrase'
 const SEED = mnemonicToSeedSync(SEED_PHRASE)
 
-const ACCOUNT = {
+const ACCOUNT_BIP84 = {
   index: 0,
   path: "m/84'/0'/0'/0/0",
   address: 'bcrt1qxn0te9ecv864wtu53cccjhuuy5dphvemjt58ge',
@@ -21,6 +21,17 @@ const ACCOUNT = {
     publicKey: '035a48902f37c03901f36fea0a06aef2be29d9c55da559f5bd02c2d02d2b516382'
   }
 }
+
+const ACCOUNT_BIP44 = {
+  index: 0,
+  path: "m/44'/0'/0'/0/0",
+  address: 'bcrt1qxn0te9ecv864wtu53cccjhuuy5dphvemjt58ge',
+  keyPair: {
+    privateKey: 'd405730e81abfd3c50de982134b2117469915df4b03dc2827fd646410485c148',
+    publicKey: '03c061f44a568ab1b16db34b9bef4eeb21b75bb25fcd3af48e4eb60313fc99c86b'
+  }
+}
+
 
 const CONFIGURATION = {
   host: HOST,
@@ -49,7 +60,7 @@ describe('WalletAccountBtc', () => {
     account = new WalletAccountBtc(SEED_PHRASE, "0'/0/0", CONFIGURATION)
     recipient = bitcoin.getNewAddress()
 
-    bitcoin.sendToAddress(ACCOUNT.address, 0.01)
+    bitcoin.sendToAddress(ACCOUNT_BIP44.address, 0.01)
 
     await waiter.mine()
   })
@@ -58,30 +69,44 @@ describe('WalletAccountBtc', () => {
     account.dispose()
   })
 
-  describe('constructor', () => {
+  describe.only('constructor', () => {
     test('should successfully initialize an account for the given seed phrase and path', () => {
       const account = new WalletAccountBtc(SEED_PHRASE, "0'/0/0")
 
-      expect(account.index).toBe(ACCOUNT.index)
+      expect(account.index).toBe(ACCOUNT_BIP44.index)
 
-      expect(account.path).toBe(ACCOUNT.path)
+      expect(account.path).toBe(ACCOUNT_BIP44.path)
 
       expect(account.keyPair).toEqual({
-        privateKey: new Uint8Array(Buffer.from(ACCOUNT.keyPair.privateKey, 'hex')),
-        publicKey: new Uint8Array(Buffer.from(ACCOUNT.keyPair.publicKey, 'hex'))
+        privateKey: new Uint8Array(Buffer.from(ACCOUNT_BIP44.keyPair.privateKey, 'hex')),
+        publicKey: new Uint8Array(Buffer.from(ACCOUNT_BIP44.keyPair.publicKey, 'hex'))
       })
     })
 
     test('should successfully initialize an account for the given seed and path', () => {
       const account = new WalletAccountBtc(SEED, "0'/0/0")
 
-      expect(account.index).toBe(ACCOUNT.index)
+      expect(account.index).toBe(ACCOUNT_BIP44.index)
 
-      expect(account.path).toBe(ACCOUNT.path)
+      expect(account.path).toBe(ACCOUNT_BIP44.path)
 
       expect(account.keyPair).toEqual({
-        privateKey: new Uint8Array(Buffer.from(ACCOUNT.keyPair.privateKey, 'hex')),
-        publicKey: new Uint8Array(Buffer.from(ACCOUNT.keyPair.publicKey, 'hex'))
+        privateKey: new Uint8Array(Buffer.from(ACCOUNT_BIP44.keyPair.privateKey, 'hex')),
+        publicKey: new Uint8Array(Buffer.from(ACCOUNT_BIP44.keyPair.publicKey, 'hex'))
+      })
+    })
+
+    test('should successfully initialize an account for the given seed and path (bip-84)', () => {
+      const account = new WalletAccountBtc(SEED, "0'/0/0", { bip : 84 })
+
+      expect(account.index).toBe(ACCOUNT_BIP84.index)
+
+      expect(account.path).toBe(ACCOUNT_BIP84.path)
+
+
+      expect(account.keyPair).toEqual({
+        privateKey: new Uint8Array(Buffer.from(ACCOUNT_BIP84.keyPair.privateKey, 'hex')),
+        publicKey: new Uint8Array(Buffer.from(ACCOUNT_BIP84.keyPair.publicKey, 'hex'))
       })
     })
 
@@ -95,6 +120,12 @@ describe('WalletAccountBtc', () => {
       // eslint-disable-next-line no-new
       expect(() => new WalletAccountBtc(SEED_PHRASE, "a'/b/c"))
         .toThrow(/Expected BIP32Path/)
+    })
+
+    test('should throw for unsupported bip type',() => {
+      // eslint-disable-next-line no-new
+      expect(() => new WalletAccountBtc(SEED_PHRASE, "0'/0/0", { bip: 33 }))
+        .toThrow(/Unsupported BIP type/)
     })
   })
 
