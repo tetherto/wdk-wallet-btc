@@ -33,7 +33,7 @@
   "exports": {
     ".": {
       "bare": "./bare.js",
-      "types": "./index.d.ts",
+      "types": "./types/index.d.ts",
       "default": "./index.js"
     },
     "./package": "./package.json"
