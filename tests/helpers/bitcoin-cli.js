@@ -134,7 +134,23 @@ export default class BitcoinCli {
   }
 
   getTransaction (txid) {
-    return this.call(`gettransaction ${txid}`)
+    try {
+      return this.call(`gettransaction ${txid}`)
+    } catch (error) {
+      // Fallback for transactions that don't belong to the wallet:
+      // use verbose getrawtransaction and adapt the shape for tests
+      const raw = this.call(`getrawtransaction ${txid} true`)
+
+      const vout0 = Array.isArray(raw.vout) && raw.vout.length > 0 ? raw.vout[0] : null
+      const scriptPubKey = vout0 && vout0.scriptPubKey ? vout0.scriptPubKey : {}
+      const address = scriptPubKey.address || (Array.isArray(scriptPubKey.addresses) ? scriptPubKey.addresses[0] : undefined)
+      const amount = vout0 && typeof vout0.value === 'number' ? vout0.value : 0
+
+      return {
+        txid: raw.txid,
+        details: [{ address, amount, vout: 0 }]
+      }
+    }
   }
 
   getBlockCount () {
