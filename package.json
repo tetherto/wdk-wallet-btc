@@ -12,16 +12,6 @@
     "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
     "test:coverage": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --coverage"
   },
-  "exports": {
-    ".": {
-      "bare": "./bare.js",
-      "import": "./index.js",
-      "types": "./index.d.ts"
-    },
-    "./package": {
-      "default": "./package.json"
-    }
-  },
   "dependencies": {
     "@bitcoinerlab/secp256k1": "1.2.0",
     "@wdk/wallet": "https://github.com/tetherto/wdk-wallet#develop",
@@ -39,5 +29,15 @@
     "standard": "17.1.2",
     "typescript": "5.8.3",
     "zeromq": "6.4.2"
+  },
+  "exports": {
+    ".": {
+      "bare": "./bare.js",
+      "import": "./index.js",
+      "types": "./index.d.ts"
+    },
+    "./package": {
+      "default": "./package.json"
+    }
   }
 }
