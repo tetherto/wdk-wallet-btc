@@ -1,8 +1,11 @@
 import { execSync } from 'child_process'
+import { platform } from 'os'
 
 import { HOST, PORT, ELECTRUM_PORT, ZMQ_PORT, DATA_DIR } from '../config.js'
 
 import { BitcoinCli, Waiter } from '../helpers/index.js'
+
+const isWindows = platform() === 'win32'
 
 const bitcoin = new BitcoinCli({
   host: HOST,
@@ -43,14 +46,22 @@ export default async () => {
   console.log('🗑️ Removing regtest chain data...')
 
   try {
-    execSync('rm -rf ./db', { stdio: 'ignore' })
+    if (isWindows) {
+      execSync(`if exist ".\\db" rmdir /s /q ".\\db"`, { stdio: 'ignore' })
+    } else {
+      execSync('rm -rf ./db', { stdio: 'ignore' })
+    }
     console.log('✅ Database files removed.')
   } catch {
     console.warn('⚠️  Failed to remove database files.')
   }
 
   try {
-    execSync(`rm -rf ${DATA_DIR}`, { stdio: 'ignore' })
+    if (isWindows) {
+      execSync(`if exist "${DATA_DIR}" rmdir /s /q "${DATA_DIR}"`, { stdio: 'ignore' })
+    } else {
+      execSync(`rm -rf ${DATA_DIR}`, { stdio: 'ignore' })
+    }
     console.log('✅ Chain data removed.')
   } catch {
     console.warn('⚠️  Failed to remove chain data.')

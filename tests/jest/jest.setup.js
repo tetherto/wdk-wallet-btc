@@ -1,4 +1,6 @@
-import { execSync, spawn } from 'child_process'
+import { execSync, spawn, exec } from 'child_process'
+import { platform } from 'os'
+import { resolve } from 'path'
 
 import { HOST, PORT, ELECTRUM_PORT, ZMQ_PORT, DATA_DIR } from '../config.js'
 
@@ -7,6 +9,8 @@ import { BitcoinCli, Waiter } from '../helpers/index.js'
 const BITCOIN_CORE_VERSION = 'v28.'
 
 const ELECTRS_VERSION = 'v0.10.'
+
+const isWindows = platform() === 'win32'
 
 const bitcoin = new BitcoinCli({
   host: HOST,
@@ -19,7 +23,8 @@ const bitcoin = new BitcoinCli({
 const waiter = new Waiter(bitcoin, {
   host: HOST,
   electrumPort: ELECTRUM_PORT,
-  zmqPort: ZMQ_PORT
+  zmqPort: ZMQ_PORT,
+  timeout: 100000
 })
 
 function checkBitcoinCore () {
@@ -45,6 +50,13 @@ function checkElectrs () {
 export default async () => {
   console.log('\n🧪 [Test Setup] Initializing Bitcoin regtest environment...')
 
+  // Debug: Show working directory and DATA_DIR
+  console.log(`🔍 Debug: process.cwd(): ${process.cwd()}`)
+  console.log(`🔍 Debug: DATA_DIR: ${DATA_DIR}`)
+  console.log(`🔍 Debug: __dirname equivalent: ${import.meta.url}`)
+  console.log(`🔍 Debug: HOST: ${HOST}`)
+  console.log(`🔍 Debug: PORT: ${PORT}`)
+
   if (!checkBitcoinCore() || !checkElectrs()) {
     console.error('❗ You are missing the following tools:')
     console.error(`${checkBitcoinCore() ? '✅' : '❌'} Bitcoin Core\tv28.x.x+ - install here: https://bitcoin.org/en/download`)
@@ -61,30 +73,133 @@ export default async () => {
   }
 
   console.log('🧹 Removing old regtest data...')
-  execSync(`rm -rf ${DATA_DIR}/regtest`, { stdio: 'ignore' })
+  if (isWindows) {
+    // On Windows, use WSL home directory to avoid permission issues
+    const wslUsername = execSync('wsl whoami', { stdio: 'pipe' }).toString().trim()
+    const wslDataDir = `/home/${wslUsername}/${DATA_DIR}`
+    
+    // Try to remove regtest directory, ignore errors if it doesn't exist
+    try {
+      execSync(`wsl rm -rf ${wslDataDir}/regtest`, { stdio: 'ignore' })
+      console.log('✅ Removed old regtest data')
+    } catch (error) {
+      // Ignore errors - directory might not exist
+      console.log('ℹ️ No old regtest data to remove')
+    }
+  } else {
+    execSync(`rm -rf ${DATA_DIR}/regtest`, { stdio: 'ignore' })
+  }
 
   console.log(`📁 Ensuring data directory exists at ${DATA_DIR}...`)
-  execSync(`mkdir -p ${DATA_DIR}`, { stdio: 'ignore' })
+  if (isWindows) {
+    // On Windows, create directory directly in WSL home directory to avoid permission issues
+    // Get the WSL username dynamically
+    const wslUsername = execSync('wsl whoami', { stdio: 'pipe' }).toString().trim()
+    const wslDataDir = `/home/${wslUsername}/${DATA_DIR}`
+    console.log(`🔍 Debug: Creating WSL directory: ${wslDataDir}`)
+    
+    // Create the directory directly in WSL home
+    try {
+      execSync(`wsl mkdir -p ${wslDataDir}`, { stdio: 'ignore' })
+      console.log(`✅ Created WSL directory: ${wslDataDir}`)
+      
+      // Verify the directory was created and show its permissions
+      try {
+        const permissions = execSync(`wsl ls -la ${wslDataDir}`, { stdio: 'pipe' }).toString()
+        console.log(`✅ WSL directory permissions:`)
+        console.log(permissions)
+      } catch (permError) {
+        console.warn(`⚠️ Could not verify WSL permissions: ${permError.message}`)
+      }
+    } catch (error) {
+      console.error(`❌ Failed to create WSL directory: ${wslDataDir}`)
+      console.error(`   Error: ${error.message}`)
+      throw error
+    }
+  } else {
+    execSync(`mkdir -p ${DATA_DIR}`, { stdio: 'ignore' })
+  }
 
   try {
     console.log(`🔍 Checking for processes using port ${PORT}...`)
-    execSync(`lsof -i :${PORT} | grep LISTEN | awk '{print $2}' | xargs kill -9`, { stdio: 'ignore' })
-    console.log(`✅ Killed process on port ${PORT}.`)
+    if (isWindows) {
+      // Kill any Windows processes using the port
+      try {
+        const portCheck = execSync(`netstat -aon | findstr :${PORT}`, { stdio: 'pipe' }).toString()
+        if (portCheck.includes('LISTENING')) {
+          const pidMatch = portCheck.match(/\s+(\d+)\s*$/)
+          if (pidMatch) {
+            const pid = pidMatch[1]
+            execSync(`taskkill /f /pid ${pid}`, { stdio: 'ignore' })
+            console.log(`✅ Killed Windows process ${pid} on port ${PORT}`)
+          }
+        }
+      } catch (error) {
+        console.log(`✅ Windows port check completed`)
+      }
+      
+      // Kill any WSL bitcoind processes (this is the real issue)
+      console.log(`🔍 Killing any WSL bitcoind processes...`)
+      try {
+        execSync(`wsl pkill -f bitcoind`, { stdio: 'ignore' })
+        console.log(`✅ Killed WSL bitcoind processes`)
+        await new Promise(resolve => setTimeout(resolve, 2000))
+      } catch (error) {
+        console.log(`✅ No WSL bitcoind processes to kill`)
+      }
+      
+      // Also kill any WSL electrs processes
+      console.log(`🔍 Killing any WSL electrs processes...`)
+      try {
+        execSync(`wsl pkill -f electrs`, { stdio: 'ignore' })
+        console.log(`✅ Killed WSL electrs processes`)
+        await new Promise(resolve => setTimeout(resolve, 2000))
+      } catch (error) {
+        console.log(`✅ No WSL electrs processes to kill`)
+      }
+    } else {
+      execSync(`lsof -i :${PORT} | grep LISTEN | awk '{print $2}' | xargs kill -9`, { stdio: 'ignore' })
+    }
   } catch {
-    console.warn(`⚠️ No process was using port ${PORT}.`)
+    console.warn(`⚠️ Port check completed`)
   }
 
   console.log('🚀 Starting bitcoind in regtest mode...')
   bitcoin.start()
+  console.log('⏳ Waiting for bitcoind to be ready...')
   await waiter.waitUntilBitcoinCoreIsStarted()
   console.log('✅ bitcoind started.')
 
+  // Wait for Bitcoin Core RPC port to be open before starting Electrs
+  console.log('⏳ Waiting for Bitcoin Core RPC to be ready...')
+  await waiter.waitUntilPortIsOpen(HOST, PORT)
+  console.log('✅ Bitcoin Core RPC is ready.')
+
   console.log('🔌 Starting Electrum server...')
-  spawn('electrs', [
-    '--network', 'regtest',
-    '--daemon-dir', DATA_DIR,
-    '--electrum-rpc-addr', `${HOST}:${ELECTRUM_PORT}`
-  ])
+  
+  // On Windows, use WSL home directory for consistency
+  if (isWindows) {
+    const wslUsername = execSync('wsl whoami', { stdio: 'pipe' }).toString().trim()
+    const wslDataDir = `/home/${wslUsername}/${DATA_DIR}`
+    // Use exec with callback like the working bitcoind pattern
+    exec('electrs --network regtest --daemon-dir ' + wslDataDir + ' --daemon-rpc-addr ' + HOST + ':' + PORT + ' --electrum-rpc-addr ' + HOST + ':' + ELECTRUM_PORT, {
+      shell: true,
+      stdio: 'ignore'
+    }, (error, stdout, stderr) => {
+      console.log('stdout:', stdout)
+      console.log('stderr:', stderr)
+      // Ignore errors - electrs is a long-running process
+      if (error) {
+        console.warn('electrs startup warning:', error.message)
+      }
+    })
+  } else {
+    spawn('electrs', [
+      '--network', 'regtest',
+      '--daemon-dir', DATA_DIR,
+      '--electrum-rpc-addr', `${HOST}:${ELECTRUM_PORT}`
+    ])
+  }
 
   await waiter.waitUntilPortIsOpen(HOST, ELECTRUM_PORT)
   console.log('✅ Electrum server is running.')

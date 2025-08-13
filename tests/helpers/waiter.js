@@ -1,9 +1,8 @@
 import net from 'net'
-
 import zmq from 'zeromq'
+import { platform } from 'os'
 
-const TIMEOUT = 3_000
-
+const TIMEOUT = 100_000
 const POLLING_INTERVAL = 50
 
 export default class Waiter {
@@ -11,12 +10,12 @@ export default class Waiter {
     const { host, electrumPort, zmqPort } = config
 
     this._bitcoin = bitcoin
-
     this._host = host
     this._port = electrumPort
 
     this._subscriber = new zmq.Subscriber({ linger: 0 })
     this._subscriber.connect(`tcp://${host}:${zmqPort}`)
+    this._subscriber.subscribe('hashblock')
   }
 
   async waitUntilBitcoinCoreIsStarted () {
@@ -80,8 +79,8 @@ export default class Waiter {
   }
 
   async mine (blocks = 1) {
-    this._subscriber.subscribe('hashblock')
-
+    console.log(`⛏️ Starting to mine ${blocks} blocks...`)
+    // this._subscriber.subscribe('hashblock')
     const miner = this._bitcoin.getNewAddress()
     this._bitcoin.generateToAddress(blocks, miner)
     await this._waitForBlocks(blocks)
@@ -97,17 +96,26 @@ export default class Waiter {
     })
 
     const task = async () => {
+      console.log(`🔍 Starting to wait for ${blocks} ZMQ hashblock notifications...`)
       let count = 0
 
       for await (const [topic] of this._subscriber) {
-        if (topic.toString() === 'hashblock' && ++count === blocks) {
-          break
+        const topicStr = topic.toString()
+        
+        if (topicStr === 'hashblock') {
+          count++
+
+          if (count === blocks) {
+            console.log(`🎯 All ${blocks} blocks received via ZMQ!`)
+            break
+          }
+        } else {
+          console.log(`⚠️ Unexpected ZMQ topic: ${topicStr}`)
         }
       }
 
       await this._waitForElectrumServer()
     }
-
     await Promise.race([timeout, task()])
   }
 
@@ -116,7 +124,6 @@ export default class Waiter {
 
     await this._waitUntilCondition(async () => {
       const blockCount = await this._getElectrumServerBlockCount()
-
       return blockCount === targetBlockCount
     })
   }
@@ -130,7 +137,6 @@ export default class Waiter {
           method: 'blockchain.headers.subscribe',
           params: []
         }
-
         socket.write(JSON.stringify(request) + '\n')
       })
 
@@ -143,7 +149,6 @@ export default class Waiter {
             socket.end()
             resolve(data.result.height)
           } catch (_) {
-
           }
         }
       })
