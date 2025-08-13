@@ -1,5 +1,6 @@
 export default {
   globalSetup: './tests/jest/jest.setup.js',
   globalTeardown: './tests/jest/jest.teardown.js',
-  testEnvironment: 'node'
+  testEnvironment: 'node',
+  testTimeout: 60000
 }

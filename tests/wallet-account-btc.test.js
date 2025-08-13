@@ -219,7 +219,7 @@ describe('WalletAccountBtc', () => {
         value: 1_000
       })
 
-      await bitcoin.mine()
+      await waiter.mine()
 
       const receipt = await account.getTransactionReceipt(hash)
       expect(receipt.getId()).toBe(hash)
