@@ -15,7 +15,7 @@
   "dependencies": {
     "@bitcoinerlab/secp256k1": "1.2.0",
     "@wdk/wallet": "https://github.com/tetherto/wdk-wallet#develop",
-    "bare-wdk-runtime": "^2.0.0",
+    "bare-wdk-runtime": "2.0.0",
     "bignumber.js": "9.3.0",
     "bip32": "4.0.0",
     "bip39": "3.1.0",
@@ -33,11 +33,9 @@
   "exports": {
     ".": {
       "bare": "./bare.js",
-      "import": "./index.js",
-      "types": "./index.d.ts"
+      "types": "./index.d.ts",
+      "default": "./index.js"
     },
-    "./package": {
-      "default": "./package.json"
-    }
+   "./package": "./package.json"
   }
 }
