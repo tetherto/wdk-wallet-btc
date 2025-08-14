@@ -1,6 +1,5 @@
 import net from 'net'
 import zmq from 'zeromq'
-import { platform } from 'os'
 
 const TIMEOUT = 100_000
 const POLLING_INTERVAL = 50
@@ -79,7 +78,6 @@ export default class Waiter {
   }
 
   async mine (blocks = 1) {
-    console.log(`⛏️ Starting to mine ${blocks} blocks...`)
     // this._subscriber.subscribe('hashblock')
     const miner = this._bitcoin.getNewAddress()
     this._bitcoin.generateToAddress(blocks, miner)
@@ -96,7 +94,6 @@ export default class Waiter {
     })
 
     const task = async () => {
-      console.log(`🔍 Starting to wait for ${blocks} ZMQ hashblock notifications...`)
       let count = 0
 
       for await (const [topic] of this._subscriber) {
@@ -106,11 +103,8 @@ export default class Waiter {
           count++
 
           if (count === blocks) {
-            console.log(`🎯 All ${blocks} blocks received via ZMQ!`)
             break
           }
-        } else {
-          console.log(`⚠️ Unexpected ZMQ topic: ${topicStr}`)
         }
       }
 

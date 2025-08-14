@@ -8,6 +8,8 @@ import { BitcoinCli, Waiter } from '../helpers/index.js'
 
 import WalletManagerBtc, { WalletAccountBtc } from '../../index.js'
 
+const TIMEOUT = 30000 // 30 seconds
+
 const SEED_PHRASE = 'cook voyage document eight skate token alien guide drink uncle term abuse'
 
 const ACCOUNT = {
@@ -81,8 +83,62 @@ describe('@wdk/wallet-btc', () => {
   
         const amount = Math.round(transaction.details[0].amount * 1e+8)
         expect(amount).toBe(TRANSACTION.value)
-  
-    })
+    }, TIMEOUT)
 
-  
+    test('should derive two accounts, send a tx from account 0 to 1 and get the correct balances', async () => {
+      const account0 = await wallet.getAccount(0)
+      const account1 = await wallet.getAccount(1)
+
+      const initialBalance0 = await account0.getBalance()
+      const initialBalance1 = await account1.getBalance()
+
+      const TRANSACTION = {
+        to: await account1.getAddress(),
+        value: 5_000
+      }
+
+      const { hash, fee } = await account0.sendTransaction(TRANSACTION)
+      
+      await waiter.mine()
+
+      const finalBalance0 = await account0.getBalance()
+      const finalBalance1 = await account1.getBalance()
+
+      const transaction = bitcoin.getTransaction(hash)
+      expect(transaction.txid).toBe(hash)
+      expect(transaction.details[0].address).toBe(TRANSACTION.to)
+
+      const actualFee = initialBalance0 - finalBalance0 - TRANSACTION.value
+
+      expect(finalBalance0).toBe(initialBalance0 - TRANSACTION.value - actualFee)
+      
+      // Account 1 receives the mining reward as well
+      expect(finalBalance1).toBe(initialBalance1 + TRANSACTION.value + 1_000)
+    }, TIMEOUT)
+
+    test('should derive an account, sign a message and verify its signature', async () => {
+      const account0 = await wallet.getAccount(0)
+
+      const message = 'Hello, world!'
+
+      const signature = await account0.sign(message)
+      const verified = await account0.verify(message, signature)
+      expect(verified).toBe(true)
+    }, TIMEOUT)
+
+    test('should dispose the wallet and erase the private keys of the accounts', async () => {
+      const account0 = await wallet.getAccount(0),
+          account1 = await wallet.getAccount(1)
+    
+      wallet.dispose()
+
+      const MESSAGE = 'Hello, world!'
+
+      for (const account of [account0, account1]) {
+        expect(() => account.keyPair.privateKey).toThrow()
+
+        await expect(account.sign(MESSAGE)).rejects.toThrow("Cannot read properties of undefined (reading 'sign')")
+      }
+    }, TIMEOUT)
+
 })
