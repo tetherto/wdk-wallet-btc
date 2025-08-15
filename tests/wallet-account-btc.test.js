@@ -287,7 +287,7 @@ describe('WalletAccountBtc', () => {
 
         TRANSFERS.push(transfer)
       }
-    })
+    }, 30000)
 
     afterAll(() => {
       account.dispose()

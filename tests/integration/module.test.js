@@ -50,10 +50,9 @@ describe('@wdk/wallet-btc', () => {
     beforeAll(async () => {
     //   account = new WalletAccountBtc(SEED_PHRASE, "0'/0/0", CONFIGURATION)
       wallet = new WalletManagerBtc(SEED_PHRASE, CONFIGURATION)
-      account0 = await wallet.getAccount(0)
-      account1 = await wallet.getAccount(1)
+      account0 = await wallet.getAccount(2)
+      account1 = await wallet.getAccount(3)
 
-  
       bitcoin.sendToAddress(await account0.getAddress(), 0.01)
       bitcoin.sendToAddress(await account1.getAddress(), 0.01)
   
@@ -61,8 +60,8 @@ describe('@wdk/wallet-btc', () => {
     })
 
     test('should derive an account, quote the cost of a tx and send the tx', async () => {
-        const account0 = await wallet.getAccount(0)
-        const account1 = await wallet.getAccount(1)
+        const account0 = await wallet.getAccount(2)
+        const account1 = await wallet.getAccount(3)
 
         const TRANSACTION = {
             to: await account1.getAddress(),
@@ -86,8 +85,8 @@ describe('@wdk/wallet-btc', () => {
     }, TIMEOUT)
 
     test('should derive two accounts, send a tx from account 0 to 1 and get the correct balances', async () => {
-      const account0 = await wallet.getAccount(0)
-      const account1 = await wallet.getAccount(1)
+      const account0 = await wallet.getAccount(2)
+      const account1 = await wallet.getAccount(3)
 
       const initialBalance0 = await account0.getBalance()
       const initialBalance1 = await account1.getBalance()
@@ -117,7 +116,7 @@ describe('@wdk/wallet-btc', () => {
     }, TIMEOUT)
 
     test('should derive an account, sign a message and verify its signature', async () => {
-      const account0 = await wallet.getAccount(0)
+      const account0 = await wallet.getAccount(2)
 
       const message = 'Hello, world!'
 
@@ -127,8 +126,8 @@ describe('@wdk/wallet-btc', () => {
     }, TIMEOUT)
 
     test('should dispose the wallet and erase the private keys of the accounts', async () => {
-      const account0 = await wallet.getAccount(0),
-          account1 = await wallet.getAccount(1)
+      const account0 = await wallet.getAccount(2),
+          account1 = await wallet.getAccount(3)
     
       wallet.dispose()
 

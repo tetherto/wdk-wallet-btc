@@ -126,7 +126,7 @@ export default class BitcoinCli {
   }
 
   generateToAddress (blocks, address) {
-    return this.call(`generatetoaddress ${blocks} ${address}`)
+    return this.call(`generatetoaddress ${blocks} ${address}`)  
   }
 
   getMempoolEntry (txid) {

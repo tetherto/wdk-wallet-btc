@@ -12,6 +12,100 @@ const ELECTRS_VERSION = 'v0.10.'
 
 const isWindows = platform() === 'win32'
 
+// Function to kill port conflicts
+async function killPortConflicts() {
+  console.log('🔍 Checking for port conflicts...')
+  
+  try {
+    if (isWindows) {
+      // Kill anything using the P2P port (18445) and RPC port
+      try {
+        // Kill processes on P2P port 18445
+        execSync('wsl netstat -tulpn | grep :18445 | awk \'{print $7}\' | cut -d\'/\' -f1 | xargs -r kill -9', { stdio: 'ignore' })
+        console.log('✅ Killed processes on P2P port 18445')
+      } catch (error) {
+        console.log('ℹ️ No processes on P2P port 18445')
+      }
+      
+      // Kill processes on RPC port
+      try {
+        execSync(`wsl netstat -tulpn | grep :${PORT} | awk '{print $7}' | cut -d'/' -f1 | xargs -r kill -9`, { stdio: 'ignore' })
+        console.log(`✅ Killed processes on RPC port ${PORT}`)
+      } catch (error) {
+        console.log(`ℹ️ No processes on RPC port ${PORT}`)
+      }
+      
+      // Kill processes on Electrum port
+      try {
+        execSync(`wsl netstat -tulpn | grep :${ELECTRUM_PORT} | awk '{print $7}' | cut -d'/' -f1 | xargs -r kill -9`, { stdio: 'ignore' })
+        console.log(`✅ Killed processes on Electrum port ${ELECTRUM_PORT}`)
+      } catch (error) {
+        console.log(`ℹ️ No processes on Electrum port ${ELECTRUM_PORT}`)
+      }
+      
+      // Also kill any bitcoind and electrs processes
+      try {
+        execSync('wsl pkill -9 -f bitcoind', { stdio: 'ignore' })
+        console.log('✅ Killed all bitcoind processes')
+      } catch (error) {
+        console.log('ℹ️ No bitcoind processes to kill')
+      }
+      
+      try {
+        execSync('wsl pkill -9 -f electrs', { stdio: 'ignore' })
+        console.log('✅ Killed all electrs processes')
+      } catch (error) {
+        console.log('ℹ️ No electrs processes to kill')
+      }
+      
+    } else {
+      // Unix systems
+      try {
+        execSync(`lsof -ti:18445 | xargs kill -9`, { stdio: 'ignore' })
+        console.log('✅ Killed processes on P2P port 18445')
+      } catch (error) {
+        console.log('ℹ️ No processes on P2P port 18445')
+      }
+      
+      try {
+        execSync(`lsof -ti:${PORT} | xargs kill -9`, { stdio: 'ignore' })
+        console.log(`✅ Killed processes on RPC port ${PORT}`)
+      } catch (error) {
+        console.log(`ℹ️ No processes on RPC port ${PORT}`)
+      }
+      
+      try {
+        execSync(`lsof -ti:${ELECTRUM_PORT} | xargs kill -9`, { stdio: 'ignore' })
+        console.log(`✅ Killed processes on Electrum port ${ELECTRUM_PORT}`)
+      } catch (error) {
+        console.log(`ℹ️ No processes on Electrum port ${ELECTRUM_PORT}`)
+      }
+      
+      try {
+        execSync('pkill -9 -f bitcoind', { stdio: 'ignore' })
+        console.log('✅ Killed all bitcoind processes')
+      } catch (error) {
+        console.log('ℹ️ No bitcoind processes to kill')
+      }
+      
+      try {
+        execSync('pkill -9 -f electrs', { stdio: 'ignore' })
+        console.log('✅ Killed all electrs processes')
+      } catch (error) {
+        console.log('ℹ️ No electrs processes to kill')
+      }
+    }
+    
+    // Wait for ports to be freed
+    console.log('⏳ Waiting for ports to be freed...')
+    await new Promise(resolve => setTimeout(resolve, 2000))
+    console.log('✅ Port conflict check complete')
+    
+  } catch (error) {
+    console.warn('⚠️ Error during port conflict check:', error.message)
+  }
+}
+
 const bitcoin = new BitcoinCli({
   host: HOST,
   port: PORT,
@@ -64,6 +158,9 @@ export default async () => {
 
     process.exit(1)
   }
+
+  // Kill any port conflicts before starting
+  await killPortConflicts()
 
   try {
     console.log('⛔ Stopping any previously running bitcoind instance...')
@@ -118,50 +215,6 @@ export default async () => {
     }
   } else {
     execSync(`mkdir -p ${DATA_DIR}`, { stdio: 'ignore' })
-  }
-
-  try {
-    console.log(`🔍 Checking for processes using port ${PORT}...`)
-    if (isWindows) {
-      // Kill any Windows processes using the port
-      try {
-        const portCheck = execSync(`netstat -aon | findstr :${PORT}`, { stdio: 'pipe' }).toString()
-        if (portCheck.includes('LISTENING')) {
-          const pidMatch = portCheck.match(/\s+(\d+)\s*$/)
-          if (pidMatch) {
-            const pid = pidMatch[1]
-            execSync(`taskkill /f /pid ${pid}`, { stdio: 'ignore' })
-            console.log(`✅ Killed Windows process ${pid} on port ${PORT}`)
-          }
-        }
-      } catch (error) {
-        console.log(`✅ Windows port check completed`)
-      }
-      
-      // Kill any WSL bitcoind processes (this is the real issue)
-      console.log(`🔍 Killing any WSL bitcoind processes...`)
-      try {
-        execSync(`wsl pkill -f bitcoind`, { stdio: 'ignore' })
-        console.log(`✅ Killed WSL bitcoind processes`)
-        await new Promise(resolve => setTimeout(resolve, 2000))
-      } catch (error) {
-        console.log(`✅ No WSL bitcoind processes to kill`)
-      }
-      
-      // Also kill any WSL electrs processes
-      console.log(`🔍 Killing any WSL electrs processes...`)
-      try {
-        execSync(`wsl pkill -f electrs`, { stdio: 'ignore' })
-        console.log(`✅ Killed WSL electrs processes`)
-        await new Promise(resolve => setTimeout(resolve, 2000))
-      } catch (error) {
-        console.log(`✅ No WSL electrs processes to kill`)
-      }
-    } else {
-      execSync(`lsof -i :${PORT} | grep LISTEN | awk '{print $2}' | xargs kill -9`, { stdio: 'ignore' })
-    }
-  } catch {
-    console.warn(`⚠️ Port check completed`)
   }
 
   console.log('🚀 Starting bitcoind in regtest mode...')
