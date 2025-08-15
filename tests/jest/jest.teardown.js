@@ -47,7 +47,7 @@ export default async () => {
 
   try {
     if (isWindows) {
-      execSync(`if exist ".\\db" rmdir /s /q ".\\db"`, { stdio: 'ignore' })
+      execSync('if exist ".\\db" rmdir /s /q ".\\db"', { stdio: 'ignore' })
     } else {
       execSync('rm -rf ./db', { stdio: 'ignore' })
     }

@@ -1,6 +1,5 @@
 import { execSync, spawn, exec } from 'child_process'
 import { platform } from 'os'
-import { resolve } from 'path'
 
 import { HOST, PORT, ELECTRUM_PORT, ZMQ_PORT, DATA_DIR } from '../config.js'
 
@@ -13,9 +12,9 @@ const ELECTRS_VERSION = 'v0.10.'
 const isWindows = platform() === 'win32'
 
 // Function to kill port conflicts
-async function killPortConflicts() {
+async function killPortConflicts () {
   console.log('🔍 Checking for port conflicts...')
-  
+
   try {
     if (isWindows) {
       // Kill anything using the P2P port (18445) and RPC port
@@ -26,7 +25,7 @@ async function killPortConflicts() {
       } catch (error) {
         console.log('ℹ️ No processes on P2P port 18445')
       }
-      
+
       // Kill processes on RPC port
       try {
         execSync(`wsl netstat -tulpn | grep :${PORT} | awk '{print $7}' | cut -d'/' -f1 | xargs -r kill -9`, { stdio: 'ignore' })
@@ -34,7 +33,7 @@ async function killPortConflicts() {
       } catch (error) {
         console.log(`ℹ️ No processes on RPC port ${PORT}`)
       }
-      
+
       // Kill processes on Electrum port
       try {
         execSync(`wsl netstat -tulpn | grep :${ELECTRUM_PORT} | awk '{print $7}' | cut -d'/' -f1 | xargs -r kill -9`, { stdio: 'ignore' })
@@ -42,7 +41,7 @@ async function killPortConflicts() {
       } catch (error) {
         console.log(`ℹ️ No processes on Electrum port ${ELECTRUM_PORT}`)
       }
-      
+
       // Also kill any bitcoind and electrs processes
       try {
         execSync('wsl pkill -9 -f bitcoind', { stdio: 'ignore' })
@@ -50,44 +49,43 @@ async function killPortConflicts() {
       } catch (error) {
         console.log('ℹ️ No bitcoind processes to kill')
       }
-      
+
       try {
         execSync('wsl pkill -9 -f electrs', { stdio: 'ignore' })
         console.log('✅ Killed all electrs processes')
       } catch (error) {
         console.log('ℹ️ No electrs processes to kill')
       }
-      
     } else {
       // Unix systems
       try {
-        execSync(`lsof -ti:18445 | xargs kill -9`, { stdio: 'ignore' })
+        execSync('lsof -ti:18445 | xargs kill -9', { stdio: 'ignore' })
         console.log('✅ Killed processes on P2P port 18445')
       } catch (error) {
         console.log('ℹ️ No processes on P2P port 18445')
       }
-      
+
       try {
         execSync(`lsof -ti:${PORT} | xargs kill -9`, { stdio: 'ignore' })
         console.log(`✅ Killed processes on RPC port ${PORT}`)
       } catch (error) {
         console.log(`ℹ️ No processes on RPC port ${PORT}`)
       }
-      
+
       try {
         execSync(`lsof -ti:${ELECTRUM_PORT} | xargs kill -9`, { stdio: 'ignore' })
         console.log(`✅ Killed processes on Electrum port ${ELECTRUM_PORT}`)
       } catch (error) {
         console.log(`ℹ️ No processes on Electrum port ${ELECTRUM_PORT}`)
       }
-      
+
       try {
         execSync('pkill -9 -f bitcoind', { stdio: 'ignore' })
         console.log('✅ Killed all bitcoind processes')
       } catch (error) {
         console.log('ℹ️ No bitcoind processes to kill')
       }
-      
+
       try {
         execSync('pkill -9 -f electrs', { stdio: 'ignore' })
         console.log('✅ Killed all electrs processes')
@@ -95,12 +93,11 @@ async function killPortConflicts() {
         console.log('ℹ️ No electrs processes to kill')
       }
     }
-    
+
     // Wait for ports to be freed
     console.log('⏳ Waiting for ports to be freed...')
     await new Promise(resolve => setTimeout(resolve, 2000))
     console.log('✅ Port conflict check complete')
-    
   } catch (error) {
     console.warn('⚠️ Error during port conflict check:', error.message)
   }
@@ -174,7 +171,7 @@ export default async () => {
     // On Windows, use WSL home directory to avoid permission issues
     const wslUsername = execSync('wsl whoami', { stdio: 'pipe' }).toString().trim()
     const wslDataDir = `/home/${wslUsername}/${DATA_DIR}`
-    
+
     // Try to remove regtest directory, ignore errors if it doesn't exist
     try {
       execSync(`wsl rm -rf ${wslDataDir}/regtest`, { stdio: 'ignore' })
@@ -194,16 +191,16 @@ export default async () => {
     const wslUsername = execSync('wsl whoami', { stdio: 'pipe' }).toString().trim()
     const wslDataDir = `/home/${wslUsername}/${DATA_DIR}`
     console.log(`🔍 Debug: Creating WSL directory: ${wslDataDir}`)
-    
+
     // Create the directory directly in WSL home
     try {
       execSync(`wsl mkdir -p ${wslDataDir}`, { stdio: 'ignore' })
       console.log(`✅ Created WSL directory: ${wslDataDir}`)
-      
+
       // Verify the directory was created and show its permissions
       try {
         const permissions = execSync(`wsl ls -la ${wslDataDir}`, { stdio: 'pipe' }).toString()
-        console.log(`✅ WSL directory permissions:`)
+        console.log('✅ WSL directory permissions:')
         console.log(permissions)
       } catch (permError) {
         console.warn(`⚠️ Could not verify WSL permissions: ${permError.message}`)
@@ -229,7 +226,7 @@ export default async () => {
   console.log('✅ Bitcoin Core RPC is ready.')
 
   console.log('🔌 Starting Electrum server...')
-  
+
   // On Windows, use WSL home directory for consistency
   if (isWindows) {
     const wslUsername = execSync('wsl whoami', { stdio: 'pipe' }).toString().trim()

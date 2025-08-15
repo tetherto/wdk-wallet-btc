@@ -3,7 +3,7 @@ import { execSync } from 'child_process'
 
 // On Windows, use WSL IP address for proper networking
 // On Unix, use localhost
-function getHost() {
+function getHost () {
   if (platform() === 'win32') {
     try {
       // Get WSL IP address

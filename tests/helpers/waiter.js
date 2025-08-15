@@ -98,7 +98,7 @@ export default class Waiter {
 
       for await (const [topic] of this._subscriber) {
         const topicStr = topic.toString()
-        
+
         if (topicStr === 'hashblock') {
           count++
 

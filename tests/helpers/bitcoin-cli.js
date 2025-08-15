@@ -1,6 +1,5 @@
-import { execSync, spawn, exec } from 'child_process'
+import { execSync, exec } from 'child_process'
 import { platform } from 'os'
-import { resolve } from 'path'
 
 const EXEC_SYNC_OPTIONS = {
   stdio: ['inherit', 'pipe', 'ignore']
@@ -24,7 +23,7 @@ export default class BitcoinCli {
     } else {
       this._cli = `bitcoin-cli -regtest -rpcconnect=${host} -rpcport=${port} -datadir=${dataDir}`
     }
-    
+
     // Store the bitcoind process for Windows
     this._bitcoindProcess = null
   }
@@ -42,7 +41,7 @@ export default class BitcoinCli {
       const wslUsername = execSync('wsl whoami', { stdio: 'pipe' }).toString().trim()
       const wslDataDir = `/home/${wslUsername}/${dataDir}`
       console.log(`🔍 Debug bitcoin-cli: WSL path: ${wslDataDir}`)
-      
+
       exec('bitcoind -regtest -server=1 -txindex=1 -fallbackfee=0.0001 -paytxfee=0.0001 -minrelaytxfee=0.000001 ' +
         `-rpcbind=${host} ` +
         `-rpcallowip=${host}/0 ` +
@@ -65,7 +64,7 @@ export default class BitcoinCli {
           }
         }
       })
-      
+
       // No need to store process since exec handles it in background
       this._bitcoindProcess = null
     } else {
@@ -93,7 +92,7 @@ export default class BitcoinCli {
         // If process is already dead, ignore
       }
     }
-    
+
     // Always try to stop via RPC as well
     try {
       execSync(`${this._cli} stop`, EXEC_SYNC_OPTIONS)
@@ -126,7 +125,7 @@ export default class BitcoinCli {
   }
 
   generateToAddress (blocks, address) {
-    return this.call(`generatetoaddress ${blocks} ${address}`)  
+    return this.call(`generatetoaddress ${blocks} ${address}`)
   }
 
   getMempoolEntry (txid) {
