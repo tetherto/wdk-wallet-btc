@@ -78,7 +78,6 @@ export default class Waiter {
   }
 
   async mine (blocks = 1) {
-    // this._subscriber.subscribe('hashblock')
     const miner = this._bitcoin.getNewAddress()
     this._bitcoin.generateToAddress(blocks, miner)
     await this._waitForBlocks(blocks)
