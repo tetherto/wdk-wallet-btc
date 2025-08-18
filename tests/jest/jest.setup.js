@@ -96,7 +96,7 @@ async function killPortConflicts () {
 
     // Wait for ports to be freed
     console.log('⏳ Waiting for ports to be freed...')
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    await new Promise(resolve => setTimeout(resolve, 5000))
     console.log('✅ Port conflict check complete')
   } catch (error) {
     console.warn('⚠️ Error during port conflict check:', error.message)
