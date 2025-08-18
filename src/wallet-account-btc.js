@@ -351,10 +351,18 @@ export default class WalletAccountBtc {
           const prevId = Buffer.from(input.hash).reverse().toString('hex')
           const prevTx = await this._electrumClient.getTransaction(prevId)
           const script = prevTx.outs[input.index].script
-          const addr = payments.p2wpkh({
-            output: script,
-            network: this._electrumClient.network
-          }).address
+          let addr
+          if (this._isSegWitOutput(script)) {
+            addr = payments.p2wpkh({
+              output: script,
+              network: this._electrumClient.network
+            }).address
+          } else {
+            addr = payments.p2pkh({
+              output: script,
+              network: this._electrumClient.network
+            }).address
+          }
           if (isAddressMatch({ address: addr }, address)) return true
         } catch (_) {}
       }
@@ -375,10 +383,20 @@ export default class WalletAccountBtc {
 
       for (const [index, out] of tx.outs.entries()) {
         const hex = out.script.toString('hex')
-        const addr = payments.p2wpkh({
-          output: out.script,
-          network: this._electrumClient.network
-        }).address
+        let addr
+
+        if (this._isSegWitOutput(out.script)) {
+          addr = payments.p2wpkh({
+            output: out.script,
+            network: this._electrumClient.network
+          }).address
+        } else {
+          addr = payments.p2pkh({
+            output: out.script,
+            network: this._electrumClient.network
+          }).address
+        }
+
         const spk = { hex, address: addr }
         const recipient = extractAddress(spk)
         const isToSelf = isAddressMatch(spk, address)
@@ -450,6 +468,13 @@ export default class WalletAccountBtc {
   }
 
   /** @private */
+  _isSegWitOutput (script) {
+    const scriptHex = script.toString('hex')
+    return (scriptHex.length === 44 && scriptHex.startsWith('0014')) ||
+           (scriptHex.length === 68 && scriptHex.startsWith('0020'))
+  }
+
+  /** @private */
   async _getUtxos (amount, address) {
     const unspent = await this._electrumClient.getUnspent(address)
     if (!unspent || unspent.length === 0) { throw new Error('No unspent outputs available.') }
@@ -468,7 +493,9 @@ export default class WalletAccountBtc {
         }
       }
 
-      utxos.push({ ...utxo, vout: collectedVout })
+      const isSegWit = this._isSegWitOutput(vout.script)
+
+      utxos.push({ ...utxo, vout: collectedVout, isSegWit, fullTx: tx })
       totalCollected = totalCollected.plus(utxo.value)
       if (totalCollected.isGreaterThanOrEqualTo(amount)) break
     }
@@ -490,13 +517,9 @@ export default class WalletAccountBtc {
     const createPsbt = async (fee) => {
       const psbt = new Psbt({ network: this._electrumClient.network })
       utxoSet.forEach((utxo, index) => {
-        psbt.addInput({
+        const inputData = {
           hash: utxo.tx_hash,
           index: utxo.tx_pos,
-          witnessUtxo: {
-            script: Buffer.from(utxo.vout.scriptPubKey.hex, 'hex'),
-            value: utxo.value
-          },
           bip32Derivation: [
             {
               masterFingerprint: this._masterNode.fingerprint,
@@ -504,7 +527,18 @@ export default class WalletAccountBtc {
               pubkey: this._account.publicKey
             }
           ]
-        })
+        }
+
+        if (utxo.isSegWit) {
+          inputData.witnessUtxo = {
+            script: Buffer.from(utxo.vout.scriptPubKey.hex, 'hex'),
+            value: utxo.value
+          }
+        } else {
+          inputData.nonWitnessUtxo = Buffer.from(utxo.fullTx.toHex(), 'hex')
+        }
+
+        psbt.addInput(inputData)
       })
       psbt.addOutput({ address: recipient, value: amount })
       const change = totalInput.minus(amount).minus(fee)
