@@ -57,8 +57,6 @@ describe('@wdk/wallet-btc', () => {
 
     const { hash, fee: sendFee } = await account0.sendTransaction(TRANSACTION)
 
-    // const { fees } = bitcoin.getMempoolEntry(hash)
-    // const baseFee = Math.round(fees.base * 1e+8)
     expect(sendFee).toBe(quoteFee)
 
     const transaction = bitcoin.getTransaction(hash)
@@ -67,6 +65,7 @@ describe('@wdk/wallet-btc', () => {
 
     const amount = Math.round(transaction.details[0].amount * 1e+8)
     expect(amount).toBe(TRANSACTION.value)
+    await waiter.mine()
   }, TIMEOUT)
 
   test('should derive two accounts, send a tx from account 0 to 1 and get the correct balances', async () => {
@@ -96,7 +95,7 @@ describe('@wdk/wallet-btc', () => {
 
     expect(finalBalance0).toBe(initialBalance0 - TRANSACTION.value - actualFee)
 
-    expect(finalBalance1).toBe(initialBalance1 + TRANSACTION.value + 1_000)
+    expect(finalBalance1).toBe(initialBalance1 + TRANSACTION.value)
   }, TIMEOUT)
 
   test('should derive an account, sign a message and verify its signature', async () => {
