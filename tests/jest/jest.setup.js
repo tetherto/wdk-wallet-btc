@@ -124,7 +124,19 @@ function checkBitcoinCore () {
   try {
     const buffer = execSync('bitcoind --version', { stdio: ['inherit', 'pipe', 'ignore'] })
     const output = buffer.toString()
-    return output.includes(BITCOIN_CORE_VERSION)
+    
+    const versionMatch = output.match(/Bitcoin Core version v(\d+)\.(\d+)\.(\d+)/)
+    if (versionMatch) {
+      const major = parseInt(versionMatch[1])
+      const minor = parseInt(versionMatch[2])
+      
+      if (major > 28 || (major === 28 && minor >= 0)) {
+        return true
+      } else {
+        return false
+      }
+    }
+    return false
   } catch {
     return false
   }
@@ -134,7 +146,19 @@ function checkElectrs () {
   try {
     const buffer = execSync('electrs --version', { stdio: ['inherit', 'pipe', 'ignore'] })
     const output = buffer.toString()
-    return output.includes(ELECTRS_VERSION)
+    
+    const versionMatch = output.match(/v(\d+)\.(\d+)\.(\d+)/)
+    if (versionMatch) {
+      const major = parseInt(versionMatch[1])
+      const minor = parseInt(versionMatch[2])
+      
+      if (major > 0 || (major === 0 && minor >= 10)) {
+        return true
+      } else {
+        return false
+      }
+    }
+    return false
   } catch {
     return false
   }
