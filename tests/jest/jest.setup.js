@@ -9,6 +9,8 @@ const BITCOIN_CORE_VERSION = 'v28.'
 
 const ELECTRS_VERSION = 'v0.10.'
 
+const WSL_VERSION = 2
+
 const isWindows = platform() === 'win32'
 
 // Function to kill port conflicts
@@ -138,6 +140,22 @@ function checkElectrs () {
   }
 }
 
+function checkWSL () {
+  try {
+    const buffer = execSync('wsl --version', { stdio: 'pipe' })
+    const output = buffer.toString()
+    const cleanOutput = output.replace(/\u0000/g, '')
+    const versionMatch = cleanOutput.match(/WSL version: (\d+)\./)
+    if (versionMatch) {
+      const majorVersion = parseInt(versionMatch[1])
+      return majorVersion >= WSL_VERSION
+    }
+    return false
+  } catch {
+    return false
+  }
+}
+
 export default async () => {
   console.log('\n🧪 [Test Setup] Initializing Bitcoin regtest environment...')
 
@@ -147,6 +165,12 @@ export default async () => {
   console.log(`🔍 Debug: __dirname equivalent: ${import.meta.url}`)
   console.log(`🔍 Debug: HOST: ${HOST}`)
   console.log(`🔍 Debug: PORT: ${PORT}`)
+
+  if (isWindows && !checkWSL()) {
+    console.error('❗ You are missing the following tools:')
+    console.error(`❌ WSL - install here: https://learn.microsoft.com/en-us/windows/wsl/install`)
+    process.exit(1)
+  }
 
   if (!checkBitcoinCore() || !checkElectrs()) {
     console.error('❗ You are missing the following tools:')
@@ -235,10 +259,7 @@ export default async () => {
     exec('electrs --network regtest --daemon-dir ' + wslDataDir + ' --daemon-rpc-addr ' + HOST + ':' + PORT + ' --electrum-rpc-addr ' + HOST + ':' + ELECTRUM_PORT, {
       shell: true,
       stdio: 'ignore'
-    }, (error, stdout, stderr) => {
-      console.log('stdout:', stdout)
-      console.log('stderr:', stderr)
-      // Ignore errors - electrs is a long-running process
+    }, (error) => {
       if (error) {
         console.warn('electrs startup warning:', error.message)
       }
