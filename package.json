@@ -21,7 +21,8 @@
     "bip32": "4.0.0",
     "bip39": "3.1.0",
     "bitcoinjs-lib": "6.1.7",
-    "sodium-universal": "5.0.1"
+    "sodium-universal": "5.0.1",
+    "tcp-port-used": "^1.0.2"
   },
   "devDependencies": {
     "cross-env": "7.0.3",

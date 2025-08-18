@@ -1,5 +1,6 @@
 import { execSync, spawn, exec } from 'child_process'
 import { platform } from 'os'
+import tcpPortUsed from 'tcp-port-used'
 
 import { HOST, PORT, ELECTRUM_PORT, ZMQ_PORT, DATA_DIR } from '../config.js'
 
@@ -98,7 +99,11 @@ async function killPortConflicts () {
 
     // Wait for ports to be freed
     console.log('⏳ Waiting for ports to be freed...')
-    await new Promise(resolve => setTimeout(resolve, 5000))
+    await Promise.all([
+      tcpPortUsed.waitUntilFreeOnHost(18444, HOST, 150, 15000),
+      tcpPortUsed.waitUntilFreeOnHost(PORT, HOST, 150, 15000),
+      tcpPortUsed.waitUntilFreeOnHost(ELECTRUM_PORT, HOST, 150, 15000),
+    ]);
     console.log('✅ Port conflict check complete')
   } catch (error) {
     console.warn('⚠️ Error during port conflict check:', error.message)
