@@ -68,7 +68,7 @@ describe('@wdk/wallet-btc', () => {
     await waiter.mine()
   }, TIMEOUT)
 
-  test('should derive two accounts, send a tx from account 0 to 1 and get the correct balances', async () => {
+  test('should derive two accounts, send a tx from account 2 to 3 and get the correct balances', async () => {
     const account0 = await wallet.getAccount(2)
     const account1 = await wallet.getAccount(3)
 

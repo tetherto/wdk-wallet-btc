@@ -206,6 +206,9 @@ export default async () => {
     console.error(`${checkBitcoinCore() ? '✅' : '❌'} Bitcoin Core\tv28.x.x+ - install here: https://bitcoin.org/en/download`)
     console.error(`${checkElectrs() ? '✅' : '❌'} Electrs\tv0.10.x+ - install here: https://github.com/romanz/electrs/blob/master/doc/install.md`)
 
+    if (isWindows) {
+      console.error('❌ You need to add bitcoin-cli, bitcoind and electrs to the PATH, possibly using a bat file for each')
+    }
     process.exit(1)
   }
 

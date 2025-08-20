@@ -15,7 +15,7 @@ export default class BitcoinCli {
     this._wallet = wallet
 
     // On Windows, use WSL path for datadir and WSL IP for connection
-    if (platform() === 'win32') {
+    if (isWindows) {
       const wslUsername = execSync('wsl whoami', { stdio: 'pipe' }).toString().trim()
       const wslDataDir = `/home/${wslUsername}/${dataDir}`
       // Use the WSL IP address for connection
