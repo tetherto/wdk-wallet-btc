@@ -29,7 +29,11 @@ export default class ElectrumClient extends BaseElectrumClient {
   ) {
     super(port, host, protocol, options, callbacks)
 
-    this._ready = super.initElectrum({ client, version }, persistence)
+    this._clientInfo = { client, version }
+    this._persistence = persistence
+
+    this._ready = super.initElectrum(this._clientInfo, this._persistence)
+      .catch(err => { this._ready = null; throw err })
 
     const target = this
     return new Proxy(this, {
@@ -37,7 +41,9 @@ export default class ElectrumClient extends BaseElectrumClient {
         const value = Reflect.get(obj, prop, receiver)
         if (typeof value !== 'function') return value
 
-        if (prop === 'close' || prop === 'initElectrum') return value.bind(obj)
+        if (prop === 'close' || prop === 'initElectrum' || prop === 'reconnect') {
+          return value.bind(obj)
+        }
 
         return async function (...args) {
           await target._ready
@@ -64,8 +70,16 @@ export default class ElectrumClient extends BaseElectrumClient {
     return this._ready
   }
 
+  reconnect () {
+    this.initSocket()
+    const p = super.initElectrum(this._clientInfo, this._persistence)
+    this._ready = p.catch(err => { this._ready = null; throw err })
+    return this._ready
+  }
+
   close () {
     super.close()
     this._ready = null
+    this.reconnect = ElectrumClient.prototype.reconnect.bind(this)
   }
 }
