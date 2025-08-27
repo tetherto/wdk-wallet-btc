@@ -80,4 +80,24 @@ export default class BitcoinCli {
   getBlockchainInfo () {
     return this.call('getblockchaininfo')
   }
+
+  getRawTransactionVerbose (txid) {
+    return this.call(`getrawtransaction ${txid} true`)
+  }
+
+  getTransactionFeeSats (txid) {
+    const tx = this.getRawTransactionVerbose(txid)
+
+    const inputTotal = tx.vin.reduce((sum, vin) => {
+      const prev = this.getRawTransactionVerbose(vin.txid)
+      const prevOut = prev.vout[vin.vout]
+      return sum + Math.round(prevOut.value * 1e8)
+    }, 0)
+
+    const outputTotal = tx.vout.reduce((sum, out) => {
+      return sum + Math.round(out.value * 1e8)
+    }, 0)
+
+    return inputTotal - outputTotal
+  }
 }

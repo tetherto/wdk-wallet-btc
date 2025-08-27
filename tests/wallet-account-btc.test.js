@@ -116,10 +116,9 @@ describe('WalletAccountBtc', () => {
 
       const { hash, fee } = await account.sendTransaction(TRANSACTION)
 
-      await waiter.waitForMempoolEntry(hash)
+      await waiter.mine()
 
-      const { fees } = bitcoin.getMempoolEntry(hash)
-      const baseFee = Math.round(fees.base * 1e+8)
+      const baseFee = bitcoin.getTransactionFeeSats(hash)
       expect(fee).toBe(baseFee)
 
       const transaction = bitcoin.getTransaction(hash)

@@ -81,13 +81,12 @@ describe('WalletAccountReadOnlyBtc', () => {
       await waiter.mine()
       const transaction = bitcoin.getTransaction(txid)
       const fee = Math.round(Math.abs(transaction.fee) * 1e8)
-      const height = bitcoin.getBlockCount()
 
       return {
         txid,
         address,
         vout: transaction.details[0].vout,
-        height,
+        height: transaction.blockheight,
         value: 1_000_000,
         direction: 'incoming',
         fee,
@@ -106,13 +105,13 @@ describe('WalletAccountReadOnlyBtc', () => {
 
       await waiter.mine()
 
-      const height = bitcoin.getBlockCount()
+      const tx = bitcoin.getTransaction(hash)
 
       return {
         txid: hash,
         address,
         vout: 0,
-        height,
+        height: tx.blockheight,
         value: 100_000,
         direction: 'outgoing',
         fee,
