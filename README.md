@@ -1,6 +1,6 @@
 # @wdk/wallet-btc
 
-A simple and secure package to manage BIP-44 wallets for the Bitcoin blockchain. This package provides a clean API for creating, managing, and interacting with Bitcoin wallets using BIP-39 seed phrases and Bitcoin-specific derivation paths.
+A simple and secure package to manage BIP-84 (SegWit) wallets for the Bitcoin blockchain. This package provides a clean API for creating, managing, and interacting with Bitcoin wallets using BIP-39 seed phrases and Bitcoin-specific derivation paths.
 
 ## 🔍 About WDK
 
@@ -11,7 +11,7 @@ For detailed documentation about the complete WDK ecosystem, visit [docs.wallet.
 ## 🌟 Features
 
 - **BIP-39 Seed Phrase Support**: Generate and validate BIP-39 mnemonic seed phrases
-- **Bitcoin Derivation Paths**: Support for BIP-44 standard derivation paths for Bitcoin (m/44'/0')
+- **Bitcoin Derivation Paths**: Support for BIP-84 standard derivation paths for Bitcoin (m/84'/0')
 - **Multi-Account Management**: Create and manage multiple accounts from a single seed phrase
 - **Address Types Support**: Generate and manage Legacy, SegWit, and Native SegWit addresses
 - **UTXO Management**: Track and manage unspent transaction outputs
@@ -57,9 +57,10 @@ After installation, ensure your package.json includes the dependency correctly:
 
 ### Importing from `@wdk/wallet-btc`
 
-1. WalletManagerBtc: Main class for managing wallets
-2. WalletAccountBtc: Use this for full access accounts
-3. ElectrumClient: Client for interacting with Electrum servers
+1. **WalletManagerBtc**: Main class for managing Bitcoin wallets and multiple accounts
+2. **WalletAccountBtc**: Class for individual Bitcoin wallet accounts with full transaction capabilities
+
+**Note**: `ElectrumClient` is an internal class and not intended for direct use.
 
 ### Creating a New Wallet
 
@@ -71,18 +72,22 @@ const seedPhrase = 'abandon abandon abandon abandon abandon abandon abandon aban
 
 // Create wallet manager with Electrum server config
 const wallet = new WalletManagerBtc(seedPhrase, {
-  electrumServer: 'ssl://electrum.blockstream.info:50002', // or any Electrum server
-  network: 'mainnet', // or 'testnet'
-  addressType: 'segwit' // 'legacy', 'segwit', or 'native_segwit'
+  host: 'electrum.blockstream.info', // Electrum server hostname
+  port: 50001, // Electrum server port (50001 for TCP, 50002 for SSL)
+  network: 'bitcoin' // 'bitcoin', 'testnet', or 'regtest'
 })
 
-// Get a full access account
+// Get a full access account (uses BIP-84 derivation path)
 const account = await wallet.getAccount(0)
 
-// Get the account's addresses
+// Get the account's address (Native SegWit by default)
 const address = await account.getAddress()
 console.log('Account address:', address)
 ```
+**Note**: This implementation uses BIP-84 derivation paths and generates Native SegWit (bech32) addresses by default. The address type is determined by the BIP-84 standard, not by configuration.
+
+**Important Note about Electrum Servers**: 
+While the package defaults to `electrum.blockstream.info` if no host is specified, **we strongly recommend configuring your own Electrum server** for production use. Public servers like Blockstream's can be significantly slower (10-300x) and may fail when fetching transaction history for popular addresses with many transactions. For better performance, consider using alternative public servers like `fulcrum.frznode.com` for development, or set up your own Fulcrum server for production environments.
 
 ### Managing Multiple Accounts
 
@@ -105,12 +110,12 @@ const customAccount = await wallet.getAccountByPath("0'/0/5")
 const customAddress = await customAccount.getAddress()
 console.log('Custom account address:', customAddress)
 
-// Get different address types
-const legacyAddress = await account.getAddress('legacy')
-const segwitAddress = await account.getAddress('segwit')
-const nativeSegwitAddress = await account.getAddress('native_segwit')
+// All addresses are Native SegWit (bech32) format
+// The wallet uses BIP-84 derivation paths and generates bech32 addresses only
+console.log('Address format: Native SegWit (bech32)')
 ```
 
+**Note**: This implementation generates Native SegWit (bech32) addresses only. Legacy and P2SH-wrapped SegWit address types are not supported. All accounts use BIP-84 derivation paths (m/84'/0'/account'/0/index).
 ### Checking Balances
 
 #### Account Balance
@@ -119,49 +124,70 @@ const nativeSegwitAddress = await account.getAddress('native_segwit')
 import WalletManagerBtc from '@wdk/wallet-btc'
 
 // Assume wallet and account are already created
-// Get total balance (confirmed + unconfirmed)
+// Get confirmed balance (returns confirmed balance only)
 const balance = await account.getBalance()
-console.log('Total balance:', balance, 'satoshis') // 1 BTC = 100000000 satoshis
+console.log('Confirmed balance:', balance, 'satoshis') // 1 BTC = 100,000,000 satoshis
 
-// Get confirmed balance only
-const confirmedBalance = await account.getBalance({ onlyConfirmed: true })
-console.log('Confirmed balance:', confirmedBalance, 'satoshis')
+// Get transfer history (incoming and outgoing transfers)
+const allTransfers = await account.getTransfers()
+console.log('Recent transfers (last 10):', allTransfers)
 
-// Get UTXO set
-const utxos = await account.getUTXOs()
-console.log('Available UTXOs:', utxos)
+// Get transfer history with options
+const incomingTransfers = await account.getTransfers({
+  direction: 'incoming', // 'incoming', 'outgoing', or 'all'
+  limit: 20,             // Number of transfers to fetch
+  skip: 0                // Number of transfers to skip
+})
+console.log('Incoming transfers:', incomingTransfers)
 
-// Get transaction history
-const history = await account.getTransactionHistory()
-console.log('Transaction history:', history)
+// Get outgoing transfers only
+const outgoingTransfers = await account.getTransfers({
+  direction: 'outgoing',
+  limit: 5
+})
+console.log('Outgoing transfers:', outgoingTransfers)
 
-// Note: All balance and UTXO queries require an active Electrum server connection
+// Note: All balance and transfer queries require an active Electrum server connection
 ```
+
+**Important Notes:**
+- `getBalance()` returns confirmed balance only (no unconfirmed balance option)
+- There's no direct UTXO access method - UTXOs are managed internally
+- Use `getTransfers()` instead of `getTransactionHistory()` for transaction data
+- Transfer objects include transaction ID, value, direction, fee, and block height information
 
 ### Transaction Management
 
 ```javascript
-// Create and send a transaction
+// Create and send a transaction (single recipient only)
 const result = await account.sendTransaction({
-  recipients: [{
-    address: 'bc1...', // Recipient's Bitcoin address
-    amount: 50000 // Amount in satoshis
-  }],
-  feeRate: 5 // Fee rate in sat/vB
+  to: 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh', // Recipient's Bitcoin address
+  value: 50000 // Amount in satoshis
 })
-console.log('Transaction ID:', result.txid)
+console.log('Transaction hash:', result.hash)
 console.log('Transaction fee:', result.fee, 'satoshis')
 
 // Get transaction fee estimate
 const quote = await account.quoteSendTransaction({
-  recipients: [{
-    address: 'bc1...',
-    amount: 50000
-  }]
+  to: 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh',
+  value: 50000
 })
 console.log('Estimated fee:', quote.fee, 'satoshis')
-console.log('Virtual size:', quote.vsize, 'vBytes')
+
+// Example with different amounts
+const smallTransaction = await account.quoteSendTransaction({
+  to: 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh',
+  value: 10000 // 0.0001 BTC
+})
+console.log('Small transaction fee:', smallTransaction.fee, 'satoshis')
 ```
+
+**Important Notes:**
+- Bitcoin transactions support **single recipient only** (no multiple recipients in one call)
+- Fee rate is calculated automatically based on network conditions
+- Transaction amounts and fees are always in **satoshis** (1 BTC = 100,000,000 satoshis)
+- `sendTransaction()` returns `hash` and `fee` properties
+- `quoteSendTransaction()` returns only the `fee` estimate
 
 ### Fee Management
 
@@ -170,54 +196,50 @@ Retrieve current fee rates using `WalletManagerBtc`. Rates are provided in satos
 ```javascript
 // Get current fee rates
 const feeRates = await wallet.getFeeRates();
-console.log('Economic fee rate:', feeRates.economic, 'sat/vB'); // Slower, cheaper transactions
-console.log('Normal fee rate:', feeRates.normal, 'sat/vB');     // Standard confirmation time
-console.log('Priority fee rate:', feeRates.priority, 'sat/vB'); // Faster confirmation time
+console.log('Normal fee rate:', feeRates.normal, 'sat/vB');  // Standard confirmation time (~1 hour)
+console.log('Fast fee rate:', feeRates.fast, 'sat/vB');     // Faster confirmation time
 
-// Estimate specific transaction fee
-const estimatedFee = await account.estimateFee({
-  recipients: [{
-    address: 'bc1...',
-    amount: 50000
-  }],
-  feeRate: feeRates.normal
+// Estimate transaction fee using quoteSendTransaction
+const feeEstimate = await account.quoteSendTransaction({
+  to: 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh',
+  value: 50000 // Amount in satoshis
 })
-console.log('Estimated fee:', estimatedFee.fee, 'satoshis')
-console.log('Virtual size:', estimatedFee.vsize, 'vBytes')
+console.log('Estimated fee:', feeEstimate.fee, 'satoshis')
+
+// Example: Compare fees for different transaction amounts
+const smallTxFee = await account.quoteSendTransaction({
+  to: 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh',
+  value: 10000 // 0.0001 BTC
+})
+
+const largeTxFee = await account.quoteSendTransaction({
+  to: 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh',
+  value: 1000000 // 0.01 BTC
+})
+
+console.log('Small transaction fee:', smallTxFee.fee, 'satoshis')
+console.log('Large transaction fee:', largeTxFee.fee, 'satoshis')
 ```
 
-### UTXO Management
-
-```javascript
-// Get all UTXOs
-const utxos = await account.getUTXOs()
-
-// Get only confirmed UTXOs
-const confirmedUtxos = await account.getUTXOs({ onlyConfirmed: true })
-
-// Select UTXOs for a specific amount
-const selectedUtxos = await account.selectUTXOs({
-  amount: 100000, // Amount in satoshis
-  feeRate: 5 // Fee rate in sat/vB
-})
-console.log('Selected UTXOs:', selectedUtxos)
-console.log('Total input amount:', selectedUtxos.totalAmount)
-console.log('Change amount:', selectedUtxos.changeAmount)
-```
+**Important Notes:**
+- Fee rates are fetched from mempool.space API
+- `getFeeRates()` returns only `normal` and `fast` fee rates (no `economic` or `priority`)
+- Fee estimation is done via `quoteSendTransaction()` method, not a separate `estimateFee()` method
+- Fee rates are automatically calculated based on network conditions and UTXO selection
+- Actual fees depend on transaction size (number of inputs/outputs) and current network congestion
 
 ### Memory Management
 
 Clear sensitive data from memory using `dispose` methods.
 
 ```javascript
-// Dispose wallet accounts to clear private keys from memory
+// Dispose wallet account to clear private keys from memory
 account.dispose()
 
 // Dispose entire wallet manager
 wallet.dispose()
 
 // Close Electrum client connection
-await wallet.electrumClient.close()
 ```
 ## 📚 API Reference
 
@@ -227,7 +249,6 @@ await wallet.electrumClient.close()
 |-------|-------------|---------|
 | [WalletManagerBtc](#walletmanagerbtc) | Main class for managing Bitcoin wallets. Extends `WalletManager` from `@wdk/wallet`. | [Constructor](#constructor), [Methods](#methods) |
 | [WalletAccountBtc](#walletaccountbtc) | Individual Bitcoin wallet account implementation. Implements `IWalletAccount`. | [Constructor](#constructor-1), [Methods](#methods-1), [Properties](#properties) |
-| [ElectrumClient](#electrumclient) | Client for interacting with Electrum servers. | [Constructor](#constructor-2), [Methods](#methods-2) |
 
 ### WalletManagerBtc
 
@@ -239,26 +260,25 @@ Extends `WalletManager` from `@wdk/wallet`.
 ```javascript
 new WalletManagerBtc(seed, config)
 ```
-
 **Parameters:**
 - `seed` (string | Uint8Array): BIP-39 mnemonic seed phrase or seed bytes
-- `config` (object): Configuration object
-  - `electrumServer` (string): Electrum server URL (e.g., 'ssl://electrum.blockstream.info:50002')
-  - `network` (string, optional): 'mainnet' or 'testnet' (default: 'mainnet')
-  - `addressType` (string, optional): 'legacy', 'segwit', or 'native_segwit' (default: 'segwit')
-  - `timeout` (number, optional): Connection timeout in milliseconds
+- `config` (object, optional): Configuration object
+  - `host` (string, optional): Electrum server hostname (default: "electrum.blockstream.info")
+  - `port` (number, optional): Electrum server port (default: 50001)
+  - `network` (string, optional): "bitcoin", "testnet", or "regtest" (default: "bitcoin")
 
 #### Methods
 
 | Method | Description | Returns |
 |--------|-------------|---------|
 | `getAccount(index)` | Returns a wallet account at the specified index | `Promise<WalletAccountBtc>` |
-| `getAccountByPath(path)` | Returns a wallet account at the specified BIP-44 derivation path | `Promise<WalletAccountBtc>` |
-| `getFeeRates()` | Returns current fee rates for transactions | `Promise<{economic: number, normal: number, priority: number}>` |
+| `getAccountByPath(path)` | Returns a wallet account at the specified BIP-84 derivation path | `Promise<WalletAccountBtc>` |
+| `getFeeRates()` | Returns current fee rates for transactions | `Promise<{normal: number, fast: number}>` |
 | `dispose()` | Disposes all wallet accounts, clearing private keys from memory | `void` |
 
+
 ##### `getAccount(index)`
-Returns a wallet account at the specified index.
+Returns a wallet account at the specified index using BIP-84 derivation.
 
 **Parameters:**
 - `index` (number, optional): The index of the account to get (default: 0)
@@ -271,7 +291,7 @@ const account = await wallet.getAccount(0)
 ```
 
 ##### `getAccountByPath(path)`
-Returns a wallet account at the specified BIP-44 derivation path.
+Returns a wallet account at the specified BIP-84 derivation path.
 
 **Parameters:**
 - `path` (string): The derivation path (e.g., "0'/0/0")
@@ -282,23 +302,18 @@ Returns a wallet account at the specified BIP-44 derivation path.
 ```javascript
 const account = await wallet.getAccountByPath("0'/0/1")
 ```
-
 ##### `getFeeRates()`
-Returns current fee rates based on network conditions and mempool state.
+Returns current fee rates from mempool.space API.
 
-**Returns:** `Promise<{economic: number, normal: number, priority: number}>` - Object containing fee rates in sat/vB
-- `economic`: Lowest fee rate for eventual confirmation (within 24 blocks)
-- `normal`: Standard fee rate for medium-priority confirmation (within 6 blocks)
-- `priority`: High fee rate for fast confirmation (within 2 blocks)
-
-**Throws:**
-- `FeeEstimationError`: When fee estimation fails
-- `NetworkError`: When network request fails
+**Returns:** `Promise<{normal: number, fast: number}>` - Object containing fee rates in sat/vB
+- `normal`: Standard fee rate for confirmation within ~1 hour
+- `fast`: Higher fee rate for faster confirmation
 
 **Example:**
 ```javascript
 const feeRates = await wallet.getFeeRates()
 console.log('Normal fee rate:', feeRates.normal, 'sat/vB')
+console.log('Fast fee rate:', feeRates.fast, 'sat/vB')
 ```
 
 ##### `dispose()`
@@ -323,389 +338,266 @@ new WalletAccountBtc(seed, path, config)
 
 **Parameters:**
 - `seed` (string | Uint8Array): BIP-39 mnemonic seed phrase or seed bytes
-- `path` (string): BIP-44 derivation path (e.g., "0'/0/0")
-- `config` (object): Configuration object
-  - `network` (string, optional): 'mainnet' or 'testnet' (default: 'mainnet')
-  - `addressType` (string, optional): 'legacy', 'segwit', or 'native_segwit' (default: 'segwit')
-  - `electrumClient` (ElectrumClient): Instance of ElectrumClient for network interaction
+- `path` (string): BIP-84 derivation path (e.g., "0'/0/0")
+- `config` (object, optional): Configuration object
+  - `host` (string, optional): Electrum server hostname (default: "electrum.blockstream.info")
+  - `port` (number, optional): Electrum server port (default: 50001)
+  - `network` (string, optional): "bitcoin", "testnet", or "regtest" (default: "bitcoin")
 
 #### Methods
 
 | Method | Description | Returns |
 |--------|-------------|---------|
-| `getAddress(type?)` | Returns the account's address for specified type | `Promise<string>` |
-| `getBalance(options?)` | Returns the account balance in satoshis | `Promise<number>` |
-| `getUTXOs(options?)` | Returns the account's unspent transaction outputs | `Promise<UTXO[]>` |
-| `selectUTXOs(options)` | Selects UTXOs for a transaction | `Promise<{utxos: UTXO[], totalAmount: number, changeAmount: number}>` |
-| `sendTransaction(options)` | Sends a Bitcoin transaction | `Promise<{txid: string, fee: number}>` |
-| `quoteSendTransaction(options)` | Estimates the fee for a transaction | `Promise<{fee: number, vsize: number}>` |
-| `getTransactionHistory()` | Returns the account's transaction history | `Promise<Transaction[]>` |
+| `getAddress()` | Returns the account's Native SegWit address | `Promise<string>` |
+| `getBalance()` | Returns the confirmed account balance in satoshis | `Promise<number>` |
+| `sendTransaction(options)` | Sends a Bitcoin transaction | `Promise<{hash: string, fee: number}>` |
+| `quoteSendTransaction(options)` | Estimates the fee for a transaction | `Promise<{fee: number}>` |
+| `getTransfers(options?)` | Returns the account's transfer history | `Promise<BtcTransfer[]>` |
+| `sign(message)` | Signs a message with the account's private key | `Promise<string>` |
+| `verify(message, signature)` | Verifies a message signature | `Promise<boolean>` |
+| `toReadOnlyAccount()` | Creates a read-only version of this account | `Promise<WalletAccountReadOnlyBtc>` |
 | `dispose()` | Disposes the wallet account, clearing private keys from memory | `void` |
 
-##### `getAddress(type?)`
-Returns the account's address for the specified type.
-
-**Parameters:**
-- `type` (string, optional): Address type ('legacy', 'segwit', or 'native_segwit', default: configured type)
+##### `getAddress()`
+Returns the account's Native SegWit (bech32) address.
 
 **Returns:** `Promise<string>` - The Bitcoin address
 
 **Example:**
 ```javascript
-const legacyAddress = await account.getAddress('legacy')
-const segwitAddress = await account.getAddress('segwit')
-const nativeSegwitAddress = await account.getAddress('native_segwit')
+const address = await account.getAddress()
+console.log('Address:', address) // bc1q...
 ```
-
-##### `getBalance(options?)`
-Returns the account balance in satoshis.
-
-**Parameters:**
-- `options` (object, optional): Balance options
-  - `onlyConfirmed` (boolean, optional): Only include confirmed balance
-  - `minConfirmations` (number, optional): Minimum confirmations required
+##### `getBalance()`
+Returns the account's confirmed balance in satoshis.
 
 **Returns:** `Promise<number>` - Balance in satoshis
 
 **Example:**
 ```javascript
 const balance = await account.getBalance()
-const confirmedBalance = await account.getBalance({ onlyConfirmed: true })
-```
-
-##### `getUTXOs(options?)`
-Returns the account's unspent transaction outputs (UTXOs).
-
-**Parameters:**
-- `options` (object, optional): UTXO filter options
-  - `onlyConfirmed` (boolean, optional): Only include confirmed UTXOs
-  - `minConfirmations` (number, optional): Minimum confirmations required
-
-**Returns:** `Promise<UTXO[]>` - Array of unspent transaction outputs
-
-**Example:**
-```javascript
-const utxos = await account.getUTXOs()
-const confirmedUtxos = await account.getUTXOs({ onlyConfirmed: true })
-```
-
-##### `selectUTXOs(options)`
-Selects UTXOs for a transaction using coin selection algorithm.
-
-**Parameters:**
-- `options` (object): Selection options
-  - `amount` (number): Target amount in satoshis
-  - `feeRate` (number): Base fee rate in sat/vB
-  - `targetFeeRate` (number, optional): Desired fee rate for priority
-  - `minConfirmations` (number, optional): Minimum confirmations required
-  - `excludeUTXOs` (UTXO[], optional): UTXOs to exclude from selection
-  - `dustThreshold` (number, optional): Minimum output value (default: 546 satoshis)
-
-**Returns:** `Promise<{utxos: UTXO[], totalAmount: number, changeAmount: number}>`
-- `utxos`: Selected UTXOs
-- `totalAmount`: Total input amount in satoshis
-- `changeAmount`: Change amount in satoshis
-
-**Example:**
-```javascript
-const { utxos, totalAmount, changeAmount } = await account.selectUTXOs({
-  amount: 100000,
-  feeRate: 5
-})
+console.log('Balance:', balance, 'satoshis')
 ```
 
 ##### `sendTransaction(options)`
-Sends a Bitcoin transaction.
+Sends a Bitcoin transaction to a single recipient.
 
 **Parameters:**
 - `options` (object): Transaction options
-  - `recipients` (array): Array of recipients
-    - `address` (string): Recipient's Bitcoin address
-    - `amount` (number): Amount in satoshis
-  - `feeRate` (number): Fee rate in sat/vB
-  - `utxos` (UTXO[], optional): Specific UTXOs to use
-  - `rbf` (boolean, optional): Enable Replace-By-Fee
-  - `sequence` (number, optional): Sequence number for RBF (default: 0xffffffff - 2)
-  - `changeAddress` (string, optional): Specific address for change output
-  - `memo` (string, optional): Transaction memo
+  - `to` (string): Recipient's Bitcoin address
+  - `value` (number): Amount in satoshis
 
-**Returns:** `Promise<{txid: string, fee: number}>`
-- `txid`: Transaction ID
+**Returns:** `Promise<{hash: string, fee: number}>`
+- `hash`: Transaction hash
 - `fee`: Transaction fee in satoshis
 
 **Example:**
 ```javascript
 const result = await account.sendTransaction({
-  recipients: [{ address: 'bc1...', amount: 50000 }],
-  feeRate: 5,
-  rbf: true
+  to: 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh',
+  value: 50000
 })
+console.log('Transaction hash:', result.hash)
+console.log('Fee:', result.fee, 'satoshis')
 ```
 
 ##### `quoteSendTransaction(options)`
-Estimates the fee for a transaction.
+Estimates the fee for a transaction without broadcasting it.
 
 **Parameters:**
 - `options` (object): Same as sendTransaction options
+  - `to` (string): Recipient's Bitcoin address
+  - `value` (number): Amount in satoshis
 
-**Returns:** `Promise<{fee: number, vsize: number}>`
-- `fee`: Estimated fee in satoshis
-- `vsize`: Estimated virtual size in vBytes
+**Returns:** `Promise<{fee: number}>`
+- `fee`: Estimated transaction fee in satoshis
 
 **Example:**
 ```javascript
 const quote = await account.quoteSendTransaction({
-  recipients: [{ address: 'bc1...', amount: 50000 }],
-  feeRate: 5
+  to: 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh',
+  value: 50000
 })
+console.log('Estimated fee:', quote.fee, 'satoshis')
 ```
 
-##### `getTransactionHistory()`
-Returns the account's transaction history.
+##### `getTransfers(options?)`
+Returns the account's transfer history with detailed transaction information.
 
-**Returns:** `Promise<Transaction[]>` - Array of transactions
+**Parameters:**
+- `options` (object, optional): Filter options
+  - `direction` (string, optional): 'incoming', 'outgoing', or 'all' (default: 'all')
+  - `limit` (number, optional): Maximum number of transfers (default: 10)
+  - `skip` (number, optional): Number of transfers to skip (default: 0)
+
+**Returns:** `Promise<BtcTransfer[]>` - Array of transfer objects
+- `txid`: Transaction ID
+- `address`: Account's own address
+- `vout`: Output index in the transaction
+- `height`: Block height (0 if unconfirmed)
+- `value`: Transfer value in satoshis
+- `direction`: 'incoming' or 'outgoing'
+- `fee`: Transaction fee in satoshis (for outgoing transfers)
+- `recipient`: Receiving address (for outgoing transfers)
 
 **Example:**
 ```javascript
-const history = await account.getTransactionHistory()
+const transfers = await account.getTransfers({ 
+  direction: 'incoming', 
+  limit: 5 
+})
+console.log('Recent incoming transfers:', transfers)
+```
+
+##### `sign(message)`
+Signs a message using the account's private key.
+
+**Parameters:**
+- `message` (string): Message to sign
+
+**Returns:** `Promise<string>` - Signature as hex string
+
+**Example:**
+```javascript
+const signature = await account.sign('Hello Bitcoin!')
+console.log('Signature:', signature)
+```
+
+##### `verify(message, signature)`
+Verifies a message signature using the account's public key.
+
+**Parameters:**
+- `message` (string): Original message
+- `signature` (string): Signature as hex string
+
+**Returns:** `Promise<boolean>` - True if signature is valid
+
+**Example:**
+```javascript
+const isValid = await account.verify('Hello Bitcoin!', signature)
+console.log('Signature valid:', isValid)
+```
+
+##### `getTokenBalance(tokenAddress)`
+Not supported on the Bitcoin blockchain. Always throws an error.
+
+**Parameters:**
+- `tokenAddress` (string): Token contract address
+
+**Throws:** Error - "The 'getTokenBalance' method is not supported on the bitcoin blockchain."
+
+**Example:**
+```javascript
+// This will throw an error
+try {
+  await account.getTokenBalance('some-address')
+} catch (error) {
+  console.log(error.message) // Not supported on bitcoin blockchain
+}
+```
+
+##### `transfer(options)`
+Not supported on the Bitcoin blockchain. Always throws an error.
+
+**Parameters:**
+- `options` (object): Transfer options
+
+**Throws:** Error - "The 'transfer' method is not supported on the bitcoin blockchain."
+
+##### `quoteTransfer(options)`
+Not supported on the Bitcoin blockchain. Always throws an error.
+
+**Parameters:**
+- `options` (object): Transfer options
+
+**Throws:** Error - "The 'quoteTransfer' method is not supported on the bitcoin blockchain."
+
+##### `toReadOnlyAccount()`
+Creates a read-only version of this account that can query balances and transactions but cannot sign or send transactions.
+
+**Returns:** `Promise<WalletAccountReadOnlyBtc>` - Read-only account instance
+
+**Example:**
+```javascript
+const readOnlyAccount = await account.toReadOnlyAccount()
+const balance = await readOnlyAccount.getBalance()
 ```
 
 ##### `dispose()`
-Disposes the wallet account and clears sensitive data from memory.
+Disposes the wallet account, securely erasing the private key from memory and closing the Electrum connection.
 
 **Returns:** `void`
 
 **Example:**
 ```javascript
 account.dispose()
+// Private key is now securely wiped from memory
 ```
-
 
 #### Properties
 
 | Property | Type | Description |
 |----------|------|-------------|
 | `index` | `number` | The derivation path's index of this account |
-| `path` | `string` | The full derivation path of this account |
-| `network` | `string` | The current network ('mainnet' or 'testnet') |
-| `addressType` | `string` | The current address type ('legacy', 'segwit', or 'native_segwit') |
-
-### ElectrumClient
-
-Client for interacting with Electrum servers.
-
-#### Constructor
-
-```javascript
-new ElectrumClient(url, options?)
-```
-
-**Parameters:**
-- `url` (string): Electrum server URL (e.g., 'ssl://electrum.blockstream.info:50002')
-- `options` (object, optional): Configuration options
-  - `timeout` (number, optional): Connection timeout in milliseconds
-  - `maxRetries` (number, optional): Maximum connection retry attempts
-
-#### Methods
-
-| Method | Description | Returns |
-|--------|-------------|---------|
-| `connect()` | Establishes connection to the Electrum server | `Promise<void>` |
-| `close()` | Closes the connection to the Electrum server | `Promise<void>` |
-| `isConnected()` | Checks if connected to the server | `boolean` |
-| `getBalance(address)` | Gets balance for an address | `Promise<{confirmed: number, unconfirmed: number}>` |
-| `getTransaction(txid)` | Gets transaction details | `Promise<Transaction>` |
-| `broadcastTransaction(txHex)` | Broadcasts a raw transaction | `Promise<string>` |
-| `estimateFee(blocks)` | Gets fee estimate for target block count | `Promise<number>` |
-| `getBlockHeader(height)` | Gets block header at specified height | `Promise<BlockHeader>` |
-| `subscribeToAddress(address, callback)` | Subscribes to address updates | `Promise<void>` |
-| `getAddressHistory(address)` | Gets transaction history for an address | `Promise<HistoryEntry[]>` |
-| `getAddressUnspent(address)` | Gets unspent outputs for an address | `Promise<UTXO[]>` |
-| `subscribeToHeaders(callback)` | Subscribes to new block headers | `Promise<void>` |
-
-##### `connect()`
-Establishes connection to the Electrum server.
-
-**Returns:** `Promise<void>`
-
-**Throws:**
-- `ElectrumConnectionError`: When connection fails
-- `ElectrumTimeoutError`: When connection times out
-- `ElectrumSSLError`: When SSL verification fails
-
-**Example:**
-```javascript
-try {
-  await client.connect()
-} catch (error) {
-  if (error instanceof ElectrumConnectionError) {
-    // Handle connection failure
-  }
-}
-```
-
-##### `close()`
-Closes the connection to the Electrum server.
-
-**Returns:** `Promise<void>`
-
-**Example:**
-```javascript
-await client.close()
-```
-
-##### `isConnected()`
-Checks if connected to the Electrum server.
-
-**Returns:** `boolean` - True if connected
-
-**Example:**
-```javascript
-if (!client.isConnected()) {
-  await client.connect()
-}
-```
-
-##### `getBalance(address)`
-Gets confirmed and unconfirmed balance for an address.
-
-**Parameters:**
-- `address` (string): Bitcoin address
-
-**Returns:** `Promise<{confirmed: number, unconfirmed: number}>`
-- `confirmed`: Confirmed balance in satoshis
-- `unconfirmed`: Unconfirmed balance in satoshis
-
-**Example:**
-```javascript
-const balance = await client.getBalance('bc1...')
-```
-
-##### `getTransaction(txid)`
-Gets transaction details by transaction ID.
-
-**Parameters:**
-- `txid` (string): Transaction ID
-
-**Returns:** `Promise<Transaction>` - Transaction details
-
-**Example:**
-```javascript
-const tx = await client.getTransaction('abc123...')
-```
-
-##### `broadcastTransaction(txHex)`
-Broadcasts a raw transaction to the network.
-
-**Parameters:**
-- `txHex` (string): Raw transaction in hexadecimal format
-
-**Returns:** `Promise<string>` - Transaction ID
-
-**Example:**
-```javascript
-const txid = await client.broadcastTransaction('0200000001...')
-```
-
-##### `estimateFee(blocks)`
-Gets fee estimate for target number of blocks.
-
-**Parameters:**
-- `blocks` (number): Target number of blocks for confirmation
-
-**Returns:** `Promise<number>` - Fee rate in sat/vB
-
-**Example:**
-```javascript
-const feeRate = await client.estimateFee(6) // Target: 6 blocks
-```
-
-##### `getBlockHeader(height)`
-Gets block header at specified height.
-
-**Parameters:**
-- `height` (number): Block height
-
-**Returns:** `Promise<BlockHeader>` - Block header information
-
-**Example:**
-```javascript
-const header = await client.getBlockHeader(700000)
-```
-
-##### `subscribeToAddress(address, callback)`
-Subscribes to updates for a specific address.
-
-**Parameters:**
-- `address` (string): Bitcoin address to monitor
-- `callback` (function): Callback function for updates
-
-**Returns:** `Promise<void>`
-
-**Example:**
-```javascript
-await client.subscribeToAddress('bc1...', (status) => {
-  console.log('Address updated:', status)
-})
-```
-
-##### `getAddressHistory(address)`
-Gets transaction history for an address.
-
-**Parameters:**
-- `address` (string): Bitcoin address
-
-**Returns:** `Promise<HistoryEntry[]>` - Array of transaction history entries
-
-**Example:**
-```javascript
-const history = await client.getAddressHistory('bc1...')
-```
-
-##### `getAddressUnspent(address)`
-Gets unspent transaction outputs for an address.
-
-**Parameters:**
-- `address` (string): Bitcoin address
-
-**Returns:** `Promise<UTXO[]>` - Array of unspent outputs
-
-**Example:**
-```javascript
-const utxos = await client.getAddressUnspent('bc1...')
-```
-
-##### `subscribeToHeaders(callback)`
-Subscribes to new block header notifications.
-
-**Parameters:**
-- `callback` (function): Callback function for new headers
-
-**Returns:** `Promise<void>`
-
-**Example:**
-```javascript
-await client.subscribeToHeaders((header) => {
-  console.log('New block:', header.height)
-})
-```
+| `path` | `string` | The full BIP-84 derivation path of this account |
+| `keyPair` | `KeyPair` | The account's public and private key pair |
 
 ## 🌐 Supported Networks
 
-This package works with the Bitcoin blockchain, including:
+This package works with Bitcoin networks:
 
-- **Bitcoin Mainnet**
-  - Electrum: ssl://electrum.blockstream.info:50002
-  - Explorer: https://blockstream.info
-- **Bitcoin Testnet**
-  - Electrum: ssl://electrum.blockstream.info:60002
-  - Explorer: https://blockstream.info/testnet
+- **Bitcoin Mainnet** (`"bitcoin"`)
+- **Bitcoin Testnet** (`"testnet"`)  
+- **Bitcoin Regtest** (`"regtest"`)
+
+### Electrum Server Configuration
+
+**Important**: While the package defaults to `electrum.blockstream.info:50001` for convenience, **we strongly recommend configuring your own Electrum server** for production use.
+
+#### Recommended Approach:
+
+**For Production:**
+- Set up your own Fulcrum server for optimal performance and reliability
+- Use recent Fulcrum versions that support pagination for high-transaction addresses
+
+**For Development/Testing:**
+- `fulcrum.frznode.com:50001` - Generally faster than default
+- `electrum.blockstream.info:50001` - Default fallback
+
+#### Configuration Examples:
+
+```javascript
+// Mainnet with custom server
+const wallet = new WalletManagerBtc(seedPhrase, {
+  host: 'your-fulcrum-server.com',
+  port: 50001,
+  network: 'bitcoin'
+})
+
+// Testnet
+const testnetWallet = new WalletManagerBtc(seedPhrase, {
+  host: 'your-testnet-server.com',
+  port: 50001,
+  network: 'testnet'
+})
+```
+
+**Performance Note**: Public Electrum servers may be 10-300x slower and can fail for addresses with many transactions. Always use your own infrastructure for production applications.
+
+**Block Explorers:**
+- Mainnet: https://blockstream.info
+- Testnet: https://blockstream.info/testnet
 
 ### Supported Address Types
 
-- **Legacy (P2PKH)**: Addresses starting with '1'
-- **SegWit (P2SH-P2WPKH)**: Addresses starting with '3'
+This implementation supports **Native SegWit (P2WPKH) addresses only**:
+
 - **Native SegWit (P2WPKH)**: Addresses starting with 'bc1' (mainnet) or 'tb1' (testnet)
+  - Uses BIP-84 derivation paths (`m/84'/0'/account'/0/index`)
+  - Lower transaction fees compared to legacy formats
+  - Full SegWit benefits including transaction malleability protection
+
+**Note**: Legacy (P2PKH) and wrapped SegWit (P2SH-P2WPKH) address types are not supported by this implementation. All generated addresses use the Native SegWit format for optimal fee efficiency and modern Bitcoin standards.
 
 ## 🔒 Security Considerations
 
@@ -715,39 +607,45 @@ This package works with the Bitcoin blockchain, including:
   - Keep backups in secure, offline locations
 
 - **Private Key Management**: 
-  - The package handles private keys internally with memory safety features
+  - The package handles private keys internally with memory safety features using `sodium_memzero`
   - Keys are never stored on disk
-  - Keys are cleared from memory when `dispose()` is called
+  - Keys are securely cleared from memory when `dispose()` is called
+  - Private keys are wiped during cryptographic operations for additional security
 
 - **Network Security**: 
-  - Use trusted Electrum servers
-  - Consider running your own Electrum server for production
-  - Verify SSL certificates when using SSL connections
-  - Be aware of potential network analysis risks
+  - Use trusted Electrum servers or run your own for production
+  - Default connection uses TCP (not SSL) - configure SSL separately if needed
+  - Be aware of potential network analysis risks when using public servers
+  - Consider using `fulcrum.frznode.com` or similar alternatives for better performance
 
 - **Transaction Validation**:
-  - Always verify recipient addresses
+  - Always verify recipient addresses before sending
   - Double-check transaction amounts and fees
-  - Wait for appropriate confirmation count based on amount
-  - Understand the implications of RBF (Replace-By-Fee)
+  - Wait for appropriate confirmation count based on transaction value
+  - All transactions use Native SegWit format for optimal fee efficiency
 
 - **UTXO Management**:
-  - Properly handle change outputs
-  - Consider coin selection strategies
-  - Be aware of dust limits
-  - Understand the privacy implications of UTXO consolidation
+  - UTXO selection and change handling is managed automatically by the wallet
+  - Dust limit is enforced (546 satoshis minimum)
+  - No public API for manual UTXO selection or consolidation
+  - Privacy implications of UTXO usage are handled internally
 
 - **Fee Management**: 
-  - Set appropriate fee rates based on urgency
-  - Monitor mempool for fee estimation
-  - Consider using RBF for fee bumping
-  - Account for varying transaction sizes based on input count
+  - Fee rates are fetched from mempool.space API automatically
+  - Set appropriate priority using `normal` or `fast` fee rates
+  - No manual RBF (Replace-By-Fee) support - transactions are final once broadcast
+  - Fee estimation includes automatic UTXO selection
 
-- **Address Type Safety**:
-  - Use appropriate address types for compatibility
-  - Verify address format matches expected network
-  - Understand the trade-offs between address types
-  - Consider SegWit for lower fees and better scaling
+- **Address Format**:
+  - Only Native SegWit (bech32) addresses are supported
+  - All addresses start with 'bc1' (mainnet) or 'tb1' (testnet)
+  - Uses BIP-84 derivation paths for optimal compatibility
+  - Lower fees compared to legacy address formats
+
+- **Memory Management**:
+  - Always call `dispose()` on accounts and wallets when finished
+  - Automatic memory cleanup during key derivation operations
+  - Electrum connections are properly closed on disposal
 
 ## 🛠️ Development
 
@@ -776,7 +674,6 @@ npm test
 # Run tests with coverage
 npm run test:coverage
 ```
-
 ## 💡 Examples
 
 ### Complete Wallet Setup
@@ -788,54 +685,101 @@ async function setupWallet() {
   // Use a BIP-39 seed phrase (replace with your own secure phrase)
   const seedPhrase = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
   
-  // Create wallet manager
+  // Create wallet manager with correct configuration
   const wallet = new WalletManagerBtc(seedPhrase, {
-    electrumServer: 'ssl://electrum.blockstream.info:50002',
-    network: 'mainnet',
-    addressType: 'native_segwit'
+    host: 'your-electrum-server.com', // Replace with your preferred server
+    port: 50001,
+    network: 'bitcoin' // 'bitcoin', 'testnet', or 'regtest'
   })
   
   // Get first account
   const account = await wallet.getAccount(0)
   
-  // Get addresses for different formats
-  const addresses = {
-    legacy: await account.getAddress('legacy'),
-    segwit: await account.getAddress('segwit'),
-    nativeSegwit: await account.getAddress('native_segwit')
-  }
+  // Get Native SegWit address (only supported format)
+  const address = await account.getAddress()
+  console.log('Native SegWit address:', address) // bc1...
   
-  // Check balance
+  // Check confirmed balance
   const balance = await account.getBalance()
   console.log('Balance:', balance, 'satoshis')
   
-  return { wallet, account, addresses, balance }
+  // Get fee rates
+  const feeRates = await wallet.getFeeRates()
+  console.log('Fee rates:', feeRates) // { normal: X, fast: Y }
+  
+  return { wallet, account, address, balance, feeRates }
 }
 ```
 
-### Advanced Transaction Building
+### Transaction Management
 
 ```javascript
-async function createTransaction(account) {
-  // Select UTXOs for the transaction
-  const { utxos, totalAmount, changeAmount } = await account.selectUTXOs({
-    amount: 100000, // Amount to send
-    feeRate: 5, // Fee rate in sat/vB
-    minConfirmations: 1 // Minimum confirmations required
+async function sendBitcoin(account) {
+  // Estimate transaction fee first
+  const quote = await account.quoteSendTransaction({
+    to: 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh',
+    value: 50000 // Amount in satoshis
   })
+  console.log('Estimated fee:', quote.fee, 'satoshis')
 
-  // Create and send the transaction
+  // Send the transaction (single recipient only)
   const result = await account.sendTransaction({
-    recipients: [{
-      address: 'bc1...', // Recipient's address
-      amount: 100000 // Amount in satoshis
-    }],
-    utxos, // Optional: use pre-selected UTXOs
-    feeRate: 5,
-    rbf: true // Enable Replace-By-Fee
+    to: 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh',
+    value: 50000 // Amount in satoshis
   })
-
+  
+  console.log('Transaction hash:', result.hash)
+  console.log('Actual fee:', result.fee, 'satoshis')
+  
   return result
+}
+
+async function getTransactionHistory(account) {
+  // Get recent transfers
+  const transfers = await account.getTransfers({
+    direction: 'all', // 'incoming', 'outgoing', or 'all'
+    limit: 10,
+    skip: 0
+  })
+  
+  console.log('Recent transfers:', transfers)
+  return transfers
+}
+
+async function manageMultipleAccounts(wallet) {
+  // Get multiple accounts from same seed
+  const account0 = await wallet.getAccount(0)
+  const account1 = await wallet.getAccount(1)
+  
+  // Or use custom derivation paths
+  const customAccount = await wallet.getAccountByPath("0'/0/5")
+  
+  const accounts = [account0, account1, customAccount]
+  
+  // Check balances for all accounts
+  for (let i = 0; i < accounts.length; i++) {
+    const balance = await accounts[i].getBalance()
+    const address = await accounts[i].getAddress()
+    console.log(`Account ${i}: ${address} - ${balance} satoshis`)
+  }
+  
+  return accounts
+}
+```
+
+### Memory Management
+
+```javascript
+async function secureCleanup(wallet, accounts) {
+  // Dispose individual accounts
+  for (const account of accounts) {
+    account.dispose() // Clears private keys from memory
+  }
+  
+  // Dispose entire wallet (disposes all accounts)
+  wallet.dispose()
+  
+  console.log('All private keys cleared from memory')
 }
 ```
 
