@@ -35,14 +35,14 @@ function derivePathFromSeed (seed, path) {
   return { master, account }
 }
 
-export function getBtcAccount (index) {
-  const path = `m/84'/0'/0'/0/${index}`
+export function getBtcAccount (index, bip = 84) {
+  const path = `m/${bip}'/0'/0'/0/${index}`
   const { account } = derivePathFromSeed(SEED, path)
 
-  const { address } = payments.p2wpkh({
-    pubkey: account.publicKey,
-    network: networks.regtest
-  })
+  const address =
+    bip === 44
+      ? payments.p2pkh({ pubkey: account.publicKey, network: networks.regtest }).address
+      : payments.p2wpkh({ pubkey: account.publicKey, network: networks.regtest }).address
 
   return {
     index,
@@ -55,9 +55,12 @@ export function getBtcAccount (index) {
   }
 }
 
-export function getExpectedSignature (index, message) {
-  const path = `m/84'/0'/0'/0/${index}`
+export function getExpectedSignature (index, message, bip = 84) {
+  const path = `m/${bip}'/0'/0'/0/${index}`
   const { account } = derivePathFromSeed(SEED, path)
   const msgHash = btccrypto.sha256(Buffer.from(message, 'utf8'))
   return account.sign(msgHash).toString('hex')
 }
+
+export const ACCOUNT_BIP44 = getBtcAccount(0, 44)
+export const ACCOUNT_BIP84 = getBtcAccount(0, 84)

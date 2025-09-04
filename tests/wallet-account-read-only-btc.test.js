@@ -5,9 +5,7 @@ import accountFixtures, { BitcoinCli, Waiter } from './helpers/index.js'
 
 import { WalletAccountBtc, WalletAccountReadOnlyBtc } from '../index.js'
 
-const { SEED_PHRASE, getBtcAccount } = accountFixtures
-
-const ACCOUNT_RO = getBtcAccount(0)
+const { SEED_PHRASE, ACCOUNT_BIP84 } = accountFixtures
 
 describe('WalletAccountReadOnlyBtc', () => {
   const bitcoin = new BitcoinCli({
@@ -27,14 +25,14 @@ describe('WalletAccountReadOnlyBtc', () => {
   let account, recipient
 
   beforeAll(async () => {
-    account = new WalletAccountReadOnlyBtc(ACCOUNT_RO.address, ACCOUNT_CONFIG)
+    account = new WalletAccountReadOnlyBtc(ACCOUNT_BIP84.address, ACCOUNT_CONFIG)
     recipient = bitcoin.getNewAddress()
-    bitcoin.sendToAddress(ACCOUNT_RO.address, 0.01)
+    bitcoin.sendToAddress(ACCOUNT_BIP84.address, 0.01)
     await waiter.mine()
   })
 
   afterAll(async () => {
-    await account._electrumClient.disconnect();
+    await account._electrumClient.disconnect()
   })
 
   describe('getBalance', () => {
@@ -43,6 +41,7 @@ describe('WalletAccountReadOnlyBtc', () => {
       expect(balance).toBe(1_000_000)
     })
   })
+
   describe('getTokenBalance', () => {
     test('should throw an unsupported operation error', async () => {
       await expect(account.getTokenBalance('...'))
@@ -59,6 +58,20 @@ describe('WalletAccountReadOnlyBtc', () => {
 
       const { fee } = await account.quoteSendTransaction(TRANSACTION)
       expect(fee).toBe(141)
+    })
+
+    test('should successfully quote a transaction', async () => {
+      const writable = new WalletAccountBtc(SEED_PHRASE, "0'/0/0", ACCOUNT_CONFIG)
+      const addr44 = await writable.getAddress()
+      bitcoin.sendToAddress(addr44, 0.01)
+      await waiter.mine()
+
+      const roFrom44 = await writable.toReadOnlyAccount()
+      const { fee } = await roFrom44.quoteSendTransaction({ to: recipient, value: 1_000 })
+      expect(fee === 226).toBe(true)
+
+      writable.dispose()
+      await roFrom44._electrumClient.disconnect()
     })
   })
 

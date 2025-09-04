@@ -33,6 +33,7 @@ import ElectrumClient from './electrum-client.js'
  * @typedef {Object} BtcWalletConfig
  * @property {string} [host] - The electrum server's hostname (default: "electrum.blockstream.info").
  * @property {number} [port] - The electrum server's port (default: 50001).
+ * @property {44 | 84} [bip] - The BIP address type. Available values: 44 or 84 (default: 44).
  * @property {"bitcoin" | "regtest" | "testnet"} [network] The name of the network to use (default: "bitcoin").
  */
 
@@ -166,10 +167,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
           const prevId = Buffer.from(input.hash).reverse().toString('hex')
           const prevTx = await this._electrumClient.getTransaction(prevId)
           const script = prevTx.outs[input.index].script
-          const addr = payments.p2wpkh({
-            output: script,
-            network: this._electrumClient.network
-          }).address
+          const addr = this._getAddressFromScript(script)
           if (isAddressMatch({ address: addr }, address)) return true
         } catch (_) {}
       }
@@ -190,10 +188,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
       for (const [index, out] of tx.outs.entries()) {
         const hex = out.script.toString('hex')
-        const addr = payments.p2wpkh({
-          output: out.script,
-          network: this._electrumClient.network
-        }).address
+        const addr = this._getAddressFromScript(out.script)
         const spk = { hex, address: addr }
         const recipient = extractAddress(spk)
         const isToSelf = isAddressMatch(spk, address)
@@ -225,29 +220,13 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
   }
 
   /**
-   * Estimates the fee for a transaction.
+   * Estimates the fee for a transaction (supports P2PKH and P2WPKH).
    *
    * @protected
    * @param {{ fromAddress: string, to: string, value: number }} params
    * @returns {Promise<number>}
    */
   async _estimateFee ({ fromAddress, to, value }) {
-    function encodeVarInt (n) {
-      if (n < 0xfd) return Buffer.from([n])
-      if (n <= 0xffff) {
-        const b = Buffer.alloc(3); b[0] = 0xfd; b.writeUInt16LE(n, 1); return b
-      }
-      const b = Buffer.alloc(5); b[0] = 0xfe; b.writeUInt32LE(n, 1); return b
-    }
-
-    function serializeWitness (items) {
-      const parts = [encodeVarInt(items.length)]
-      for (const it of items) {
-        parts.push(encodeVarInt(it.length), it)
-      }
-      return Buffer.concat(parts)
-    }
-
     let feeRate = await this._electrumClient.getFeeEstimateInSatsPerVb()
     feeRate = Math.max(Number(feeRate), 1)
 
@@ -260,39 +239,56 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     const fromScript = btcAddress.toOutputScript(fromAddress, net)
     const toScript = btcAddress.toOutputScript(to, net)
 
+    const senderIsSegWit = this._isSegWitOutput(fromScript)
+
     const selected = []
     let total = 0
     let fee = 0
 
     const dummySig = Buffer.alloc(71, 1)
     const dummyPub = Buffer.alloc(33, 2)
-    const finalWitness = serializeWitness([dummySig, dummyPub])
+    const finalWitness = this._serializeWitness([dummySig, dummyPub])
+
+    const P2PKH_INPUT_VB = 148
+    const OUTPUT_VB = 34
+    const BASE_VB = 10
 
     for (const u of utxos) {
       selected.push(u)
       total += u.value
 
-      const psbt = new Psbt({ network: net })
-      for (const s of selected) {
-        psbt.addInput({
-          hash: s.tx_hash,
-          index: s.tx_pos,
-          witnessUtxo: { script: fromScript, value: s.value }
-        })
-      }
-      psbt.addOutput({ script: toScript, value })
+      if (senderIsSegWit) {
+        const psbt = new Psbt({ network: net })
+        for (const s of selected) {
+          psbt.addInput({
+            hash: s.tx_hash,
+            index: s.tx_pos,
+            witnessUtxo: { script: fromScript, value: s.value }
+          })
+        }
+        psbt.addOutput({ script: toScript, value })
 
-      const provisionalChange = total - value
-      if (provisionalChange > DUST_LIMIT) {
-        psbt.addOutput({ script: fromScript, value: provisionalChange })
-      }
+        const provisionalChange = total - value
+        if (provisionalChange > DUST_LIMIT) {
+          psbt.addOutput({ script: fromScript, value: provisionalChange })
+        }
 
-      for (let i = 0; i < selected.length; i++) {
-        psbt.updateInput(i, { finalScriptWitness: finalWitness })
-      }
+        for (let i = 0; i < selected.length; i++) {
+          psbt.updateInput(i, { finalScriptWitness: finalWitness })
+        }
 
-      const vsize = psbt.extractTransaction().virtualSize()
-      fee = Math.max(Math.ceil(vsize * feeRate), 141)
+        const vsize = psbt.extractTransaction().virtualSize()
+        fee = Math.max(Math.ceil(vsize * feeRate), 141)
+      } else {
+        let outputsCount = 1
+        const change = total - value
+        if (change > DUST_LIMIT) outputsCount += 1
+
+        const inVb = selected.length * P2PKH_INPUT_VB
+        const outVb = outputsCount * OUTPUT_VB
+        const vsize = BASE_VB + inVb + outVb
+        fee = Math.max(Math.ceil(vsize * feeRate), 141)
+      }
 
       if (total >= value + fee) break
     }
@@ -302,5 +298,42 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     }
 
     return fee
+  }
+
+  /** @private */
+  _encodeVarInt (n) {
+    if (n < 0xfd) return Buffer.from([n])
+    if (n <= 0xffff) {
+      const b = Buffer.alloc(3); b[0] = 0xfd; b.writeUInt16LE(n, 1); return b
+    }
+    const b = Buffer.alloc(5); b[0] = 0xfe; b.writeUInt32LE(n, 1); return b
+  }
+
+  /** @private */
+  _serializeWitness (items) {
+    const parts = [this._encodeVarInt(items.length)]
+    for (const it of items) {
+      parts.push(this._encodeVarInt(it.length), it)
+    }
+    return Buffer.concat(parts)
+  }
+
+  /** @private */
+  _isSegWitOutput (script) {
+    const scriptHex = script.toString('hex')
+    return (scriptHex.length === 44 && scriptHex.startsWith('0014')) ||
+           (scriptHex.length === 68 && scriptHex.startsWith('0020'))
+  }
+
+  /** @private */
+  _getAddressFromScript (script) {
+    const net = this._electrumClient.network
+    let addr
+    if (this._isSegWitOutput(script)) {
+      addr = payments.p2wpkh({ output: script, network: net }).address
+    } else {
+      addr = payments.p2pkh({ output: script, network: net }).address
+    }
+    return addr
   }
 }

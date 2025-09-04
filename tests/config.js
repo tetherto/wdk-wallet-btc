@@ -7,5 +7,6 @@ export const DATA_DIR = './.bitcoin'
 export const ACCOUNT_CONFIG = {
   host: HOST,
   port: ELECTRUM_PORT,
-  network: 'regtest'
+  network: 'regtest',
+  bip: 44
 }

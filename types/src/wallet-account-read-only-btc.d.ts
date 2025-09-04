@@ -42,7 +42,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
         skip?: number;
     }): Promise<BtcTransfer[]>;
     /**
-     * Estimates the fee for a transaction.
+     * Estimates the fee for a transaction (supports P2PKH and P2WPKH).
      *
      * @protected
      * @param {{ fromAddress: string, to: string, value: number }} params
@@ -53,6 +53,14 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
         to: string;
         value: number;
     }): Promise<number>;
+    /** @private */
+    private _encodeVarInt;
+    /** @private */
+    private _serializeWitness;
+    /** @private */
+    private _isSegWitOutput;
+    /** @private */
+    private _getAddressFromScript;
 }
 export type TransactionResult = import("@wdk/wallet").TransactionResult;
 export type TransferOptions = import("@wdk/wallet").TransferOptions;
@@ -75,6 +83,10 @@ export type BtcWalletConfig = {
      * - The electrum server's port (default: 50001).
      */
     port?: number;
+    /**
+     * - The BIP address type. Available values: 44 or 84 (default: 44).
+     */
+    bip?: 44 | 84;
     /**
      * The name of the network to use (default: "bitcoin").
      */

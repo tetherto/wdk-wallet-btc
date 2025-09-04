@@ -29,6 +29,7 @@ import * as ecc from '@bitcoinerlab/secp256k1'
 import { sodium_memzero } from 'sodium-universal'
 
 import WalletAccountReadOnlyBtc from './wallet-account-read-only-btc.js'
+import ElectrumClient from './electrum-client.js'
 
 /** @typedef {import('@wdk/wallet').IWalletAccount} IWalletAccount */
 
@@ -83,7 +84,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * Creates a new bitcoin wallet account.
    *
    * @param {string | Uint8Array} seed - The wallet's [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) seed phrase.
-   * @param {string} path - The BIP-84 derivation path (e.g. "0'/0/0").
+   * @param {string} path - The derivation path suffix (e.g. "0'/0/0").
    * @param {BtcWalletConfig} [config] - The configuration object.
    */
   constructor (seed, path, config = {}) {
@@ -91,30 +92,27 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
       if (!bip39.validateMnemonic(seed)) {
         throw new Error('The seed phrase is invalid.')
       }
-
       seed = bip39.mnemonicToSeedSync(seed)
     }
 
     const bip = config.bip ?? 44
+    if (bip !== 44 && bip !== 84) {
+      throw new Error(`Unsupported BIP type: ${bip}`)
+    }
+    const fullPath = `m/${bip}'/0'/${path}`
 
-    path = `${BIP_84_BTC_DERIVATION_PATH_PREFIX}/${path}`
+    const electrumClient = new ElectrumClient(config)
+    const net = networks[config.network] || networks.bitcoin
 
-    const { masterNode, account } = derivePath(seed, path)
+    const { masterNode, account } = derivePath(seed, fullPath)
 
-    const netName = config.network || 'bitcoin'
-    const net =
-      netName === 'testnet'
-        ? networks.testnet
-        : netName === 'regtest'
-          ? networks.regtest
-          : networks.bitcoin
-
-    const { address } = payments.p2wpkh({
-      pubkey: account.publicKey,
-      network: net
-    })
+    const address = (bip === 44)
+      ? payments.p2pkh({ pubkey: account.publicKey, network: net }).address
+      : payments.p2wpkh({ pubkey: account.publicKey, network: net }).address
 
     super(address, config)
+
+    this._electrumClient = electrumClient
 
     /**
      * The derivation path of this account.
@@ -122,7 +120,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
      * @protected
      * @type {string}
      */
-    this._path = path
+    this._path = fullPath
 
     /**
      * The BIP32 master node.
@@ -147,7 +145,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
   }
 
   /**
-   * The derivation path of this account (see [BIP-84](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki)).
+   * The derivation path of this account (BIP-44/84 depending on config).
    *
    * @type {string}
    */
@@ -230,9 +228,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    */
   dispose () {
     sodium_memzero(this._account.privateKey)
-
     this._account = undefined
-
     this._electrumClient.disconnect()
   }
 
@@ -367,5 +363,12 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     psbt = await createPsbt(estimatedFee)
     const tx = psbt.extractTransaction()
     return { txid: tx.getId(), hex: tx.toHex(), fee: estimatedFee }
+  }
+
+  /** @private */
+  _isSegWitOutput (script) {
+    const scriptHex = script.toString('hex')
+    return (scriptHex.length === 44 && scriptHex.startsWith('0014')) ||
+           (scriptHex.length === 68 && scriptHex.startsWith('0020'))
   }
 }
