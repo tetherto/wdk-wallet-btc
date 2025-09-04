@@ -150,8 +150,10 @@ describe('WalletAccountBtc', () => {
     test('should successfully send a transaction (BIP44)', async () => {
       const TRANSACTION = { to: recipient, value: 1_000 }
       const { hash, fee } = await account.sendTransaction(TRANSACTION)
-      const { fees } = bitcoin.getMempoolEntry(hash)
-      const baseFee = Math.round(fees.base * 1e+8)
+
+      await waiter.mine()
+
+      const baseFee = bitcoin.getTransactionFeeSats(hash)
       expect(fee).toBe(baseFee)
       const tx = bitcoin.getTransaction(hash)
       expect(tx.txid).toBe(hash)
@@ -222,7 +224,7 @@ describe('WalletAccountBtc', () => {
       const readOnlyAccount = await account.toReadOnlyAccount()
       expect(readOnlyAccount).toBeInstanceOf(WalletAccountReadOnlyBtc)
       expect(await readOnlyAccount.getAddress()).toBe(ACCOUNT_BIP44.address)
-      await readOnlyAccount._electrumClient.disconnect()
+      readOnlyAccount._electrumClient.close()
     })
   })
 })

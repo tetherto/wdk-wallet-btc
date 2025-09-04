@@ -31,8 +31,8 @@ describe('WalletAccountReadOnlyBtc', () => {
     await waiter.mine()
   })
 
-  afterAll(async () => {
-    await account._electrumClient.disconnect()
+  afterAll(() => {
+    account._electrumClient.close()
   })
 
   describe('getBalance', () => {
@@ -71,7 +71,7 @@ describe('WalletAccountReadOnlyBtc', () => {
       expect(fee === 223).toBe(true)
 
       writable.dispose()
-      await roFrom44._electrumClient.disconnect()
+      roFrom44._electrumClient.close()
     })
   })
 
@@ -120,7 +120,7 @@ describe('WalletAccountReadOnlyBtc', () => {
       }
 
       writableAccount.dispose()
-      await readOnlyAccount._electrumClient.disconnect()
+      readOnlyAccount._electrumClient.close()
     })
 
     test('should return null for a valid txid that was never broadcasted', async () => {
@@ -133,7 +133,7 @@ describe('WalletAccountReadOnlyBtc', () => {
       expect(receipt).toBeNull()
 
       writableAccount.dispose()
-      await readOnlyAccount._electrumClient.disconnect()
+      readOnlyAccount._electrumClient.close()
     })
 
     test('should throw an error for an invalid txid format', async () => {
@@ -146,7 +146,7 @@ describe('WalletAccountReadOnlyBtc', () => {
         .rejects.toThrow("The 'getTransactionReceipt(hash)' method requires a valid transaction hash to fetch the receipt.")
 
       writableAccount.dispose()
-      await readOnlyAccount._electrumClient.disconnect()
+      readOnlyAccount._electrumClient.close()
     })
   })
   describe('getTransfers', () => {
@@ -161,13 +161,12 @@ describe('WalletAccountReadOnlyBtc', () => {
       await waiter.mine()
       const transaction = bitcoin.getTransaction(txid)
       const fee = Math.round(Math.abs(transaction.fee) * 1e8)
-      const height = bitcoin.getBlockCount()
 
       return {
         txid,
         address,
         vout: transaction.details[0].vout,
-        height,
+        height: transaction.blockheight,
         value: 1_000_000,
         direction: 'incoming',
         fee,
@@ -186,13 +185,13 @@ describe('WalletAccountReadOnlyBtc', () => {
 
       await waiter.mine()
 
-      const height = bitcoin.getBlockCount()
+      const tx = bitcoin.getTransaction(hash)
 
       return {
         txid: hash,
         address,
         vout: 0,
-        height,
+        height: tx.blockheight,
         value: 100_000,
         direction: 'outgoing',
         fee,
@@ -215,7 +214,7 @@ describe('WalletAccountReadOnlyBtc', () => {
 
     afterAll(async () => {
       writableAccount.dispose()
-      await readOnlyAccount._electrumClient.disconnect()
+      readOnlyAccount._electrumClient.close()
     })
 
     test('should return the full transfer history', async () => {

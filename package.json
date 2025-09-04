@@ -16,6 +16,7 @@
     "@bitcoinerlab/coinselect": "^1.3.1",
     "@bitcoinerlab/descriptors": "^2.3.1",
     "@bitcoinerlab/secp256k1": "^1.2.0",
+    "@mempool/electrum-client": "^1.1.9",
     "@wdk/wallet": "https://github.com/tetherto/wdk-wallet#develop",
     "bare-wdk-runtime": "2.0.0",
     "bignumber.js": "9.3.0",

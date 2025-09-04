@@ -17,6 +17,7 @@ export default class Waiter {
 
     this._subscriber = new zmq.Subscriber({ linger: 0 })
     this._subscriber.connect(`tcp://${host}:${zmqPort}`)
+    this._subscriber.subscribe('hashblock')
   }
 
   async waitUntilBitcoinCoreIsStarted () {
@@ -80,8 +81,6 @@ export default class Waiter {
   }
 
   async mine (blocks = 1) {
-    this._subscriber.subscribe('hashblock')
-
     const miner = this._bitcoin.getNewAddress()
     this._bitcoin.generateToAddress(blocks, miner)
     await this._waitForBlocks(blocks)

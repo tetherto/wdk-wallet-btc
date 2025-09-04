@@ -22,6 +22,12 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      */
     protected _electrumClient: ElectrumClient;
     /**
+     * The bitcoin network (bitcoinjs-lib).
+     * @protected
+     * @type {import('bitcoinjs-lib').Network}
+     */
+    protected _network: import("bitcoinjs-lib").Network;
+    /**
      * Returns a transaction's receipt if it is confirmed in a block.
      *
      * @param {string} hash - The transaction's hash.
@@ -75,6 +81,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
         fee: number;
         changeValue: number;
     }>;
+    _getScriptHash(address: any): string;
 }
 export type TransactionResult = import("@wdk/wallet").TransactionResult;
 export type TransferOptions = import("@wdk/wallet").TransferOptions;

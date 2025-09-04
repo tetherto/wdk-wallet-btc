@@ -1,8 +1,8 @@
 import { execSync } from 'child_process'
 import {
-  BITCOIN_CLI_PATH, 
-  BITCOIND_PATH 
-} from  '../config.js'
+  BITCOIN_CLI_PATH,
+  BITCOIND_PATH
+} from '../config.js'
 
 const EXEC_SYNC_OPTIONS = {
   stdio: ['inherit', 'pipe', 'ignore']
@@ -26,7 +26,7 @@ export default class BitcoinCli {
   start () {
     const { host, port, dataDir, zmqPort } = this._config
 
-    execSync(BITCOIND_PATH+' -regtest -daemon ' +
+    execSync(BITCOIND_PATH + ' -regtest -daemon ' +
       '-server=1 ' +
       '-txindex=1 ' +
       '-fallbackfee=0.0001 ' +
@@ -87,5 +87,25 @@ export default class BitcoinCli {
 
   getBlockchainInfo () {
     return this.call('getblockchaininfo')
+  }
+
+  getRawTransactionVerbose (txid) {
+    return this.call(`getrawtransaction ${txid} true`)
+  }
+
+  getTransactionFeeSats (txid) {
+    const tx = this.getRawTransactionVerbose(txid)
+
+    const inputTotal = tx.vin.reduce((sum, vin) => {
+      const prev = this.getRawTransactionVerbose(vin.txid)
+      const prevOut = prev.vout[vin.vout]
+      return sum + Math.round(prevOut.value * 1e8)
+    }, 0)
+
+    const outputTotal = tx.vout.reduce((sum, out) => {
+      return sum + Math.round(out.value * 1e8)
+    }, 0)
+
+    return inputTotal - outputTotal
   }
 }

@@ -59,7 +59,6 @@ function derivePath (seed, path) {
   const masterNode = bip32.fromPrivateKey(Buffer.from(privateKey), Buffer.from(chainCode), BITCOIN)
   const account = masterNode.derivePath(path)
 
-  // Zero sensitive material
   sodium_memzero(privateKey)
   sodium_memzero(chainCode)
   sodium_memzero(masterKeyAndChainCodeBuffer)
@@ -82,7 +81,6 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
         throw new Error('The seed phrase is invalid.')
       }
       seed = bip39.mnemonicToSeedSync(seed)
-      
     }
 
     const bip = (config.bip ?? 44)
@@ -94,7 +92,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     const { masterNode, account } = derivePath(seed, fullPath)
 
     if (typeof seed === 'string') {
-      try { sodium_memzero(seed) } catch (_) {}
+      sodium_memzero(seed)
     }
 
     const net = networks[config.network] || networks.bitcoin
@@ -135,6 +133,9 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
      * @type {import('bip32').BIP32Interface}
      */
     this._account = account
+
+    // keep network handy for PSBT/network ops
+    this._network = net
   }
 
   /** @type {number} */
@@ -195,7 +196,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    */
   async sendTransaction ({ to, value }) {
     const tx = await this._getTransaction({ recipient: to, amount: value })
-    await this._electrumClient.broadcastTransaction(tx.hex)
+    await this._electrumClient.blockchainTransaction_broadcast(tx.hex)
     return { hash: tx.txid, fee: +tx.fee }
   }
 
@@ -232,7 +233,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     this._account = undefined
     this._masterNode = undefined
 
-    this._electrumClient.disconnect()
+    this._electrumClient.close()
   }
 
   /**
@@ -245,8 +246,8 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
   async _getTransaction ({ recipient, amount }) {
     const from = await this.getAddress()
 
-    let feeRate = await this._electrumClient.getFeeEstimateInSatsPerVb()
-    feeRate = Math.max(Number(feeRate), 1)
+    let feeRate = await this._electrumClient.blockchainEstimatefee(1)
+    feeRate = Math.max(Number(feeRate) * 100000, 1)
 
     const { utxos, fee, changeValue } = await this._planSpend({
       fromAddress: from,
@@ -278,14 +279,13 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     const legacyPrevTxCache = new Map()
     const getPrevTxHex = async (txid) => {
       if (legacyPrevTxCache.has(txid)) return legacyPrevTxCache.get(txid)
-      const tx = await this._electrumClient.getTransaction(txid)
-      const hex = tx.toHex()
+      const hex = await this._electrumClient.blockchainTransaction_get(txid, false)
       legacyPrevTxCache.set(txid, hex)
       return hex
     }
 
     const buildAndSign = async (rcptVal, chgVal) => {
-      const psbt = new Psbt({ network: this._electrumClient.network })
+      const psbt = new Psbt({ network: this._network })
 
       for (const utxo of utxoSet) {
         const baseInput = {

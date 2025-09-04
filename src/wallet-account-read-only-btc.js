@@ -15,7 +15,7 @@
 'use strict'
 
 import { WalletAccountReadOnly } from '@wdk/wallet'
-import { address as btcAddress } from 'bitcoinjs-lib'
+import { address as btcAddress, networks, Transaction, crypto as btcCrypto } from 'bitcoinjs-lib'
 import { coinselect } from '@bitcoinerlab/coinselect'
 import { DescriptorsFactory } from '@bitcoinerlab/descriptors'
 import * as ecc from '@bitcoinerlab/secp256k1'
@@ -79,7 +79,23 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @protected
      * @type {ElectrumClient}
      */
-    this._electrumClient = new ElectrumClient(config)
+    this._electrumClient = new ElectrumClient(
+      config.port || 50001,
+      config.host || 'electrum.blockstream.info',
+      config.protocol || 'tcp',
+      {
+        client: 'wdk-wallet',
+        version: '1.4',
+        persistence: { retryPeriod: 1000, maxRetry: 2, pingPeriod: 120000, callback: null }
+      }
+    )
+
+    /**
+     * The bitcoin network (bitcoinjs-lib).
+     * @protected
+     * @type {import('bitcoinjs-lib').Network}
+     */
+    this._network = networks[this._config.network || 'bitcoin']
   }
 
   /**
@@ -89,7 +105,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    */
   async getBalance () {
     const address = await this.getAddress()
-    const { confirmed } = await this._electrumClient.getBalance(address)
+    const { confirmed } = await this._electrumClient.blockchainScripthash_getBalance(this._getScriptHash(address))
     return +confirmed
   }
 
@@ -105,13 +121,14 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     }
 
     const address = await this.getAddress()
-    const history = await this._electrumClient.getHistory(address)
+    const history = await this._electrumClient.blockchainScripthash_getHistory(this._getScriptHash(address))
     const item = Array.isArray(history) ? history.find(h => h && h.tx_hash === hash) : null
 
     if (!item) return null
     if (!item.height || item.height <= 0) return null
 
-    return await this._electrumClient.getTransaction(hash)
+    const rawTx = await this._electrumClient.blockchainTransaction_get(hash, false)
+    return Transaction.fromHex(rawTx)
   }
 
   /**
@@ -132,8 +149,8 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    */
   async quoteSendTransaction ({ to, value }) {
     const from = await this.getAddress()
-    let feeRate = await this._electrumClient.getFeeEstimateInSatsPerVb()
-    feeRate = Math.max(Number(feeRate), 1)
+    let feeRate = await this._electrumClient.blockchainEstimatefee(1)
+    feeRate = Math.max(Number(feeRate) * 100000, 1)
 
     const { fee } = await this._planSpend({ fromAddress: from, toAddress: to, amount: value, feeRate })
     return { fee }
@@ -162,15 +179,15 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     const { direction = 'all', limit = 10, skip = 0 } = options
 
     const address = await this.getAddress()
-    const net = this._electrumClient.network
-    const history = await this._electrumClient.getHistory(address)
+    const net = this._network
+    const history = await this._electrumClient.blockchainScripthash_getHistory(this._getScriptHash(address))
 
     const myScript = btcAddress.toOutputScript(address, net)
 
     const txCache = new Map()
     const getTx = async (txid) => {
       if (txCache.has(txid)) return txCache.get(txid)
-      const tx = await this._electrumClient.getTransaction(txid)
+      const tx = Transaction.fromHex(await this._electrumClient.blockchainTransaction_get(txid, false))
       txCache.set(txid, tx)
       return tx
     }
@@ -268,14 +285,14 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
       throw new Error(`The amount must be bigger than the dust limit (= ${DUST_LIMIT}).`)
     }
 
-    const net = this._electrumClient.network
+    const net = this._network
 
     const ownScriptHex = btcAddress.toOutputScript(fromAddress, net).toString('hex')
 
     const ownOutput = new Output({ descriptor: `addr(${fromAddress})`, network: net })
     const toOutput = new Output({ descriptor: `addr(${toAddress})`, network: net })
 
-    const unspent = await this._electrumClient.getUnspent(fromAddress)
+    const unspent = await this._electrumClient.blockchainScripthash_listunspent(this._getScriptHash(fromAddress))
     if (!unspent || unspent.length === 0) {
       throw new Error('No unspent outputs available.')
     }
@@ -314,5 +331,11 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
       changeValue = 0
     }
     return { utxos, fee, changeValue }
+  }
+
+  _getScriptHash (address) {
+    const script = btcAddress.toOutputScript(address, this._network)
+    const hash = btcCrypto.sha256(script)
+    return Buffer.from(hash).reverse().toString('hex')
   }
 }
