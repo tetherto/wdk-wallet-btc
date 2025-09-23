@@ -102,9 +102,13 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
   async getBalance () {
     const scriptHash = await this._getScriptHash()
 
-    const { confirmed } = await this._electrumClient.blockchainScripthash_getBalance(scriptHash)
+    try {
+      const { confirmed } = await this._electrumClient.blockchainScripthash_getBalance(scriptHash)
 
-    return BigInt(confirmed)
+      return BigInt(confirmed)
+    } catch (e) {
+      throw new Error(`Failed to fetch balance from Electrum: ${e.message}`)
+    }
   }
 
   /**
@@ -126,7 +130,13 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
   async quoteSendTransaction ({ to, value }) {
     const address = await this.getAddress()
 
-    const feeRate = await this._electrumClient.blockchainEstimatefee(1)
+    let feeRate
+
+    try {
+      feeRate = await this._electrumClient.blockchainEstimatefee(1)
+    } catch (e) {
+      throw new Error(`Failed to estimate fee with Electrum: ${e.message}`)
+    }
 
     const { fee } = await this._planSpend({
       fromAddress: address,
@@ -160,18 +170,23 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     }
 
     const scriptHash = await this._getScriptHash()
-    const history = await this._electrumClient.blockchainScripthash_getHistory(scriptHash)
-    const item = Array.isArray(history) ? history.find(h => h?.tx_hash === hash) : null
 
-    if (!item || !item.height || item.height <= 0) {
-      return null
+    try {
+      const history = await this._electrumClient.blockchainScripthash_getHistory(scriptHash)
+      const item = Array.isArray(history) ? history.find(h => h?.tx_hash === hash) : null
+
+      if (!item || !item.height || item.height <= 0) {
+        return null
+      }
+
+      const hex = await this._electrumClient.blockchainTransaction_get(hash, false)
+
+      const transaction = Transaction.fromHex(hex)
+
+      return transaction
+    } catch (e) {
+      throw new Error(`Failed to get transaction receipt for hash ${hash}: ${e.message}`)
     }
-
-    const hex = await this._electrumClient.blockchainTransaction_get(hash, false)
-
-    const transaction = Transaction.fromHex(hex)
-
-    return transaction
   }
 
   /**
@@ -218,7 +233,13 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
     const scriptHash = await this._getScriptHash()
 
-    const unspent = await this._electrumClient.blockchainScripthash_listunspent(scriptHash)
+    let unspent
+
+    try {
+      unspent = await this._electrumClient.blockchainScripthash_listunspent(scriptHash)
+    } catch (e) {
+      throw new Error(`Failed to fetch UTXO list from Electrum: ${e.message}`)
+    }
 
     if (!unspent || unspent.length === 0) {
       throw new Error('No unspent outputs available.')
