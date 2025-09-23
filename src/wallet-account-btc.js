@@ -217,7 +217,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
 
       return { hash: tx.txid, fee: BigInt(tx.fee) }
     } catch (e) {
-      throw new Error(`Failed to send transaction to ${to}: ${e.message}`)
+      throw new Error(`Failed to send transaction to ${to}: ${e}`)
     }
   }
 
@@ -372,7 +372,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
 
         return hex
       } catch (e) {
-        throw new Error(`Failed to get transaction hex: ${e.message}`)
+        throw new Error(`Failed to get transaction hex: ${e}`)
       }
     }
 

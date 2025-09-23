@@ -107,7 +107,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
       return BigInt(confirmed)
     } catch (e) {
-      throw new Error(`Failed to fetch balance from Electrum: ${e.message}`)
+      throw new Error(`Failed to fetch balance from Electrum: ${e}`)
     }
   }
 
@@ -135,7 +135,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     try {
       feeRate = await this._electrumClient.blockchainEstimatefee(1)
     } catch (e) {
-      throw new Error(`Failed to estimate fee with Electrum: ${e.message}`)
+      throw new Error(`Failed to estimate fee with Electrum: ${e}`)
     }
 
     const { fee } = await this._planSpend({
@@ -185,7 +185,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
       return transaction
     } catch (e) {
-      throw new Error(`Failed to get transaction receipt for hash ${hash}: ${e.message}`)
+      throw new Error(`Failed to get transaction receipt for hash ${hash}: ${e}`)
     }
   }
 
@@ -242,7 +242,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     try {
       unspent = await this._electrumClient.blockchainScripthash_listunspent(scriptHash)
     } catch (e) {
-      throw new Error(`Failed to fetch UTXO list from Electrum: ${e.message}`)
+      throw new Error(`Failed to fetch UTXO list from Electrum: ${e}`)
     }
 
     if (!unspent || unspent.length === 0) {
