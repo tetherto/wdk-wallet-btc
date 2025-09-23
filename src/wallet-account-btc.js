@@ -241,6 +241,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @returns {Promise<BtcTransfer[]>} The bitcoin transfers.
    */
   async getTransfers (options = {}) {
+    // this function can be implemented in WalletAccountReadOnlyBtc, this way we can also expands the use case for read-only account
     // i believe we refactor this function to improve performance and readability,
     // there are too many nested for loops and async calls within loops
     // also, the function is pretty complex, splitting it up into smaller private functions would be an improvement
