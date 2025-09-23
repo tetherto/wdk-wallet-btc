@@ -189,6 +189,10 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     }
   }
 
+  dispose () {
+    this._electrumClient.close()
+  }
+
   /**
    * Computes the sha-256 hash of the output script for this wallet's address, reverses the byte order,
    * and returns it as a hex string.
