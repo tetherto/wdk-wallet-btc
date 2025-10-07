@@ -97,9 +97,9 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 export type OutputWithValue = import("@bitcoinerlab/coinselect").OutputWithValue;
 export type Network = import("bitcoinjs-lib").Network;
 export type BtcTransactionReceipt = import("bitcoinjs-lib").Transaction;
-export type TransactionResult = import("@wdk/wallet").TransactionResult;
-export type TransferOptions = import("@wdk/wallet").TransferOptions;
-export type TransferResult = import("@wdk/wallet").TransferResult;
+export type TransactionResult = import("@tetherto/wdk-wallet").TransactionResult;
+export type TransferOptions = import("@tetherto/wdk-wallet").TransferOptions;
+export type TransferResult = import("@tetherto/wdk-wallet").TransferResult;
 export type BtcTransaction = {
     /**
      * - The transaction's recipient.
@@ -132,5 +132,5 @@ export type BtcWalletConfig = {
      */
     bip?: 44 | 84;
 };
-import { WalletAccountReadOnly } from '@wdk/wallet';
+import { WalletAccountReadOnly } from '@tetherto/wdk-wallet';
 import ElectrumClient from './electrum-client.js';

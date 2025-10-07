@@ -54,7 +54,7 @@ export default class ElectrumClient extends MempoolElectrumClient {
      * @type {ElectrumConfig}
      **/
     this._electrumConfig = {
-      client: '@wdk/wallet-btc',
+      client: '@tetherto/wdk-wallet-btc',
       version: '1.4'
     }
 

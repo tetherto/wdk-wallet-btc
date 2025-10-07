@@ -33,7 +33,7 @@ export default class WalletManagerBtc extends WalletManager {
      */
     getFeeRates(): Promise<FeeRates>;
 }
-export type FeeRates = import("@wdk/wallet").FeeRates;
+export type FeeRates = import("@tetherto/wdk-wallet").FeeRates;
 export type BtcWalletConfig = import("./wallet-account-btc.js").BtcWalletConfig;
-import WalletManager from '@wdk/wallet';
+import WalletManager from '@tetherto/wdk-wallet';
 import WalletAccountBtc from './wallet-account-btc.js';

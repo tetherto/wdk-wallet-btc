@@ -13,11 +13,11 @@
 // limitations under the License.
 'use strict'
 
-import WalletManager from '@wdk/wallet'
+import WalletManager from '@tetherto/wdk-wallet'
 
 import WalletAccountBtc from './wallet-account-btc.js'
 
-/** @typedef {import('@wdk/wallet').FeeRates} FeeRates */
+/** @typedef {import('@tetherto/wdk-wallet').FeeRates} FeeRates */
 
 /** @typedef {import('./wallet-account-btc.js').BtcWalletConfig} BtcWalletConfig */
 

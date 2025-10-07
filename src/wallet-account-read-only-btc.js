@@ -14,7 +14,7 @@
 
 'use strict'
 
-import { WalletAccountReadOnly } from '@wdk/wallet'
+import { WalletAccountReadOnly } from '@tetherto/wdk-wallet'
 
 import { coinselect } from '@bitcoinerlab/coinselect'
 import { DescriptorsFactory } from '@bitcoinerlab/descriptors'
@@ -28,9 +28,9 @@ import ElectrumClient from './electrum-client.js'
 /** @typedef {import('bitcoinjs-lib').Network} Network */
 /** @typedef {import('bitcoinjs-lib').Transaction} BtcTransactionReceipt */
 
-/** @typedef {import('@wdk/wallet').TransactionResult} TransactionResult */
-/** @typedef {import('@wdk/wallet').TransferOptions} TransferOptions */
-/** @typedef {import('@wdk/wallet').TransferResult} TransferResult */
+/** @typedef {import('@tetherto/wdk-wallet').TransactionResult} TransactionResult */
+/** @typedef {import('@tetherto/wdk-wallet').TransferOptions} TransferOptions */
+/** @typedef {import('@tetherto/wdk-wallet').TransferResult} TransferResult */
 
 /**
  * @typedef {Object} BtcTransaction
@@ -47,9 +47,17 @@ import ElectrumClient from './electrum-client.js'
  * @property {44 | 84} [bip] - The bip address type; available values: 44 or 84 (default: 44).
 */
 
+/**
+ * @typedef {Object} BtcMaxSpendableResult
+ * @property {bigint} amount - The maximum spendable amount in satoshis.
+ * @property {bigint} fee - The estimated network fee in satoshis.
+ * @property {bigint} changeValue - The estimated change value in satoshis.
+ */
+
 const { Output } = DescriptorsFactory(ecc)
 
 const MIN_TX_FEE_SATS = 141
+const MAX_UTXO_INPUTS = 200
 
 /** @internal */
 export const DUST_LIMIT = 546
@@ -175,6 +183,77 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
   }
 
   /**
+   * Returns the maximum spendable amount (in satoshis) that can be sent in
+   * a single transaction, after subtracting estimated transaction fees.
+   *
+   * The maximum spendable amount can differ from the wallet's total balance.
+   * A transaction can only include up to MAX_UTXO_INPUTS (default: 200) unspents.
+   * Wallets holding more than this limit cannot spend their full balance in a
+   * single transaction.
+   *
+   * @returns {Promise<BtcMaxSpendableResult>} The maximum spendable result.
+   */
+  async getMaxSpendable () {
+    const fromAddress = await this.getAddress()
+    const feeRateRaw = await this._electrumClient.blockchainEstimatefee(1)
+    const feeRate = Math.max(Number(feeRateRaw) * 100_000, 1)
+
+    const scriptHash = await this._getScriptHash()
+    const unspent = await this._electrumClient.blockchainScripthash_listunspent(scriptHash)
+    if (!unspent || unspent.length === 0) {
+      return { amount: 0n, fee: 0n, changeValue: 0n }
+    }
+
+    const addr = String(fromAddress).toLowerCase()
+    const isP2WPKH =
+      addr.startsWith('bc1q') ||
+      addr.startsWith('tb1q') ||
+      addr.startsWith('bcrt1q')
+    const inputVBytes = isP2WPKH ? 68 : 148
+
+    const perInputFee = Math.ceil(inputVBytes * feeRate)
+    let spendableUtxos = unspent.filter(u => (u.value - perInputFee) > 0)
+    if (spendableUtxos.length === 0) {
+      return { amount: 0n, fee: 0n, changeValue: 0n }
+    }
+
+    if (spendableUtxos.length > MAX_UTXO_INPUTS) {
+      spendableUtxos = spendableUtxos
+        .sort((a, b) => b.value - a.value)
+        .slice(0, MAX_UTXO_INPUTS)
+    }
+
+    const totalInputValueSats = spendableUtxos.reduce((sum, u) => sum + u.value, 0)
+    const inputCount = spendableUtxos.length
+    const txOverheadVBytes = 11
+    const outputVBytes = 34
+
+    const twoOutputsVSize = txOverheadVBytes + (inputCount * inputVBytes) + (2 * outputVBytes)
+    const twoOutputsFeeSats = Math.max(Math.ceil(twoOutputsVSize * feeRate), MIN_TX_FEE_SATS)
+    const twoOutputsRecipientAmountSats = totalInputValueSats - twoOutputsFeeSats - DUST_LIMIT
+    if (twoOutputsRecipientAmountSats > DUST_LIMIT) {
+      return {
+        amount: BigInt(twoOutputsRecipientAmountSats),
+        fee: BigInt(twoOutputsFeeSats),
+        changeValue: BigInt(DUST_LIMIT)
+      }
+    }
+
+    const oneOutputVSize = txOverheadVBytes + (inputCount * inputVBytes) + outputVBytes
+    const oneOutputFeeSats = Math.max(Math.ceil(oneOutputVSize * feeRate), MIN_TX_FEE_SATS)
+    const oneOutputRecipientAmountSats = totalInputValueSats - oneOutputFeeSats
+    if (oneOutputRecipientAmountSats <= DUST_LIMIT) {
+      return { amount: 0n, fee: 0n, changeValue: 0n }
+    }
+
+    return {
+      amount: BigInt(oneOutputRecipientAmountSats),
+      fee: BigInt(oneOutputFeeSats),
+      changeValue: 0n
+    }
+  }
+
+  /**
    * Computes the sha-256 hash of the output script for this wallet's address, reverses the byte order,
    * and returns it as a hex string.
    *
@@ -239,6 +318,10 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
     if (!result) {
       throw new Error('Insufficient balance to send the transaction.')
+    }
+
+    if (result.utxos.length > MAX_UTXO_INPUTS) {
+      throw new Error('Exceeded maximum allowed inputs for transaction.')
     }
 
     const fee = Number.isFinite(result.fee)

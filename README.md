@@ -1,4 +1,4 @@
-# @wdk/wallet-btc
+# @tetherto/wdk-wallet-btc
 
 **Note**: This package is currently in beta. Please test thoroughly in development environments before using in production.
 
@@ -19,22 +19,22 @@ For detailed documentation about the complete WDK ecosystem, visit [docs.wallet.
 
 ## ⬇️ Installation
 
-To install the `@wdk/wallet-btc` package, follow these instructions:
+To install the `@tetherto/wdk-wallet-btc` package, follow these instructions:
 
 You can install it using npm:
 
 ```bash
-npm install @wdk/wallet-btc
+npm install @tetherto/wdk-wallet-btc
 ```
 
 ## 🚀 Quick Start
 
-### Importing from `@wdk/wallet-btc`
+### Importing from `@tetherto/wdk-wallet-btc`
 
 ### Creating a New Wallet
 
 ```javascript
-import WalletManagerBtc, { WalletAccountBtc } from '@wdk/wallet-btc'
+import WalletManagerBtc, { WalletAccountBtc } from '@tetherto/wdk-wallet-btc'
 
 // Use a BIP-39 seed phrase (replace with your own secure phrase)
 const seedPhrase = 'test only example nut use this real life secret phrase must random'
@@ -62,7 +62,7 @@ While the package defaults to `electrum.blockstream.info` if no host is specifie
 ### Managing Multiple Accounts
 
 ```javascript
-import WalletManagerBtc from '@wdk/wallet-btc'
+import WalletManagerBtc from '@tetherto/wdk-wallet-btc'
 
 // Assume wallet is already created
 // Get the first account (index 0)
@@ -92,7 +92,7 @@ console.log('Custom account address:', customAddress)
 #### Account Balance
 
 ```javascript
-import WalletManagerBtc from '@wdk/wallet-btc'
+import WalletManagerBtc from '@tetherto/wdk-wallet-btc'
 
 // Assume wallet and account are already created
 // Get confirmed balance (returns confirmed balance only)
@@ -200,13 +200,13 @@ wallet.dispose()
 
 | Class | Description | Methods |
 |-------|-------------|---------|
-| [WalletManagerBtc](#walletmanagerbtc) | Main class for managing Bitcoin wallets. Extends `WalletManager` from `@wdk/wallet`. | [Constructor](#constructor), [Methods](#methods) |
-| [WalletAccountBtc](#walletaccountbtc) | Individual Bitcoin wallet account implementation. Implements `IWalletAccount` from `@wdk/wallet`. | [Constructor](#constructor-1), [Methods](#methods-1), [Properties](#properties) |
+| [WalletManagerBtc](#walletmanagerbtc) | Main class for managing Bitcoin wallets. Extends `WalletManager` from `@tetherto/wdk-wallet`. | [Constructor](#constructor), [Methods](#methods) |
+| [WalletAccountBtc](#walletaccountbtc) | Individual Bitcoin wallet account implementation. Implements `IWalletAccount` from `@tetherto/wdk-wallet`. | [Constructor](#constructor-1), [Methods](#methods-1), [Properties](#properties) |
 
 ### WalletManagerBtc
 
 The main class for managing Bitcoin wallets.  
-Extends `WalletManager` from `@wdk/wallet`.
+Extends `WalletManager` from `@tetherto/wdk-wallet`.
 
 #### Constructor
 
@@ -291,7 +291,7 @@ wallet.dispose()
 
 ### WalletAccountBtc
 
-Represents an individual Bitcoin wallet account. Implements `IWalletAccount` from `@wdk/wallet`.
+Represents an individual Bitcoin wallet account. Implements `IWalletAccount` from `@tetherto/wdk-wallet`.
 
 #### Constructor
 
@@ -312,9 +312,9 @@ new WalletAccountBtc(seed, path, config)
 | Method | Description | Returns |
 |--------|-------------|---------|
 | `getAddress()` | Returns the account's Native SegWit address | `Promise<string>` |
-| `getBalance()` | Returns the confirmed account balance in satoshis | `Promise<number>` |
-| `sendTransaction(options)` | Sends a Bitcoin transaction | `Promise<{hash: string, fee: number}>` |
-| `quoteSendTransaction(options)` | Estimates the fee for a transaction | `Promise<{fee: number}>` |
+| `getBalance()` | Returns the confirmed account balance in satoshis | `Promise<bigint>` |
+| `sendTransaction(options)` | Sends a Bitcoin transaction | `Promise<{hash: string, fee: bigint}>` |
+| `quoteSendTransaction(options)` | Estimates the fee for a transaction | `Promise<{fee: bigint}>` |
 | `getTransfers(options?)` | Returns the account's transfer history | `Promise<BtcTransfer[]>` |
 | `sign(message)` | Signs a message with the account's private key | `Promise<string>` |
 | `verify(message, signature)` | Verifies a message signature | `Promise<boolean>` |
