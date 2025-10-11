@@ -183,6 +183,25 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
       expect(fee).toBe(BigInt(feeSats))
     })
 
+    test('should successfully send a transaction with a fixed fee rate', async () => {
+      const FIXED_FEE_RATE = 10 
+      const TRANSACTION = { to: recipient, value: 1_000, feeRate: FIXED_FEE_RATE }
+
+      const { hash, fee } = await account.sendTransaction(TRANSACTION)
+
+      await waiter.mine()
+
+      const transaction = bitcoin.getTransaction(hash)
+      expect(transaction.txid).toBe(hash)
+      expect(transaction.details[0].address).toBe(TRANSACTION.to)
+
+      const amount = Math.round(transaction.details[0].amount * 1e8)
+      expect(amount).toBe(TRANSACTION.value)
+
+      const feeSats = bitcoin.getTransactionFeeSats(hash)
+      expect(fee).toBe(BigInt(feeSats))
+    })
+
     test('should create a change output when leftover > dust limit', async () => {
       const TRANSACTION = { to: recipient, value: 500_000 }
 

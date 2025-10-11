@@ -36,7 +36,9 @@ import ElectrumClient from './electrum-client.js'
  * @typedef {Object} BtcTransaction
  * @property {string} to - The transaction's recipient.
  * @property {number | bigint} value - The amount of bitcoins to send to the recipient (in satoshis).
- */
+ * @property {number} [confirmationTarget] - Optional confirmation target in blocks (default: 1).
+ * @property {number} [feeRate] - Optional fee rate in satoshis per virtual byte. If provided, this value overrides the fee rate estimated from the blockchain (default: undefined).
+ * */
 
 /**
  * @typedef {Object} BtcWalletConfig
@@ -131,16 +133,19 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * @param {BtcTransaction} tx - The transaction.
    * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transaction's quotes.
    */
-  async quoteSendTransaction ({ to, value }) {
+  async quoteSendTransaction ({ to, value, confirmationTarget = 1, feeRate = undefined }) {
     const address = await this.getAddress()
 
-    const feeRate = await this._electrumClient.blockchainEstimatefee(1)
+    if (typeof feeRate !== 'number') {
+      const estimatedFeeRate = await this._electrumClient.blockchainEstimatefee(confirmationTarget)
+      feeRate = Math.max(Number(estimatedFeeRate) * 100_000, 1)
+    }
 
     const { fee } = await this._planSpend({
       fromAddress: address,
       toAddress: to,
       amount: value,
-      feeRate: Math.max(Number(feeRate) * 100_000, 1)
+      feeRate
     })
 
     return { fee: BigInt(fee) }

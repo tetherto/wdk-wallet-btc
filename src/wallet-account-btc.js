@@ -196,12 +196,13 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @param {BtcTransaction} tx - The transaction.
    * @returns {Promise<TransactionResult>} The transaction's result.
    */
-  async sendTransaction ({ to, value }) {
+  async sendTransaction ({ to, value, confirmationTarget = 1, feeRate = undefined }) {
     const address = await this.getAddress()
 
-    const feeEstimate = await this._electrumClient.blockchainEstimatefee(1)
-
-    const feeRate = Math.max(Number(feeEstimate) * 100_000, 1)
+    if (typeof feeRate !== 'number') {
+      const feeEstimate = await this._electrumClient.blockchainEstimatefee(confirmationTarget)
+      feeRate = Math.max(Number(feeEstimate) * 100_000, 1)
+    }
 
     const { utxos, fee, changeValue } = await this._planSpend({
       fromAddress: address,
