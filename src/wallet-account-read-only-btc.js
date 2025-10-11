@@ -59,8 +59,19 @@ const { Output } = DescriptorsFactory(ecc)
 const MIN_TX_FEE_SATS = 141
 const MAX_UTXO_INPUTS = 200
 
-/** @internal */
-export const DUST_LIMIT = 546
+const BIP_BY_ADDRESS_PREFIX = {
+  1: 44,
+  m: 44,
+  n: 44,
+  bc1q: 84,
+  tb1q: 84,
+  bcrt1q: 84
+}
+
+const DUST_LIMIT = {
+  44: 546,
+  84: 294
+}
 
 export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
   /**
@@ -100,6 +111,15 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
       config.protocol || 'tcp',
       { retryPeriod: 1_000, maxRetry: 2, pingPeriod: 120_000, callback: null }
     )
+
+    const prefix = Object.keys(BIP_BY_ADDRESS_PREFIX).find(p => address.startsWith(p))
+    const bip = BIP_BY_ADDRESS_PREFIX[prefix] || 44
+
+    /**
+     * @type {number}
+     * The dust limit in satoshis based on the BIP type.
+     */
+    this._dustLimit = DUST_LIMIT[bip]
   }
 
   /**
@@ -230,19 +250,19 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
     const twoOutputsVSize = txOverheadVBytes + (inputCount * inputVBytes) + (2 * outputVBytes)
     const twoOutputsFeeSats = Math.max(Math.ceil(twoOutputsVSize * feeRate), MIN_TX_FEE_SATS)
-    const twoOutputsRecipientAmountSats = totalInputValueSats - twoOutputsFeeSats - DUST_LIMIT
-    if (twoOutputsRecipientAmountSats > DUST_LIMIT) {
+    const twoOutputsRecipientAmountSats = totalInputValueSats - twoOutputsFeeSats - this._dustLimit
+    if (twoOutputsRecipientAmountSats > this._dustLimit) {
       return {
         amount: BigInt(twoOutputsRecipientAmountSats),
         fee: BigInt(twoOutputsFeeSats),
-        changeValue: BigInt(DUST_LIMIT)
+        changeValue: BigInt(this._dustLimit)
       }
     }
 
     const oneOutputVSize = txOverheadVBytes + (inputCount * inputVBytes) + outputVBytes
     const oneOutputFeeSats = Math.max(Math.ceil(oneOutputVSize * feeRate), MIN_TX_FEE_SATS)
     const oneOutputRecipientAmountSats = totalInputValueSats - oneOutputFeeSats
-    if (oneOutputRecipientAmountSats <= DUST_LIMIT) {
+    if (oneOutputRecipientAmountSats <= this._dustLimit) {
       return { amount: 0n, fee: 0n, changeValue: 0n }
     }
 
@@ -285,8 +305,8 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * @returns {Promise<{ utxos: OutputWithValue[], fee: number, changeValue: number }>} - The funding plan.
    */
   async _planSpend ({ fromAddress, toAddress, amount, feeRate }) {
-    if (amount <= DUST_LIMIT) {
-      throw new Error(`The amount must be bigger than the dust limit (= ${DUST_LIMIT}).`)
+    if (amount <= this._dustLimit) {
+      throw new Error(`The amount must be bigger than the dust limit (= ${this._dustLimit}).`)
     }
 
     const network = this._network
@@ -341,7 +361,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
       throw new Error('Insufficient balance after fees.')
     }
 
-    if (changeValue <= DUST_LIMIT) {
+    if (changeValue <= this._dustLimit) {
       return { utxos, fee: fee + changeValue, changeValue: 0 }
     }
 

@@ -71,7 +71,6 @@ describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
   describe('getMaxSpendable', () => {
     const TX_OVERHEAD_VBYTES = 11
     const OUTPUT_VBYTES = 34
-    const DUST_LIMIT = 546
     const MIN_TX_FEE = 141
     const STARTING_BALANCE = 1_000_000n
     const INPUT_VBYTES = bip === 44 ? 148 : 68
@@ -81,23 +80,26 @@ describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
 
       const vsize = TX_OVERHEAD_VBYTES + INPUT_VBYTES + (2 * OUTPUT_VBYTES)
       const expectedFee = BigInt(Math.max(Math.ceil(vsize * satsPerVByte), MIN_TX_FEE))
-      const expectedAmount = STARTING_BALANCE - expectedFee - BigInt(DUST_LIMIT)
+      const dustLimit = account._dustLimit
+      const expectedAmount = STARTING_BALANCE - expectedFee - BigInt(dustLimit)
 
       const result = await account.getMaxSpendable()
 
       expect(result).toEqual({
         amount: expectedAmount,
         fee: expectedFee,
-        changeValue: BigInt(DUST_LIMIT)
+        changeValue: BigInt(dustLimit)
       })
     })
 
     test('should return correct max spend when change would be dust (one output)', async () => {
       const satsPerVByte = bitcoin.estimateSatsPerVByte(1)
 
-      const freshAddress = bip === 44
+      const tmpAddress = bip === 44
         ? bitcoin.call('getnewaddress "" legacy', { rawResult: true })
         : bitcoin.call('getnewaddress "" bech32', { rawResult: true })
+      const tmpAccount = new WalletAccountReadOnlyBtc(tmpAddress, CONFIGURATION)
+      const dustLimit = tmpAccount._dustLimit
 
       const vsizeOneOutput = TX_OVERHEAD_VBYTES + INPUT_VBYTES + OUTPUT_VBYTES
       const feeOneOutput = Math.max(Math.ceil(vsizeOneOutput * satsPerVByte), MIN_TX_FEE)
@@ -105,17 +107,16 @@ describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
       const vsizeTwoOutputs = TX_OVERHEAD_VBYTES + INPUT_VBYTES + (2 * OUTPUT_VBYTES)
       const feeTwoOutputs = Math.max(Math.ceil(vsizeTwoOutputs * satsPerVByte), MIN_TX_FEE)
 
-      const minSpendable = feeOneOutput + DUST_LIMIT + 1
-      const maxSpendable = feeTwoOutputs + 2 * DUST_LIMIT
+      const minSpendable = feeOneOutput + dustLimit + 1
+      const maxSpendable = feeTwoOutputs + 2 * dustLimit
 
       const oneOutputRange = Math.max(1, maxSpendable - minSpendable)
 
       const fundedAmount = minSpendable + Math.min(1000, oneOutputRange - 1)
 
-      bitcoin.sendToAddress(freshAddress, (fundedAmount / 1e8).toFixed(8))
+      bitcoin.sendToAddress(tmpAddress, (fundedAmount / 1e8).toFixed(8))
       await waiter.mine()
 
-      const tmpAccount = new WalletAccountReadOnlyBtc(freshAddress, CONFIGURATION)
       const result = await tmpAccount.getMaxSpendable()
 
       expect(result).toEqual({

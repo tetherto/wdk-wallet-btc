@@ -24,7 +24,7 @@ import * as ecc from '@bitcoinerlab/secp256k1'
 // eslint-disable-next-line camelcase
 import { sodium_memzero } from 'sodium-universal'
 
-import WalletAccountReadOnlyBtc, { DUST_LIMIT } from './wallet-account-read-only-btc.js'
+import WalletAccountReadOnlyBtc from './wallet-account-read-only-btc.js'
 
 /** @typedef {import('@tetherto/wdk-wallet').IWalletAccount} IWalletAccount */
 
@@ -422,12 +422,12 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
 
     if (currentChange > 0) {
       const newChange = currentChange - delta
-      currentChange = newChange > DUST_LIMIT ? newChange : 0
+      currentChange = newChange > this._dustLimit ? newChange : 0
       tx = await buildAndSign(currentRecipientAmnt, currentChange)
     } else {
       const newRecipientAmnt = currentRecipientAmnt - delta
-      if (newRecipientAmnt <= DUST_LIMIT) {
-        throw new Error(`The amount after fees must be bigger than the dust limit (= ${DUST_LIMIT}).`)
+      if (newRecipientAmnt <= this._dustLimit) {
+        throw new Error(`The amount after fees must be bigger than the dust limit (= ${this._dustLimit}).`)
       }
       currentRecipientAmnt = newRecipientAmnt
       tx = await buildAndSign(currentRecipientAmnt, currentChange)
