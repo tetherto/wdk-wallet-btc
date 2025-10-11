@@ -199,22 +199,26 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
   async sendTransaction ({ to, value }) {
     const address = await this.getAddress()
 
-    const feeEstimate = await this._electrumClient.blockchainEstimatefee(1)
+    try {
+      const feeEstimate = await this._electrumClient.blockchainEstimatefee(1)
 
-    const feeRate = Math.max(Number(feeEstimate) * 100_000, 1)
+      const feeRate = Math.max(Number(feeEstimate) * 100_000, 1)
 
-    const { utxos, fee, changeValue } = await this._planSpend({
-      fromAddress: address,
-      toAddress: to,
-      amount: value,
-      feeRate
-    })
+      const { utxos, fee, changeValue } = await this._planSpend({
+        fromAddress: address,
+        toAddress: to,
+        amount: value,
+        feeRate
+      })
 
-    const tx = await this._getRawTransaction({ utxos, to, value, fee, feeRate, changeValue })
+      const tx = await this._getRawTransaction({ utxos, to, value, fee, feeRate, changeValue })
 
-    await this._electrumClient.blockchainTransaction_broadcast(tx.hex)
+      await this._electrumClient.blockchainTransaction_broadcast(tx.hex)
 
-    return { hash: tx.txid, fee: BigInt(tx.fee) }
+      return { hash: tx.txid, fee: BigInt(tx.fee) }
+    } catch (e) {
+      throw new Error(`Failed to send transaction to ${to}: ${e}`)
+    }
   }
 
   /**
@@ -237,6 +241,10 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @returns {Promise<BtcTransfer[]>} The bitcoin transfers.
    */
   async getTransfers (options = {}) {
+    // this function can be implemented in WalletAccountReadOnlyBtc, this way we can also expands the use case for read-only account
+    // i believe we refactor this function to improve performance and readability,
+    // there are too many nested for loops and async calls within loops
+    // also, the function is pretty complex, splitting it up into smaller private functions would be an improvement
     const { direction = 'all', limit = 10, skip = 0 } = options
 
     const net = this._network
@@ -357,9 +365,15 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     const legacyPrevTxCache = new Map()
     const getPrevTxHex = async (txid) => {
       if (legacyPrevTxCache.has(txid)) return legacyPrevTxCache.get(txid)
-      const hex = await this._electrumClient.blockchainTransaction_get(txid, false)
-      legacyPrevTxCache.set(txid, hex)
-      return hex
+
+      try {
+        const hex = await this._electrumClient.blockchainTransaction_get(txid, false)
+        legacyPrevTxCache.set(txid, hex)
+
+        return hex
+      } catch (e) {
+        throw new Error(`Failed to get transaction hex: ${e}`)
+      }
     }
 
     const buildAndSign = async (rcptVal, chgVal) => {

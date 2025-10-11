@@ -72,6 +72,8 @@ export default class WalletManagerBtc extends WalletManager {
    * @returns {Promise<FeeRates>} The fee rates (in satoshis).
    */
   async getFeeRates () {
+    // this function does not handle mainnet/testnet config
+    // also, we should allow user to pass in API key for mempool APIs
     const response = await fetch(`${MEMPOOL_SPACE_URL}/api/v1/fees/recommended`)
 
     const { fastestFee, hourFee } = await response.json()
