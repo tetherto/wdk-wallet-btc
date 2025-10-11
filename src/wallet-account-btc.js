@@ -301,7 +301,10 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
       if (utxosToSelfCount === 0) {
         if (direction === 'incoming') return []
         const prevUtxos = await Promise.all(
-          tx.ins.map((input) => getPrevUtxo(input).catch(() => null))
+          tx.ins.map((input) => getPrevUtxo(input).catch((err) => {
+            console.warn('Failed to fetch prevUtxo', input, err)
+            return null
+          }))
         )
         const totalInputValue = prevUtxos.reduce((s, p) => s + (p && typeof p.value === 'number' ? p.value : 0), 0)
         const fee = totalInputValue > 0 ? (totalInputValue - totalUtxoValue) : null
@@ -326,7 +329,10 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
       }
 
       const prevUtxos = await Promise.all(
-        tx.ins.map((input) => getPrevUtxo(input).catch(() => null))
+        tx.ins.map((input) => getPrevUtxo(input).catch((err) => {
+          console.warn('Failed to fetch prevUtxo', input, err)
+          return null
+        }))
       )
       let totalInputValue = 0
       let isOutgoingTx = false
@@ -370,7 +376,12 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     for (let i = 0; i < filteredHistory.length && transfers.length < limit; i += BATCH_SIZE) {
       const window = filteredHistory.slice(i, i + BATCH_SIZE)
       const settled = await Promise.allSettled(
-        window.map((item) => processHistoryItem(item).catch(() => []))
+        window.map((item) =>
+          processHistoryItem(item).catch((err) => {
+            console.warn('Failed to process history item', item, err)
+            return []
+          })
+        )
       )
       for (const res of settled) {
         if (transfers.length >= limit) break
