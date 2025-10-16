@@ -41,6 +41,11 @@ const SIGNATURES = {
   84: 'd70594939c4e5fc68694fd09c42aabccb715a22f88eb0a84dc333410236a76ee6061f863a86094bb3858ca44be048675516b02fd46dd3b6a23e2255367a44509'
 }
 
+export const FEES = {
+  44: 223n,
+  84: 141n
+}
+
 describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
   const CONFIGURATION = {
     host: HOST,
@@ -183,9 +188,26 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
       expect(fee).toBe(BigInt(feeSats))
     })
 
+    test('should successfully send a transaction (bigint)', async () => {
+      const TRANSACTION = { to: recipient, value: 1000n }
+
+      const { hash, fee } = await account.sendTransaction(TRANSACTION)
+
+      await waiter.mine()
+
+      const transaction = bitcoin.getTransaction(hash)
+      expect(transaction.txid).toBe(hash)
+      expect(transaction.details[0].address).toBe(TRANSACTION.to)
+
+      const amount = BigInt(Math.round(transaction.details[0].amount * 1e+8))
+      expect(amount).toBe(TRANSACTION.value)
+
+      const feeSats = bitcoin.getTransactionFeeSats(hash)
+      expect(fee).toBe(BigInt(feeSats))
+    })
+
     test('should successfully send a transaction with a fixed fee rate', async () => {
-      const FIXED_FEE_RATE = 10 
-      const TRANSACTION = { to: recipient, value: 1_000, feeRate: FIXED_FEE_RATE }
+      const TRANSACTION = { to: recipient, value: 1_000, feeRate: 10 }
 
       const { hash, fee } = await account.sendTransaction(TRANSACTION)
 
@@ -198,8 +220,26 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
       const amount = Math.round(transaction.details[0].amount * 1e8)
       expect(amount).toBe(TRANSACTION.value)
 
-      const feeSats = bitcoin.getTransactionFeeSats(hash)
-      expect(fee).toBe(BigInt(feeSats))
+      const expectedFee = FEES[bip] * BigInt(TRANSACTION.feeRate)
+      expect(fee).toBe(expectedFee)
+    })
+
+    test('should successfully send a transaction with a fixed fee rate (bigint)', async () => {
+      const TRANSACTION = { to: recipient, value: 1000, feeRate: 10n }
+
+      const { hash, fee } = await account.sendTransaction(TRANSACTION)
+
+      await waiter.mine()
+
+      const transaction = bitcoin.getTransaction(hash)
+      expect(transaction.txid).toBe(hash)
+      expect(transaction.details[0].address).toBe(TRANSACTION.to)
+
+      const amount = Math.round(transaction.details[0].amount * 1e8)
+      expect(amount).toBe(TRANSACTION.value)
+
+      const expectedFee = FEES[bip] * TRANSACTION.feeRate
+      expect(fee).toBe(expectedFee)
     })
 
     test('should create a change output when leftover > dust limit', async () => {

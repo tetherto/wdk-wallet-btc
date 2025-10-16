@@ -11,7 +11,7 @@ const ADDRESSES = {
   84: 'bcrt1q56sfepv68sf2xfm2kgk3ea2mdjzswljl3r3tdx'
 }
 
-const FEES = {
+export const FEES = {
   44: 223n,
   84: 141n
 }
@@ -139,13 +139,31 @@ describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
       expect(fee).toBe(expectedFee)
     })
     
+    test('should successfully quote a transaction (bigint)', async () => {
+      const TRANSACTION = { to: recipient, value: 1_000n }
+
+      const { fee } = await account.quoteSendTransaction(TRANSACTION)
+
+      const satsPerVByte = bitcoin.estimateSatsPerVByte(1)
+      const expectedFee = FEES[bip] * BigInt(satsPerVByte)
+      expect(fee).toBe(expectedFee)
+    })
+
     test('should successfully quote a transaction with a fixed fee rate', async () => {
-      const FIXED_FEE_RATE = 12
-      const TRANSACTION = { to: recipient, value: 1_000, feeRate: FIXED_FEE_RATE }
+      const TRANSACTION = { to: recipient, value: 1_000, feeRate: 10 }
 
       const { fee } = await account.quoteSendTransaction(TRANSACTION)
       
-      const expectedFee = FEES[bip] * BigInt(FIXED_FEE_RATE)
+      const expectedFee = FEES[bip] * BigInt(TRANSACTION.feeRate)
+      expect(fee).toBe(expectedFee)
+    })
+  
+      test('should successfully quote a transaction with a fixed fee rate (bigint)', async () => {
+      const TRANSACTION = { to: recipient, value: 1000, feeRate: 10n }
+
+      const { fee } = await account.quoteSendTransaction(TRANSACTION)
+      
+      const expectedFee = FEES[bip] * TRANSACTION.feeRate
       expect(fee).toBe(expectedFee)
     })
   })

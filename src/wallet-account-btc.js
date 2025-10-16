@@ -196,10 +196,10 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @param {BtcTransaction} tx - The transaction.
    * @returns {Promise<TransactionResult>} The transaction's result.
    */
-  async sendTransaction ({ to, value, confirmationTarget = 1, feeRate = undefined }) {
+  async sendTransaction ({ to, value, feeRate, confirmationTarget = 1 }) {
     const address = await this.getAddress()
 
-    if (typeof feeRate !== 'number') {
+    if (!feeRate) {
       const feeEstimate = await this._electrumClient.blockchainEstimatefee(confirmationTarget)
       feeRate = Math.max(Number(feeEstimate) * 100_000, 1)
     }
@@ -353,6 +353,11 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
 
   /** @private */
   async _getRawTransaction ({ utxos, to, value, fee, feeRate, changeValue }) {
+    feeRate = Math.max(Number(feeRate), 1)
+    value = Number(value)
+    changeValue = Number(changeValue)
+    fee = Number(fee)
+
     const isSegwit = (this._bip === 84)
 
     const legacyPrevTxCache = new Map()
@@ -382,7 +387,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
             ...baseInput,
             witnessUtxo: {
               script: Buffer.from(utxo.vout.scriptPubKey.hex, 'hex'),
-              value: utxo.value
+              value: Number(utxo.value)
             }
           })
         } else {
@@ -395,9 +400,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
       }
 
       psbt.addOutput({ address: to, value: rcptVal })
-      if (chgVal > 0) {
-        psbt.addOutput({ address: await this.getAddress(), value: chgVal })
-      }
+      if (chgVal > 0) psbt.addOutput({ address: await this.getAddress(), value: chgVal })
 
       utxos.forEach((_, index) => psbt.signInputHD(index, this._masterNode))
       psbt.finalizeAllInputs()
@@ -436,9 +439,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
 
     vsize = tx.virtualSize()
     requiredFee = Math.ceil(vsize * feeRate)
-    if (requiredFee > currentFee) {
-      throw new Error('Fee shortfall after output rebalance.')
-    }
+    if (requiredFee > currentFee) throw new Error('Fee shortfall after output rebalance.')
 
     return { txid: tx.getId(), hex: tx.toHex(), fee: currentFee }
   }
