@@ -1,3 +1,5 @@
+/** @internal */
+export const DUST_LIMIT: 546;
 export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     /**
      * Creates a new bitcoin read-only wallet account.
@@ -28,32 +30,12 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      */
     protected _electrumClient: ElectrumClient;
     /**
-     * Returns the account's eth balance.
-     *
-     * @returns {Promise<bigint>} The eth balance (in weis).
-     */
-    getBalance(): Promise<bigint>;
-    /**
-     * Returns the account balance for a specific token.
-     *
-     * @param {string} tokenAddress - The smart contract address of the token.
-     * @returns {Promise<bigint>} The token balance (in base unit).
-     */
-    getTokenBalance(tokenAddress: string): Promise<bigint>;
-    /**
      * Quotes the costs of a send transaction operation.
      *
      * @param {BtcTransaction} tx - The transaction.
      * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transaction's quotes.
      */
-    quoteSendTransaction(tx: BtcTransaction): Promise<Omit<TransactionResult, "hash">>;
-    /**
-     * Quotes the costs of a transfer operation.
-     *
-     * @param {TransferOptions} options - The transfer's options.
-     * @returns {Promise<Omit<TransferResult, 'hash'>>} The transfer's quotes.
-     */
-    quoteTransfer(options: TransferOptions): Promise<Omit<TransferResult, "hash">>;
+    quoteSendTransaction({ to, value, feeRate, confirmationTarget }: BtcTransaction): Promise<Omit<TransactionResult, "hash">>;
     /**
      * Returns a transaction's receipt.
      *
@@ -61,6 +43,18 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @returns {Promise<BtcTransactionReceipt | null>} – The receipt, or null if the transaction has not been included in a block yet.
      */
     getTransactionReceipt(hash: string): Promise<BtcTransactionReceipt | null>;
+    /**
+     * Returns the maximum spendable amount (in satoshis) that can be sent in
+     * a single transaction, after subtracting estimated transaction fees.
+     *
+     * The maximum spendable amount can differ from the wallet's total balance.
+     * A transaction can only include up to MAX_UTXO_INPUTS (default: 200) unspents.
+     * Wallets holding more than this limit cannot spend their full balance in a
+     * single transaction.
+     *
+     * @returns {Promise<BtcMaxSpendableResult>} The maximum spendable result.
+     */
+    getMaxSpendable(): Promise<BtcMaxSpendableResult>;
     /**
      * Computes the sha-256 hash of the output script for this wallet's address, reverses the byte order,
      * and returns it as a hex string.
@@ -80,14 +74,14 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @param {string} tx.fromAddress - The sender's address.
      * @param {string} tx.toAddress - The recipient's address.
      * @param {number | bigint} tx.amount - The amount to send (in satoshis).
-     * @param {number} tx.feeRate - The fee rate (in sats/vB).
+     * @param {number | bigint} tx.feeRate - The fee rate (in sats/vB).
      * @returns {Promise<{ utxos: OutputWithValue[], fee: number, changeValue: number }>} - The funding plan.
      */
     protected _planSpend({ fromAddress, toAddress, amount, feeRate }: {
         fromAddress: string;
         toAddress: string;
         amount: number | bigint;
-        feeRate: number;
+        feeRate: number | bigint;
     }): Promise<{
         utxos: OutputWithValue[];
         fee: number;
@@ -109,6 +103,14 @@ export type BtcTransaction = {
      * - The amount of bitcoins to send to the recipient (in satoshis).
      */
     value: number | bigint;
+    /**
+     * - Optional confirmation target in blocks (default: 1).
+     */
+    confirmationTarget?: number;
+    /**
+     * - Optional fee rate in satoshis per virtual byte. If provided, this value overrides the fee rate estimated from the blockchain (default: undefined).
+     */
+    feeRate?: number | bigint;
 };
 export type BtcWalletConfig = {
     /**
@@ -131,6 +133,20 @@ export type BtcWalletConfig = {
      * - The bip address type; available values: 44 or 84 (default: 44).
      */
     bip?: 44 | 84;
+};
+export type BtcMaxSpendableResult = {
+    /**
+     * - The maximum spendable amount in satoshis.
+     */
+    amount: bigint;
+    /**
+     * - The estimated network fee in satoshis.
+     */
+    fee: bigint;
+    /**
+     * - The estimated change value in satoshis.
+     */
+    changeValue: bigint;
 };
 import { WalletAccountReadOnly } from '@tetherto/wdk-wallet';
 import ElectrumClient from './electrum-client.js';

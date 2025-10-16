@@ -55,7 +55,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      * @param {BtcTransaction} tx - The transaction.
      * @returns {Promise<TransactionResult>} The transaction's result.
      */
-    sendTransaction({ to, value }: BtcTransaction): Promise<TransactionResult>;
+    sendTransaction({ to, value, feeRate, confirmationTarget }: BtcTransaction): Promise<TransactionResult>;
     /**
      * Transfers a token to another address.
      *
