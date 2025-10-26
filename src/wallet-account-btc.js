@@ -287,47 +287,12 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
 
     const processHistoryItem = async (item) => {
       let tx
-      try { tx = await fetchTransaction(item.tx_hash) } catch { return [] }
-
-      const utxos = tx.outs
-      let totalUtxoValue = 0
-      let utxosToSelfCount = 0
-      for (const utxo of utxos) {
-        totalUtxoValue += utxo.value
-        if (utxo.script.equals(myScript)) utxosToSelfCount++
+      try {
+        tx = await fetchTransaction(item.tx_hash)
+      } catch (err) {
+        console.warn('Failed to fetch transaction', item.tx_hash, err)
+        return []
       }
-      const isToSelf = (utxo) => utxo.script.equals(myScript)
-
-      if (utxosToSelfCount === 0) {
-        if (direction === 'incoming') return []
-        const prevUtxos = await Promise.all(
-          tx.ins.map((input) => getPrevUtxo(input).catch((err) => {
-            console.warn('Failed to fetch prevUtxo', input, err)
-            return null
-          }))
-        )
-        const totalInputValue = prevUtxos.reduce((s, p) => s + (p && typeof p.value === 'number' ? p.value : 0), 0)
-        const fee = totalInputValue > 0 ? (totalInputValue - totalUtxoValue) : null
-        const rows = []
-        for (let vout = 0; vout < utxos.length; vout++) {
-          const utxo = utxos[vout]
-          if (direction !== 'all' && direction !== 'outgoing') continue
-          let recipient = null
-          try { recipient = btcAddress.fromOutputScript(utxo.script, network) } catch (_) {}
-          rows.push({
-            txid: item.tx_hash,
-            height: item.height,
-            value: utxo.value,
-            vout,
-            direction: 'outgoing',
-            recipient,
-            fee,
-            address
-          })
-        }
-        return rows
-      }
-
       const prevUtxos = await Promise.all(
         tx.ins.map((input) => getPrevUtxo(input).catch((err) => {
           console.warn('Failed to fetch prevUtxo', input, err)
@@ -340,14 +305,20 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
         if (!prevUtxo || typeof prevUtxo.value !== 'number') continue
         totalInputValue += prevUtxo.value
         const isOurPrevUtxo = prevUtxo.script && prevUtxo.script.equals(myScript)
-        if (!isOutgoingTx && isOurPrevUtxo) isOutgoingTx = true
+        isOutgoingTx = isOutgoingTx || isOurPrevUtxo
+      }
+
+      const utxos = tx.outs
+      let totalUtxoValue = 0
+      for (const utxo of utxos) {
+        totalUtxoValue += utxo.value
       }
       const fee = totalInputValue > 0 ? (totalInputValue - totalUtxoValue) : null
 
       const rows = []
       for (let vout = 0; vout < utxos.length; vout++) {
         const utxo = utxos[vout]
-        const isSelfUtxo = isToSelf(utxo)
+        const isSelfUtxo = utxo.script.equals(myScript)
         let directionType = null
         if (isSelfUtxo && !isOutgoingTx) directionType = 'incoming'
         else if (!isSelfUtxo && isOutgoingTx) directionType = 'outgoing'
@@ -356,7 +327,11 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
         if (directionType === 'change') continue
         if (direction !== 'all' && direction !== directionType) continue
         let recipient = null
-        try { recipient = btcAddress.fromOutputScript(utxo.script, network) } catch (_) {}
+        try {
+          recipient = btcAddress.fromOutputScript(utxo.script, network)
+        } catch (err) {
+          console.warn('Failed to decode recipient address', utxo, err)
+        }
         rows.push({
           txid: item.tx_hash,
           height: item.height,
