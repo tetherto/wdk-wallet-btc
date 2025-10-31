@@ -42,9 +42,9 @@ import WalletAccountReadOnlyBtc, { DUST_LIMIT } from './wallet-account-read-only
  * @property {string} address - The user's own address.
  * @property {number} vout - The index of the output in the transaction.
  * @property {number} height - The block height (if unconfirmed, 0).
- * @property {number} value - The value of the transfer (in satoshis).
+ * @property {bigint} value - The value of the transfer (in satoshis).
  * @property {"incoming" | "outgoing"} direction - The direction of the transfer.
- * @property {number} [fee] - The fee paid for the full transaction (in satoshis).
+ * @property {bigint} [fee] - The fee paid for the full transaction (in satoshis).
  * @property {string} [recipient] - The receiving address for outgoing transfers.
  */
 
@@ -201,7 +201,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
 
     if (!feeRate) {
       const feeEstimate = await this._electrumClient.blockchainEstimatefee(confirmationTarget)
-      feeRate = Math.max(Number(feeEstimate) * 100_000, 1)
+      feeRate = this._toBigInt(Math.max(feeEstimate * 100_000, 1))
     }
 
     const { utxos, fee, changeValue } = await this._planSpend({
@@ -215,7 +215,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
 
     await this._electrumClient.blockchainTransaction_broadcast(tx.hex)
 
-    return { hash: tx.txid, fee: BigInt(tx.fee) }
+    return { hash: tx.txid, fee: tx.fee }
   }
 
   /**
@@ -263,7 +263,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
       let tx
       try { tx = await getTx(item.tx_hash) } catch (_) { continue }
 
-      let totalInput = 0
+      let totalInput = 0n
       let isOutgoing = false
 
       const prevOuts = await Promise.all(
@@ -281,14 +281,14 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
 
       for (const prevOut of prevOuts) {
         if (!prevOut) continue
-        totalInput += prevOut.value
+        totalInput += BigInt(prevOut.value)
         if (!isOutgoing && Buffer.compare(prevOut.script, myScript) === 0) {
           isOutgoing = true
         }
       }
 
-      const totalOutput = tx.outs.reduce((sum, o) => sum + o.value, 0)
-      const fee = totalInput > 0 ? (totalInput - totalOutput) : null
+      const totalOutput = tx.outs.reduce((sum, o) => sum + BigInt(o.value), 0n)
+      const fee = totalInput > 0n ? (totalInput - totalOutput) : null
 
       for (let vout = 0; vout < tx.outs.length; vout++) {
         const out = tx.outs[vout]
@@ -310,7 +310,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
         transfers.push({
           txid: item.tx_hash,
           height: item.height,
-          value: out.value,
+          value: BigInt(out.value),
           vout,
           direction: directionType,
           recipient,
@@ -353,12 +353,11 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
 
   /** @private */
   async _getRawTransaction ({ utxos, to, value, fee, feeRate, changeValue }) {
-    feeRate = Math.max(Number(feeRate), 1)
-    value = Number(value)
-    changeValue = Number(changeValue)
-    fee = Number(fee)
-
-    const isSegwit = (this._bip === 84)
+    feeRate = this._toBigInt(feeRate)
+    if (feeRate < 1n) feeRate = 1n
+    value = this._toBigInt(value)
+    changeValue = this._toBigInt(changeValue)
+    fee = this._toBigInt(fee)
 
     const legacyPrevTxCache = new Map()
     const getPrevTxHex = async (txid) => {
@@ -382,7 +381,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
           }]
         }
 
-        if (isSegwit) {
+        if (this._bip === 84) {
           psbt.addInput({
             ...baseInput,
             witnessUtxo: {
@@ -399,48 +398,43 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
         }
       }
 
-      psbt.addOutput({ address: to, value: rcptVal })
-      if (chgVal > 0) psbt.addOutput({ address: await this.getAddress(), value: chgVal })
+      psbt.addOutput({ address: to, value: Number(rcptVal) })
+      if (chgVal > 0n) psbt.addOutput({ address: await this.getAddress(), value: Number(chgVal) })
 
       utxos.forEach((_, index) => psbt.signInputHD(index, this._masterNode))
       psbt.finalizeAllInputs()
 
-      const tx = psbt.extractTransaction()
-      return tx
+      return psbt.extractTransaction()
     }
 
-    let currentRecipientAmnt = Number(value)
-    let currentChange = changeValue
-    let currentFee = fee
-
-    let tx = await buildAndSign(currentRecipientAmnt, currentChange)
+    let tx = await buildAndSign(value, changeValue)
     let vsize = tx.virtualSize()
-    let requiredFee = Math.ceil(vsize * feeRate)
+    let requiredFee = BigInt(vsize) * feeRate
 
-    if (requiredFee <= currentFee) {
-      return { txid: tx.getId(), hex: tx.toHex(), fee: currentFee, vsize }
+    if (requiredFee <= fee) {
+      return { txid: tx.getId(), hex: tx.toHex(), fee, vsize }
     }
 
-    const delta = requiredFee - currentFee
-    currentFee = requiredFee
+    const delta = requiredFee - fee
+    fee = requiredFee
 
-    if (currentChange > 0) {
-      const newChange = currentChange - delta
-      currentChange = newChange > DUST_LIMIT ? newChange : 0
-      tx = await buildAndSign(currentRecipientAmnt, currentChange)
+    if (changeValue > 0n) {
+      const newChange = changeValue - delta
+      changeValue = newChange > BigInt(DUST_LIMIT) ? newChange : 0n
+      tx = await buildAndSign(value, changeValue)
     } else {
-      const newRecipientAmnt = currentRecipientAmnt - delta
-      if (newRecipientAmnt <= DUST_LIMIT) {
+      const newRecipientAmnt = value - delta
+      if (newRecipientAmnt <= BigInt(DUST_LIMIT)) {
         throw new Error(`The amount after fees must be bigger than the dust limit (= ${DUST_LIMIT}).`)
       }
-      currentRecipientAmnt = newRecipientAmnt
-      tx = await buildAndSign(currentRecipientAmnt, currentChange)
+      value = newRecipientAmnt
+      tx = await buildAndSign(value, changeValue)
     }
 
     vsize = tx.virtualSize()
-    requiredFee = Math.ceil(vsize * feeRate)
-    if (requiredFee > currentFee) throw new Error('Fee shortfall after output rebalance.')
+    requiredFee = BigInt(vsize) * feeRate
+    if (requiredFee > fee) throw new Error('Fee shortfall after output rebalance.')
 
-    return { txid: tx.getId(), hex: tx.toHex(), fee: currentFee }
+    return { txid: tx.getId(), hex: tx.toHex(), fee }
   }
 }

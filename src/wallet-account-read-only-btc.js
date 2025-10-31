@@ -137,8 +137,8 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     const address = await this.getAddress()
 
     if (!feeRate) {
-      const estimatedFeeRate = await this._electrumClient.blockchainEstimatefee(confirmationTarget)
-      feeRate = Math.max(Number(estimatedFeeRate) * 100_000, 1)
+      const feeEstimate = await this._electrumClient.blockchainEstimatefee(confirmationTarget)
+      feeRate = this._toBigInt(Math.max(feeEstimate * 100_000, 1))
     }
 
     const { fee } = await this._planSpend({
@@ -275,6 +275,9 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     return buffer.toString('hex')
   }
 
+  /** @private */
+  _toBigInt (v) { return typeof v === 'bigint' ? v : BigInt(Math.round(Number(v))) }
+
   /**
    * Builds and returns a fee-aware funding plan for sending a transaction.
    *
@@ -290,7 +293,11 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * @returns {Promise<{ utxos: OutputWithValue[], fee: number, changeValue: number }>} - The funding plan.
    */
   async _planSpend ({ fromAddress, toAddress, amount, feeRate }) {
-    if (amount <= DUST_LIMIT) {
+    amount = this._toBigInt(amount)
+    feeRate = this._toBigInt(feeRate)
+    if (feeRate < 1n) feeRate = 1n
+
+    if (amount <= BigInt(DUST_LIMIT)) {
       throw new Error(`The amount must be bigger than the dust limit (= ${DUST_LIMIT}).`)
     }
 
@@ -318,7 +325,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
       utxos: utxosForCoinSelect,
       remainder: fromAddressOutput,
       targets: [{ output: toAddressOutput, value: Number(amount) }],
-      feeRate: Math.max(Number(feeRate) || 0, 1)
+      feeRate: Number(feeRate)
     })
 
     if (!result) {
@@ -329,25 +336,29 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
       throw new Error('Exceeded maximum allowed inputs for transaction.')
     }
 
-    const fee = Number.isFinite(result.fee)
-      ? Math.max(result.fee, MIN_TX_FEE_SATS)
-      : MIN_TX_FEE_SATS
+    const fee = this._toBigInt(Math.max(result.fee ?? 0, MIN_TX_FEE_SATS))
 
     const utxos = result.utxos.map(({ __ref }) => ({
       ...__ref,
-      vout: { value: __ref.value, scriptPubKey: { hex: fromAddressScriptHex } }
+      vout: {
+        value: this._toBigInt(__ref.value),
+        scriptPubKey: { hex: fromAddressScriptHex }
+      }
     }))
 
-    const total = utxos.reduce((s, u) => s + u.value, 0)
+    const total = utxos.reduce((s, u) => s + this._toBigInt(u.value), 0n)
+    const changeValue = total - fee - amount
 
-    const changeValue = total - fee - Number(amount)
-
-    if (changeValue < 0) {
+    if (changeValue < 0n) {
       throw new Error('Insufficient balance after fees.')
     }
 
-    if (changeValue <= DUST_LIMIT) {
-      return { utxos, fee: fee + changeValue, changeValue: 0 }
+    if (changeValue <= BigInt(DUST_LIMIT)) {
+      return {
+        utxos,
+        fee: fee + changeValue,
+        changeValue: 0n
+      }
     }
 
     return { utxos, fee, changeValue }

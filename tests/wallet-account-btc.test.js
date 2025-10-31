@@ -405,9 +405,9 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
         address,
         vout: transaction.details[0].vout,
         height: transaction.blockheight,
-        value: 1_000_000,
+        value: 1_000_000n,
         direction: 'incoming',
-        fee,
+        fee: BigInt(fee),
         recipient: address
       }
     }
@@ -431,9 +431,9 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
         address,
         vout: 0,
         height: transaction.blockheight,
-        value: 100_000,
+        value: 100_000n,
         direction: 'outgoing',
-        fee: Number(fee),
+        fee: BigInt(fee),
         recipient
       }
     }
