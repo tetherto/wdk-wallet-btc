@@ -1,5 +1,3 @@
-/** @internal */
-export const DUST_LIMIT: 546;
 export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     /**
      * Creates a new bitcoin read-only wallet account.
@@ -29,6 +27,13 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @type {ElectrumClient}
      */
     protected _electrumClient: ElectrumClient;
+    /**
+     * The dust limit in satoshis based on the BIP type.
+     *
+     * @private
+     * @type {number}
+     */
+    private _dustLimit;
     /**
      * Quotes the costs of a send transaction operation.
      *

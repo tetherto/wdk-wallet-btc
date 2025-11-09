@@ -374,7 +374,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     }
 
     return transfers
-  }  
+  }
 
   /**
    * Returns a read-only copy of the account.
@@ -460,7 +460,10 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
       return psbt.extractTransaction()
     }
 
-    let tx = await buildAndSign(value, changeValue)
+    let currentRecipientAmnt = value
+    let currentChange = changeValue
+
+    let tx = await buildAndSign(currentRecipientAmnt, currentChange)
     let vsize = tx.virtualSize()
     let requiredFee = BigInt(vsize) * feeRate
 
@@ -468,26 +471,29 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
       return { txid: tx.getId(), hex: tx.toHex(), fee, vsize }
     }
 
+    const dustLimit = this._dustLimit
+
     const delta = requiredFee - fee
     fee = requiredFee
 
-    if (currentChange > 0) {
-      const newChange = currentChange - delta
-      currentChange = newChange > this._dustLimit ? newChange : 0
+    if (currentChange > 0n) {
+      let newChange = currentChange - delta
+      if (newChange <= dustLimit) newChange = 0n
+      currentChange = newChange
       tx = await buildAndSign(currentRecipientAmnt, currentChange)
     } else {
       const newRecipientAmnt = currentRecipientAmnt - delta
-      if (newRecipientAmnt <= this._dustLimit) {
-        throw new Error(`The amount after fees must be bigger than the dust limit (= ${this._dustLimit}).`)
+      if (newRecipientAmnt <= dustLimit) {
+        throw new Error(`The amount after fees must be bigger than the dust limit (= ${dustLimit}).`)
       }
-      value = newRecipientAmnt
-      tx = await buildAndSign(value, changeValue)
+      currentRecipientAmnt = newRecipientAmnt
+      tx = await buildAndSign(currentRecipientAmnt, currentChange)
     }
 
     vsize = tx.virtualSize()
     requiredFee = BigInt(vsize) * feeRate
     if (requiredFee > fee) throw new Error('Fee shortfall after output rebalance.')
 
-    return { txid: tx.getId(), hex: tx.toHex(), fee }
+    return { txid: tx.getId(), hex: tx.toHex(), fee, vsize }
   }
 }
