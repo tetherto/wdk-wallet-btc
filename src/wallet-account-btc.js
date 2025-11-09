@@ -17,6 +17,8 @@ import { hmac } from '@noble/hashes/hmac'
 import { sha512 } from '@noble/hashes/sha512'
 import { address as btcAddress, crypto, initEccLib, networks, payments, Psbt, Transaction } from 'bitcoinjs-lib'
 import { BIP32Factory } from 'bip32'
+import pLimit from 'p-limit'
+import { LRUCache } from 'lru-cache'
 
 import * as bip39 from 'bip39'
 import * as ecc from '@bitcoinerlab/secp256k1'
@@ -24,7 +26,7 @@ import * as ecc from '@bitcoinerlab/secp256k1'
 // eslint-disable-next-line camelcase
 import { sodium_memzero } from 'sodium-universal'
 
-import WalletAccountReadOnlyBtc, { DUST_LIMIT } from './wallet-account-read-only-btc.js'
+import WalletAccountReadOnlyBtc from './wallet-account-read-only-btc.js'
 
 /** @typedef {import('@tetherto/wdk-wallet').IWalletAccount} IWalletAccount */
 
@@ -58,6 +60,10 @@ const BITCOIN = {
   pubKeyHash: 0x00,
   scriptHash: 0x05
 }
+
+const MAX_CONCURRENT_REQUESTS = 8
+const MAX_CACHE_ENTRIES = 1000
+const REQUEST_BATCH_SIZE = 64
 
 const bip32 = BIP32Factory(ecc)
 
@@ -238,79 +244,102 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @returns {Promise<BtcTransfer[]>} The bitcoin transfers.
    */
   async getTransfers (options = {}) {
-    const { direction = 'all', limit = 10, skip = 0 } = options
+    const {
+      direction = 'all',
+      limit = 10,
+      skip = 0
+    } = options
 
-    const net = this._network
+    const network = this._network
     const scriptHash = await this._getScriptHash()
     const history = await this._electrumClient.blockchainScripthash_getHistory(scriptHash)
 
     const address = await this.getAddress()
-    const myScript = btcAddress.toOutputScript(address, net)
+    const myScript = btcAddress.toOutputScript(address, network)
 
-    const txCache = new Map()
-    const getTx = async (txid) => {
-      if (txCache.has(txid)) return txCache.get(txid)
-      const tx = Transaction.fromHex(await this._electrumClient.blockchainTransaction_get(txid, false))
+    const txCache = new LRUCache({ max: MAX_CACHE_ENTRIES })
+    const prevUtxoCache = new LRUCache({ max: MAX_CACHE_ENTRIES })
+    const limitConcurrency = pLimit(MAX_CONCURRENT_REQUESTS)
+
+    const fetchTransaction = async (txid) => {
+      const cached = txCache.get(txid)
+      if (cached) return cached
+      const hex = await limitConcurrency(() =>
+        this._electrumClient.blockchainTransaction_get(txid, false)
+      )
+      const tx = Transaction.fromHex(hex)
       txCache.set(txid, tx)
       return tx
     }
 
-    const transfers = []
+    const getPrevUtxo = async (input) => {
+      const prevTxId = Buffer.from(input.hash).reverse().toString('hex')
+      const prevKey = `${prevTxId}:${input.index}`
+      const cached = prevUtxoCache.get(prevKey)
+      if (cached !== undefined) return cached
+      const isCoinbasePrevUtxo = prevTxId === '0'.repeat(64)
+      if (isCoinbasePrevUtxo) { prevUtxoCache.set(prevKey, null); return null }
+      const prevTx = await fetchTransaction(prevTxId)
+      const prevTxUtxo = prevTx.outs[input.index] || null
+      const prevUtxo = prevTxUtxo ? { script: prevTxUtxo.script, value: BigInt(prevTxUtxo.value) } : null
+      prevUtxoCache.set(prevKey, prevUtxo)
+      return prevUtxo
+    }
 
-    for (const item of history.slice(skip)) {
-      if (transfers.length >= limit) break
-
+    const processHistoryItem = async (item) => {
       let tx
-      try { tx = await getTx(item.tx_hash) } catch (_) { continue }
-
-      let totalInput = 0n
-      let isOutgoing = false
-
-      const prevOuts = await Promise.all(
-        tx.ins.map(async (input) => {
-          try {
-            const prevId = Buffer.from(input.hash).reverse().toString('hex')
-            const prevTx = await getTx(prevId)
-            const prevOut = prevTx.outs[input.index]
-            return prevOut || null
-          } catch (_) {
-            return null
-          }
-        })
+      try {
+        tx = await fetchTransaction(item.tx_hash)
+      } catch (err) {
+        console.warn('Failed to fetch transaction', item.tx_hash, err)
+        return []
+      }
+      const prevUtxos = await Promise.all(
+        tx.ins.map((input) => getPrevUtxo(input).catch((err) => {
+          console.warn('Failed to fetch prevUtxo', input, err)
+          return null
+        }))
       )
 
-      for (const prevOut of prevOuts) {
-        if (!prevOut) continue
-        totalInput += BigInt(prevOut.value)
-        if (!isOutgoing && Buffer.compare(prevOut.script, myScript) === 0) {
-          isOutgoing = true
-        }
+      let totalInputValue = 0n
+      let isOutgoingTx = false
+      for (const prevUtxo of prevUtxos) {
+        if (!prevUtxo || typeof prevUtxo.value !== 'bigint') continue
+        totalInputValue += prevUtxo.value
+        const isOurPrevUtxo = prevUtxo.script && prevUtxo.script.equals(myScript)
+        isOutgoingTx = isOutgoingTx || isOurPrevUtxo
       }
 
-      const totalOutput = tx.outs.reduce((sum, o) => sum + BigInt(o.value), 0n)
-      const fee = totalInput > 0n ? (totalInput - totalOutput) : null
+      const utxos = tx.outs
+      let totalUtxoValue = 0n
+      for (const utxo of utxos) totalUtxoValue += BigInt(utxo.value)
 
-      for (let vout = 0; vout < tx.outs.length; vout++) {
-        const out = tx.outs[vout]
-        const toSelf = Buffer.compare(out.script, myScript) === 0
+      const fee = totalInputValue > 0n ? totalInputValue - totalUtxoValue : null
 
+      const rows = []
+      for (let vout = 0; vout < utxos.length; vout++) {
+        const utxo = utxos[vout]
+        const utxoValue = BigInt(utxo.value)
+        const isSelfUtxo = utxo.script.equals(myScript)
         let directionType = null
-        if (toSelf && !isOutgoing) directionType = 'incoming'
-        else if (!toSelf && isOutgoing) directionType = 'outgoing'
-        else if (toSelf && isOutgoing) directionType = 'change'
+        if (isSelfUtxo && !isOutgoingTx) directionType = 'incoming'
+        else if (!isSelfUtxo && isOutgoingTx) directionType = 'outgoing'
+        else if (isSelfUtxo && isOutgoingTx) directionType = 'change'
         else continue
-
         if (directionType === 'change') continue
         if (direction !== 'all' && direction !== directionType) continue
-        if (transfers.length >= limit) break
 
         let recipient = null
-        try { recipient = btcAddress.fromOutputScript(out.script, net) } catch (_) {}
+        try {
+          recipient = btcAddress.fromOutputScript(utxo.script, network)
+        } catch (err) {
+          console.warn('Failed to decode recipient address', utxo, err)
+        }
 
-        transfers.push({
+        rows.push({
           txid: item.tx_hash,
           height: item.height,
-          value: BigInt(out.value),
+          value: utxoValue,
           vout,
           direction: directionType,
           recipient,
@@ -318,10 +347,34 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
           address
         })
       }
+      return rows
+    }
+
+    const transfers = []
+    const filteredHistory = history.slice(skip)
+    for (let i = 0; i < filteredHistory.length && transfers.length < limit; i += REQUEST_BATCH_SIZE) {
+      const window = filteredHistory.slice(i, i + REQUEST_BATCH_SIZE)
+      const settled = await Promise.allSettled(
+        window.map((item) =>
+          processHistoryItem(item).catch((err) => {
+            console.warn('Failed to process history item', item, err)
+            return []
+          })
+        )
+      )
+      for (const res of settled) {
+        if (transfers.length >= limit) break
+        if (res.status !== 'fulfilled') continue
+        const rows = res.value || []
+        for (const row of rows) {
+          transfers.push(row)
+          if (transfers.length >= limit) break
+        }
+      }
     }
 
     return transfers
-  }
+  }  
 
   /**
    * Returns a read-only copy of the account.
@@ -418,14 +471,14 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     const delta = requiredFee - fee
     fee = requiredFee
 
-    if (changeValue > 0n) {
-      const newChange = changeValue - delta
-      changeValue = newChange > BigInt(DUST_LIMIT) ? newChange : 0n
-      tx = await buildAndSign(value, changeValue)
+    if (currentChange > 0) {
+      const newChange = currentChange - delta
+      currentChange = newChange > this._dustLimit ? newChange : 0
+      tx = await buildAndSign(currentRecipientAmnt, currentChange)
     } else {
-      const newRecipientAmnt = value - delta
-      if (newRecipientAmnt <= BigInt(DUST_LIMIT)) {
-        throw new Error(`The amount after fees must be bigger than the dust limit (= ${DUST_LIMIT}).`)
+      const newRecipientAmnt = currentRecipientAmnt - delta
+      if (newRecipientAmnt <= this._dustLimit) {
+        throw new Error(`The amount after fees must be bigger than the dust limit (= ${this._dustLimit}).`)
       }
       value = newRecipientAmnt
       tx = await buildAndSign(value, changeValue)

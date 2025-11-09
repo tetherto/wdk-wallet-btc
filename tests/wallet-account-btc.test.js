@@ -7,7 +7,6 @@ import { HOST, PORT, ELECTRUM_PORT, ZMQ_PORT, DATA_DIR } from './config.js'
 import { BitcoinCli, Waiter } from './helpers/index.js'
 
 import { WalletAccountBtc, WalletAccountReadOnlyBtc } from '../index.js'
-import { DUST_LIMIT } from '../src/wallet-account-read-only-btc.js'
 
 const SEED_PHRASE = 'cook voyage document eight skate token alien guide drink uncle term abuse'
 
@@ -294,7 +293,10 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
       const nearMaxAmount = Math.max(1, Number(balance) - 2_000)
       const { fee: feeEstimate } = await account.quoteSendTransaction({ to: recipient, value: nearMaxAmount })
 
-      const spend = Math.max(1, Number(balance) - Number(feeEstimate) - (DUST_LIMIT - 1))
+      const dustLimit = account._dustLimit
+      let spend = balance - feeEstimate - dustLimit + 1n
+      if (spend < 1n) spend = 1n
+
       const { hash, fee } = await account.sendTransaction({ to: recipient, value: spend })
       await waiter.mine()
 
@@ -306,13 +308,14 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
 
       expect(outputs).toContain(recipient)
       expect(outputs).not.toContain(address)
-      expect(fee).toBe(balance - BigInt(spend))
+      expect(fee).toBe(balance - spend)
 
       account.dispose()
     })
 
     test('should throw if value is less than the dust limit', async () => {
-      await expect(account.sendTransaction({ to: recipient, value: 500 }))
+      const value = Math.floor(Number(account._dustLimit) / 2)
+      await expect(account.sendTransaction({ to: recipient, value }))
         .rejects.toThrow('The amount must be bigger than the dust limit')
     })
 
