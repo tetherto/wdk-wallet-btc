@@ -13,15 +13,9 @@
 // limitations under the License.
 'use strict'
 
-import { hmac } from '@noble/hashes/hmac'
-import { sha512 } from '@noble/hashes/sha512'
-import { address as btcAddress, crypto, initEccLib, networks, payments, Psbt, Transaction } from 'bitcoinjs-lib'
-import { BIP32Factory } from 'bip32'
+import { address as btcAddress, Psbt, Transaction } from 'bitcoinjs-lib'
 import pLimit from 'p-limit'
 import { LRUCache } from 'lru-cache'
-
-import * as bip39 from 'bip39'
-import * as ecc from '@bitcoinerlab/secp256k1'
 
 // eslint-disable-next-line camelcase
 import { sodium_memzero } from 'sodium-universal'
@@ -50,97 +44,22 @@ import WalletAccountReadOnlyBtc from './wallet-account-read-only-btc.js'
  * @property {string} [recipient] - The receiving address for outgoing transfers.
  */
 
-const MASTER_SECRET = Buffer.from('Bitcoin seed', 'utf8')
-
-const BITCOIN = {
-  wif: 0x80,
-  bip32: { public: 0x0488b21e, private: 0x0488ade4 },
-  messagePrefix: '\x18Bitcoin Signed Message:\n',
-  bech32: 'bc',
-  pubKeyHash: 0x00,
-  scriptHash: 0x05
-}
-
 const MAX_CONCURRENT_REQUESTS = 8
 const MAX_CACHE_ENTRIES = 1000
 const REQUEST_BATCH_SIZE = 64
-
-const bip32 = BIP32Factory(ecc)
-
-initEccLib(ecc)
-
-function derivePath (seed, path) {
-  const masterKeyAndChainCodeBuffer = hmac(sha512, MASTER_SECRET, seed)
-
-  const privateKey = masterKeyAndChainCodeBuffer.slice(0, 32)
-  const chainCode = masterKeyAndChainCodeBuffer.slice(32)
-
-  const masterNode = bip32.fromPrivateKey(Buffer.from(privateKey), Buffer.from(chainCode), BITCOIN)
-  const account = masterNode.derivePath(path)
-
-  sodium_memzero(masterKeyAndChainCodeBuffer)
-  sodium_memzero(privateKey)
-  sodium_memzero(chainCode)
-
-  return { masterNode, account }
-}
 
 /** @implements {IWalletAccount} */
 export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
   /**
    * Creates a new bitcoin wallet account.
    *
-   * @param {string | Uint8Array} seed - The wallet's [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) seed phrase.
-   * @param {string} path - The derivation path suffix (e.g. "0'/0/0").
+   * @param {SeedSignerBtc} signer - The signer.
    * @param {BtcWalletConfig} [config] - The configuration object.
    */
-  constructor (seed, path, config = {}) {
-    if (typeof seed === 'string') {
-      if (!bip39.validateMnemonic(seed)) {
-        throw new Error('The seed phrase is invalid.')
-      }
-
-      seed = bip39.mnemonicToSeedSync(seed)
-    }
-
-    const bip = config.bip ?? 44
-
-    if (![44, 84].includes(bip)) {
-      throw new Error('Invalid bip specification. Supported bips: 44, 84.')
-    }
-
-    const netdp = config.network === 'testnet' ? 1 : 0
-    const fullPath = `m/${bip}'/${netdp}'/${path}`
-
-    const { masterNode, account } = derivePath(seed, fullPath)
-
-    const network = networks[config.network] || networks.bitcoin
-
-    const { address } = bip === 44
-      ? payments.p2pkh({ pubkey: account.publicKey, network })
-      : payments.p2wpkh({ pubkey: account.publicKey, network })
-
-    super(address, config)
-
-    /**
-     * The wallet account configuration.
-     *
-     * @protected
-     * @type {BtcWalletConfig}
-     */
-    this._config = config
-
-    /** @private */
-    this._path = fullPath
-
-    /** @private */
-    this._bip = bip
-
-    /** @private */
-    this._masterNode = masterNode
-
-    /** @private */
-    this._account = account
+  constructor (signer) {
+    // TODO: add validation for signer
+    super(signer.address, signer.config)
+    this._signer = signer
   }
 
   /**
@@ -149,7 +68,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @type {number}
    */
   get index () {
-    return +this._path.split('/').pop()
+    return this._signer.index
   }
 
   /**
@@ -158,7 +77,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @type {string}
    */
   get path () {
-    return this._path
+    return this._signer.path
   }
 
   /**
@@ -167,10 +86,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @type {KeyPair}
    */
   get keyPair () {
-    return {
-      privateKey: this._account ? new Uint8Array(this._account.privateKey) : null,
-      publicKey: new Uint8Array(this._account.publicKey)
-    }
+    return this._signer.keyPair
   }
 
   /**
@@ -180,8 +96,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @returns {Promise<string>} The message's signature.
    */
   async sign (message) {
-    const messageHash = crypto.sha256(Buffer.from(message, 'utf8'))
-    return this._account.sign(messageHash).toString('hex')
+    return this._signer.sign(message)
   }
 
   /**
@@ -192,9 +107,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @returns {Promise<boolean>} True if the signature is valid.
    */
   async verify (message, signature) {
-    const messageHash = crypto.sha256(Buffer.from(message, 'utf8'))
-    const signatureBuffer = Buffer.from(signature, 'hex')
-    return this._account.verify(messageHash, signatureBuffer)
+    return this._signer.verify(message, signature)
   }
 
   /**
@@ -379,7 +292,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @returns {Promise<WalletAccountReadOnlyBtc>} The read-only account.
    */
   async toReadOnlyAccount () {
-    const btcReadOnlyAccount = new WalletAccountReadOnlyBtc(this._address, this._config)
+    const btcReadOnlyAccount = new WalletAccountReadOnlyBtc(this._address, this._signer.config)
 
     return btcReadOnlyAccount
   }
@@ -388,60 +301,38 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * Disposes the wallet account, erasing the private key from memory and closing the connection with the electrum server.
    */
   dispose () {
-    sodium_memzero(this._account.privateKey)
-    sodium_memzero(this._account.chainCode)
-
-    sodium_memzero(this._masterNode.privateKey)
-    sodium_memzero(this._masterNode.chainCode)
-
-    this._account = undefined
-
-    this._masterNode = undefined
+    this._signer.dispose()
+    this._signer = undefined
 
     this._electrumClient.close()
   }
 
   /** @private */
   async _getRawTransaction ({ utxos, to, value, fee, feeRate, changeValue }) {
-    const isSegwit = (this._bip === 84)
-
-    const legacyPrevTxCache = new Map()
+    // Any BIP-specific decisions (e.g., legacy vs segwit signing) are handled by the signer.
+    const prevTxHexCache = new Map()
     const getPrevTxHex = async (txid) => {
-      if (legacyPrevTxCache.has(txid)) return legacyPrevTxCache.get(txid)
+      if (prevTxHexCache.has(txid)) return prevTxHexCache.get(txid)
       const hex = await this._electrumClient.blockchainTransaction_get(txid, false)
-      legacyPrevTxCache.set(txid, hex)
+      prevTxHexCache.set(txid, hex)
       return hex
     }
 
-    const buildAndSign = async (rcptVal, chgVal) => {
+    const buildUnsignedPsbt = async (rcptVal, chgVal) => {
       const psbt = new Psbt({ network: this._network })
 
       for (const utxo of utxos) {
         const baseInput = {
           hash: utxo.tx_hash,
-          index: utxo.tx_pos,
-          bip32Derivation: [{
-            masterFingerprint: this._masterNode.fingerprint,
-            path: this._path,
-            pubkey: this._account.publicKey
-          }]
+          index: utxo.tx_pos
         }
 
-        if (isSegwit) {
-          psbt.addInput({
-            ...baseInput,
-            witnessUtxo: {
-              script: Buffer.from(utxo.vout.scriptPubKey.hex, 'hex'),
-              value: utxo.value
-            }
-          })
-        } else {
-          const prevHex = await getPrevTxHex(utxo.tx_hash)
-          psbt.addInput({
-            ...baseInput,
-            nonWitnessUtxo: Buffer.from(prevHex, 'hex')
-          })
-        }
+        // Provide full previous transaction for broad compatibility
+        const prevHex = await getPrevTxHex(utxo.tx_hash)
+        psbt.addInput({
+          ...baseInput,
+          nonWitnessUtxo: Buffer.from(prevHex, 'hex')
+        })
       }
 
       psbt.addOutput({ address: to, value: rcptVal })
@@ -449,18 +340,22 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
         psbt.addOutput({ address: await this.getAddress(), value: chgVal })
       }
 
-      utxos.forEach((_, index) => psbt.signInputHD(index, this._masterNode))
-      psbt.finalizeAllInputs()
+      return psbt
+    }
 
-      const tx = psbt.extractTransaction()
-      return tx
+    const signAndFinalize = async (psbt) => {
+      const signedBase64 = await this._signer.signPsbt(psbt)
+      const signed = typeof signedBase64 === 'string' ? Psbt.fromBase64(signedBase64) : signedBase64
+      signed.finalizeAllInputs()
+      return signed.extractTransaction()
     }
 
     let currentRecipientAmnt = Number(value)
     let currentChange = changeValue
     let currentFee = fee
 
-    let tx = await buildAndSign(currentRecipientAmnt, currentChange)
+    let unsigned = await buildUnsignedPsbt(currentRecipientAmnt, currentChange)
+    let tx = await signAndFinalize(unsigned)
     let vsize = tx.virtualSize()
     let requiredFee = Math.ceil(vsize * feeRate)
 
@@ -474,14 +369,16 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     if (currentChange > 0) {
       const newChange = currentChange - delta
       currentChange = newChange > this._dustLimit ? newChange : 0
-      tx = await buildAndSign(currentRecipientAmnt, currentChange)
+      unsigned = await buildUnsignedPsbt(currentRecipientAmnt, currentChange)
+      tx = await signAndFinalize(unsigned)
     } else {
       const newRecipientAmnt = currentRecipientAmnt - delta
       if (newRecipientAmnt <= this._dustLimit) {
         throw new Error(`The amount after fees must be bigger than the dust limit (= ${this._dustLimit}).`)
       }
       currentRecipientAmnt = newRecipientAmnt
-      tx = await buildAndSign(currentRecipientAmnt, currentChange)
+      unsigned = await buildUnsignedPsbt(currentRecipientAmnt, currentChange)
+      tx = await signAndFinalize(unsigned)
     }
 
     vsize = tx.virtualSize()

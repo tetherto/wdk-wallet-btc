@@ -7,10 +7,11 @@ import { HOST, PORT, ELECTRUM_PORT, ZMQ_PORT, DATA_DIR } from './config.js'
 import { BitcoinCli, Waiter } from './helpers/index.js'
 
 import { WalletAccountBtc, WalletAccountReadOnlyBtc } from '../index.js'
+import SeedSignerBtc  from '../src/signers/index.js'
 
 const SEED_PHRASE = 'cook voyage document eight skate token alien guide drink uncle term abuse'
 
-const INVALID_SEED_PHRASE = 'invalid seed phrase'
+// const INVALID_SEED_PHRASE = 'invalid seed phrase'
 
 const SEED = mnemonicToSeedSync(SEED_PHRASE)
 
@@ -65,7 +66,8 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
   let account, recipient
 
   beforeAll(async () => {
-    account = new WalletAccountBtc(SEED_PHRASE, "0'/0/0", CONFIGURATION)
+    const signer = new SeedSignerBtc(SEED_PHRASE, "0'/0/0", CONFIGURATION)
+    account = new WalletAccountBtc(signer)
     recipient = bitcoin.getNewAddress()
 
     bitcoin.sendToAddress(ACCOUNTS[bip].address, 0.01)
@@ -79,7 +81,8 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
 
   describe('constructor', () => {
     test('should successfully initialize an account for the given seed phrase and path', () => {
-      const account = new WalletAccountBtc(SEED_PHRASE, "0'/0/0", CONFIGURATION)
+      const signer = new SeedSignerBtc(SEED_PHRASE, "0'/0/0", CONFIGURATION)
+      const account = new WalletAccountBtc(signer)
 
       expect(account.index).toBe(ACCOUNTS[bip].index)
 
@@ -94,7 +97,8 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     })
 
     test('should successfully initialize an account for the given seed and path', () => {
-      const account = new WalletAccountBtc(SEED, "0'/0/0", CONFIGURATION)
+      const signer = new SeedSignerBtc(SEED, "0'/0/0", CONFIGURATION)
+      const account = new WalletAccountBtc(signer)
 
       expect(account.index).toBe(ACCOUNTS[bip].index)
 
@@ -107,21 +111,21 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
 
       account.dispose()
     })
+    // TODO: add tests for invalid seed phrases, paths, and bip specifications at the signer testing file
+    // test('should throw if the seed phrase is invalid', () => {
+    //   expect(() => new WalletAccountBtc(INVALID_SEED_PHRASE, "0'/0/0", CONFIGURATION))
+    //     .toThrow('The seed phrase is invalid.')
+    // })
 
-    test('should throw if the seed phrase is invalid', () => {
-      expect(() => new WalletAccountBtc(INVALID_SEED_PHRASE, "0'/0/0", CONFIGURATION))
-        .toThrow('The seed phrase is invalid.')
-    })
+    // test('should throw if the path is invalid', () => {
+    //   expect(() => new WalletAccountBtc(SEED_PHRASE, "a'/b/c", CONFIGURATION))
+    //     .toThrow(/Expected BIP32Path/)
+    // })
 
-    test('should throw if the path is invalid', () => {
-      expect(() => new WalletAccountBtc(SEED_PHRASE, "a'/b/c", CONFIGURATION))
-        .toThrow(/Expected BIP32Path/)
-    })
-
-    test('should throw for unsupported bip specifications', () => {
-      expect(() => new WalletAccountBtc(SEED_PHRASE, "0'/0/0", { bip: 1 }))
-        .toThrow(/Invalid bip specification/)
-    })
+    // test('should throw for unsupported bip specifications', () => {
+    //   expect(() => new WalletAccountBtc(SEED_PHRASE, "0'/0/0", { bip: 1 }))
+    //     .toThrow(/Invalid bip specification/)
+    // })
   })
 
   describe('getAddress', () => {
@@ -184,8 +188,8 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
 
     test('should create a change output when leftover > dust limit', async () => {
       const TRANSACTION = { to: recipient, value: 500_000 }
-
-      const account = new WalletAccountBtc(SEED_PHRASE, "0'/0/1", CONFIGURATION)
+      const signer = new SeedSignerBtc(SEED_PHRASE, "0'/0/1", CONFIGURATION)
+      const account = new WalletAccountBtc(signer)
       const address = await account.getAddress()
       bitcoin.sendToAddress(address, 0.02)
       await waiter.mine()
@@ -207,7 +211,8 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     })
 
     test('should collapse dust change into fee when leftover <= dust limit', async () => {
-      const account = new WalletAccountBtc(SEED_PHRASE, "0'/0/5", CONFIGURATION)
+      const signer = new SeedSignerBtc(SEED_PHRASE, "0'/0/5", CONFIGURATION)
+      const account = new WalletAccountBtc(signer)
       const address = await account.getAddress()
       bitcoin.sendToAddress(address, 0.001)
       await waiter.mine()
@@ -246,7 +251,8 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     })
 
     test('should throw if there an no utxos available', async () => {
-      const account = new WalletAccountBtc(SEED_PHRASE, "0'/0/2", CONFIGURATION)
+      const signer = new SeedSignerBtc(SEED_PHRASE, "0'/0/2", CONFIGURATION)
+      const account = new WalletAccountBtc(signer)
 
       await expect(account.sendTransaction({ to: recipient, value: 1_000 }))
         .rejects.toThrow('No unspent outputs available')
@@ -266,7 +272,8 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     test('should return the correct transaction receipt', async () => {
       const TRANSACTION = { to: recipient, value: 1_000 }
 
-      const account = new WalletAccountBtc(SEED_PHRASE, "0'/0/4", CONFIGURATION)
+      const signer = new SeedSignerBtc(SEED_PHRASE, "0'/0/4", CONFIGURATION)
+      const account = new WalletAccountBtc(signer)
       const address = await account.getAddress()
       bitcoin.sendToAddress(address, 0.01)
       await waiter.mine()
@@ -363,7 +370,8 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     }
 
     beforeAll(async () => {
-      account = new WalletAccountBtc(SEED_PHRASE, "0'/0/10", CONFIGURATION)
+      const signer = new SeedSignerBtc(SEED_PHRASE, "0'/0/10", CONFIGURATION)
+      account = new WalletAccountBtc(signer)
 
       for (let i = 0; i < 5; i++) {
         const transfer = i % 2 === 0
