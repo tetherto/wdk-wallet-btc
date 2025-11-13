@@ -17,9 +17,6 @@ import { address as btcAddress, Psbt, Transaction } from 'bitcoinjs-lib'
 import pLimit from 'p-limit'
 import { LRUCache } from 'lru-cache'
 
-// eslint-disable-next-line camelcase
-import { sodium_memzero } from 'sodium-universal'
-
 import WalletAccountReadOnlyBtc from './wallet-account-read-only-btc.js'
 
 /** @typedef {import('@tetherto/wdk-wallet').IWalletAccount} IWalletAccount */
@@ -53,7 +50,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
   /**
    * Creates a new bitcoin wallet account.
    *
-   * @param {SeedSignerBtc} signer - The signer.
+   * @param {ISignerBtc} signer - The signer.
    * @param {BtcWalletConfig} [config] - The configuration object.
    */
   constructor (signer) {

@@ -67,7 +67,7 @@ function derivePath (seed, path) {
 
 // TODO: generate JSDoc and create types for this interface, export it in package.json
 /** @interface */
-export class ISignerBtc {
+export class  {
   get index () {
     throw new Error('Not implemented')
   }
