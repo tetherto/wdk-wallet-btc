@@ -1,14 +1,15 @@
 import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals'
 
 import WalletManagerBtc, { WalletAccountBtc } from '../index.js'
-
+import SeedSignerBtc from '../src/signers/index.js'
 const SEED_PHRASE = 'cook voyage document eight skate token alien guide drink uncle term abuse'
 
 describe('WalletManagerBtc', () => {
   let wallet
 
   beforeEach(() => {
-    wallet = new WalletManagerBtc(SEED_PHRASE)
+    const signer = new SeedSignerBtc(SEED_PHRASE, "0'/0/0")
+    wallet = new WalletManagerBtc(signer)
   })
 
   afterEach(() => {
@@ -71,6 +72,53 @@ describe('WalletManagerBtc', () => {
         normal: BigInt(DUMMY_FEE_RATES.hourFee),
         fast: BigInt(DUMMY_FEE_RATES.fastestFee)
       })
+    })
+  })
+  describe('signer management', () => {
+    test('createSigner registers a signer retrievable via getSigner', () => {
+      const base = wallet.getSigner('default')
+      const altSigner = base.derive("0'/0/0")
+      wallet.createSigner('alt', altSigner)
+
+      const got = wallet.getSigner('alt')
+      expect(got).toBe(altSigner)
+    })
+
+    test('getAccountByPath with signerName uses that signer and derives path', async () => {
+      const base = wallet.getSigner('default')
+      const altSigner = base.derive("0'/0/0")
+      wallet.createSigner('alt', altSigner)
+
+      const acc = await wallet.getAccountByPath("1'/2/3", 'alt')
+      expect(acc).toBeInstanceOf(WalletAccountBtc)
+      expect(acc.path).toBe("m/44'/0'/1'/2/3")
+    })
+
+    test('getAccountByPath caches per signerName:path (same instance on repeat)', async () => {
+      const acc1 = await wallet.getAccountByPath("0'/0/7", 'default')
+      const acc2 = await wallet.getAccountByPath("0'/0/7", 'default')
+      expect(acc2).toBe(acc1)
+    })
+
+    test('getAccountByPath does not collide across signer names with same path', async () => {
+      const base = wallet.getSigner('default')
+      const altSigner = base.derive("0'/0/0")
+      wallet.createSigner('alt', altSigner)
+
+      const accDefault = await wallet.getAccountByPath("0'/0/5", 'default')
+      const accAlt = await wallet.getAccountByPath("0'/0/5", 'alt')
+
+      expect(accDefault).toBeInstanceOf(WalletAccountBtc)
+      expect(accAlt).toBeInstanceOf(WalletAccountBtc)
+      expect(accAlt).not.toBe(accDefault)
+
+      expect(accDefault.path).toBe("m/44'/0'/0'/0/5")
+      expect(accAlt.path).toBe("m/44'/0'/0'/0/5")
+    })
+
+    test('getAccountByPath throws for unknown signerName', async () => {
+      await expect(wallet.getAccountByPath("0'/0/0", 'ghost'))
+        .rejects.toThrow('Signer ghost not found.')
     })
   })
 })
