@@ -23,18 +23,6 @@ import * as ecc from '@bitcoinerlab/secp256k1'
 // eslint-disable-next-line camelcase
 import { sodium_memzero } from 'sodium-universal'
 
-/**
- * @typedef {Object} BtcTransfer
- * @property {string} txid - The transaction's id.
- * @property {string} address - The user's own address.
- * @property {number} vout - The index of the output in the transaction.
- * @property {number} height - The block height (if unconfirmed, 0).
- * @property {number} value - The value of the transfer (in satoshis).
- * @property {"incoming" | "outgoing"} direction - The direction of the transfer.
- * @property {number} [fee] - The fee paid for the full transaction (in satoshis).
- * @property {string} [recipient] - The receiving address for outgoing transfers.
- */
-
 const MASTER_SECRET = Buffer.from('Bitcoin seed', 'utf8')
 
 const BITCOIN = {
@@ -67,7 +55,7 @@ function derivePath (seed, path) {
 
 // TODO: generate JSDoc and create types for this interface, export it in package.json
 /** @interface */
-export class  {
+export class ISignerBtc {
   get index () {
     throw new Error('Not implemented')
   }
@@ -85,6 +73,11 @@ export class  {
   }
 
   get address () {
+    throw new Error('Not implemented')
+  }
+  // TODO check this we might need it to be async due to the hardware wallets
+
+  derive (relPath) {
     throw new Error('Not implemented')
   }
 
@@ -110,8 +103,10 @@ export class  {
 }
 
 /** @typedef {import('../wallet-account-read-only-btc.js').BtcWalletConfig} BtcWalletConfig */
+
+/** @implements {ISignerBtc} */
 export default class SeedSignerBtc {
-  constructor (seed, path, config) {
+  constructor (seed, path, config = {}, opts = {}) {
     if (typeof seed === 'string') {
       if (!bip39.validateMnemonic(seed)) {
         throw new Error('The seed phrase is invalid.')
@@ -127,7 +122,15 @@ export default class SeedSignerBtc {
     const netdp = config.network === 'testnet' ? 1 : 0
     const fullPath = `m/${bip}'/${netdp}'/${path}`
 
-    const { masterNode, account } = derivePath(seed, fullPath)
+    let masterNode, account
+    if (opts.masterNode) {
+      masterNode = opts.masterNode
+      account = masterNode.derivePath(fullPath)
+    } else {
+      const { masterNode: m, account: a } = derivePath(seed, fullPath)
+      masterNode = m
+      account = a
+    }
 
     const network = networks[config.network] || networks.bitcoin
     const { address } = bip === 44
@@ -185,6 +188,15 @@ export default class SeedSignerBtc {
 
   get address () {
     return this._address
+  }
+
+  derive (relPath) {
+  // Clone master so each child owns/zeroizes its own copy
+    const src = this._masterNode
+    // Recreate a fresh root from the same material; no manual field assignment needed
+    const cloned = bip32.fromPrivateKey(Buffer.from(src.privateKey), Buffer.from(src.chainCode), BITCOIN)
+
+    return new SeedSignerBtc(null, relPath, this._config, { masterNode: cloned })
   }
 
   async getExtendedPublicKey () {

@@ -29,7 +29,7 @@
     "@bitcoinerlab/descriptors": "2.3.1",
     "@bitcoinerlab/secp256k1": "1.2.0",
     "@mempool/electrum-client": "1.1.9",
-    "@tetherto/wdk-wallet": "^1.0.0-beta.1",
+    "@tetherto/wdk-wallet": "github:claudiovb/wdk-wallet#poc-signer",
     "bare-node-runtime": "^1.1.4",
     "bip32": "4.0.0",
     "bip39": "3.1.0",

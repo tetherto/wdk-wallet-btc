@@ -66,7 +66,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
   let account, recipient
 
   beforeAll(async () => {
-    const signer = new SeedSignerBtc(SEED_PHRASE, "0'/0/0", CONFIGURATION)
+    const signer = new SeedSignerBtc(SEED_PHRASE, "0'/0/0", CONFIGURATION).derive("0'/0/0")
     account = new WalletAccountBtc(signer)
     recipient = bitcoin.getNewAddress()
 
