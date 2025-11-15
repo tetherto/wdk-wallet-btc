@@ -57,6 +57,16 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     // TODO: add validation for signer
     super(signer.address, signer.config)
     this._signer = signer
+    this._isActive = true
+  }
+
+  /**
+   * Whether the account is active.
+   *
+   * @type {boolean}
+   */
+  get isActive () {
+    return this._isActive
   }
 
   /**
@@ -302,6 +312,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     this._signer = undefined
 
     this._electrumClient.close()
+    this._isActive = false
   }
 
   /** @private */

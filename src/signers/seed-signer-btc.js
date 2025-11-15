@@ -137,6 +137,7 @@ export default class SeedSignerBtc {
       ? payments.p2pkh({ pubkey: account.publicKey, network: network })
       : payments.p2wpkh({ pubkey: account.publicKey, network: network })
 
+    this._isActive = true
     /**
      * The wallet account configuration.
      *
@@ -155,6 +156,10 @@ export default class SeedSignerBtc {
     this._account = account
 
     this._address = address
+  }
+
+  get isActive () {
+    return this._isActive
   }
 
   get index () {
@@ -333,5 +338,6 @@ export default class SeedSignerBtc {
     this._account = undefined
 
     this._masterNode = undefined
+    this._isActive = false
   }
 }
