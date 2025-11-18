@@ -36,8 +36,8 @@ const ACCOUNTS = {
 }
 
 const SIGNATURES = {
-  44: '13287d7e5a924bf2c7e10bb78977925d17dd765ac9ff79eb774d77b0a7caccfc6173463d4845d74c3c8c97a76352f203643e958cc4d8732744be4f9d961eb4db',
-  84: 'd70594939c4e5fc68694fd09c42aabccb715a22f88eb0a84dc333410236a76ee6061f863a86094bb3858ca44be048675516b02fd46dd3b6a23e2255367a44509'
+  44: 'INsRYYzYTTRepRFG4BprLGsi+Cv3yG11FCKi7Zei0t4zIxKpt7bQYM7PjVDXIz5XRPNvT85RmQH6pfuk+MulHgU=',
+  84: 'KE9Kx33p5HM4OOcyi1RMvqJ+ugODuEYYvBQOBOSP9mUqeQeNNzn4aaFnkfL9ICO253GMEpJO84Htot+RVWI+uAk='
 }
 
 describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
@@ -159,7 +159,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
 
     test('should throw on a malformed signature', async () => {
       await expect(account.verify(MESSAGE, 'A bad signature'))
-        .rejects.toThrow('Expected Signature')
+        .rejects.toThrow('Invalid signature')
     })
   })
 

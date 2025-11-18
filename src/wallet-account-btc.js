@@ -15,13 +15,14 @@
 
 import { hmac } from '@noble/hashes/hmac'
 import { sha512 } from '@noble/hashes/sha512'
-import { address as btcAddress, crypto, initEccLib, networks, payments, Psbt, Transaction } from 'bitcoinjs-lib'
+import { address as btcAddress, initEccLib, networks, payments, Psbt, Transaction } from 'bitcoinjs-lib'
 import { BIP32Factory } from 'bip32'
 import pLimit from 'p-limit'
 import { LRUCache } from 'lru-cache'
 
 import * as bip39 from 'bip39'
 import * as ecc from '@bitcoinerlab/secp256k1'
+import * as bitcoinMessage from 'bitcoinjs-message'
 
 // eslint-disable-next-line camelcase
 import { sodium_memzero } from 'sodium-universal'
@@ -180,8 +181,14 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @returns {Promise<string>} The message's signature.
    */
   async sign (message) {
-    const messageHash = crypto.sha256(Buffer.from(message, 'utf8'))
-    return this._account.sign(messageHash).toString('hex')
+    return bitcoinMessage
+      .sign(
+        message,
+        this._account.privateKey,
+        true,
+        this._bip === 84 ? { segwitType: 'p2wpkh' } : undefined
+      )
+      .toString('base64')
   }
 
   /**
@@ -192,9 +199,14 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @returns {Promise<boolean>} True if the signature is valid.
    */
   async verify (message, signature) {
-    const messageHash = crypto.sha256(Buffer.from(message, 'utf8'))
-    const signatureBuffer = Buffer.from(signature, 'hex')
-    return this._account.verify(messageHash, signatureBuffer)
+    return bitcoinMessage
+      .verify(
+        message,
+        await this.getAddress(),
+        signature,
+        null,
+        true
+      )
   }
 
   /**
