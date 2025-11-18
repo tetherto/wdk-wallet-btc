@@ -26,12 +26,6 @@ export default class WalletManagerBtc extends WalletManager {
      * @returns {Promise<WalletAccountBtc>} The account.
      */
     getAccountByPath(path: string): Promise<WalletAccountBtc>;
-    /**
-     * Returns the current fee rates.
-     *
-     * @returns {Promise<FeeRates>} The fee rates (in satoshis).
-     */
-    getFeeRates(): Promise<FeeRates>;
 }
 export type FeeRates = import("@tetherto/wdk-wallet").FeeRates;
 export type BtcWalletConfig = import("./wallet-account-btc.js").BtcWalletConfig;

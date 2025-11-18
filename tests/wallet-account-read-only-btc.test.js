@@ -11,7 +11,7 @@ const ADDRESSES = {
   84: 'bcrt1q56sfepv68sf2xfm2kgk3ea2mdjzswljl3r3tdx'
 }
 
-const FEES = {
+export const FEES = {
   44: 223n,
   84: 141n
 }
@@ -81,14 +81,14 @@ describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
       const vsize = TX_OVERHEAD_VBYTES + INPUT_VBYTES + (2 * OUTPUT_VBYTES)
       const expectedFee = BigInt(Math.max(Math.ceil(vsize * satsPerVByte), MIN_TX_FEE))
       const dustLimit = account._dustLimit
-      const expectedAmount = STARTING_BALANCE - expectedFee - BigInt(dustLimit)
+      const expectedAmount = STARTING_BALANCE - expectedFee - dustLimit
 
       const result = await account.getMaxSpendable()
 
       expect(result).toEqual({
         amount: expectedAmount,
         fee: expectedFee,
-        changeValue: BigInt(dustLimit)
+        changeValue: dustLimit
       })
     })
 
@@ -99,7 +99,7 @@ describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
         ? bitcoin.call('getnewaddress "" legacy', { rawResult: true })
         : bitcoin.call('getnewaddress "" bech32', { rawResult: true })
       const tmpAccount = new WalletAccountReadOnlyBtc(tmpAddress, CONFIGURATION)
-      const dustLimit = tmpAccount._dustLimit
+      const dustLimit = Number(tmpAccount._dustLimit)
 
       const vsizeOneOutput = TX_OVERHEAD_VBYTES + INPUT_VBYTES + OUTPUT_VBYTES
       const feeOneOutput = Math.max(Math.ceil(vsizeOneOutput * satsPerVByte), MIN_TX_FEE)
@@ -136,6 +136,43 @@ describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
       const { fee } = await account.quoteSendTransaction(TRANSACTION)
 
       const satsPerVByte = bitcoin.estimateSatsPerVByte(1)
+      const expectedFee = FEES[bip] * BigInt(satsPerVByte)
+      expect(fee).toBe(expectedFee)
+    })
+    
+    test('should successfully quote a transaction (bigint)', async () => {
+      const TRANSACTION = { to: recipient, value: 1_000n }
+
+      const { fee } = await account.quoteSendTransaction(TRANSACTION)
+
+      const satsPerVByte = bitcoin.estimateSatsPerVByte(1)
+      const expectedFee = FEES[bip] * BigInt(satsPerVByte)
+      expect(fee).toBe(expectedFee)
+    })
+
+    test('should successfully quote a transaction with a fixed fee rate', async () => {
+      const TRANSACTION = { to: recipient, value: 1_000, feeRate: 10 }
+
+      const { fee } = await account.quoteSendTransaction(TRANSACTION)
+      
+      const expectedFee = FEES[bip] * BigInt(TRANSACTION.feeRate)
+      expect(fee).toBe(expectedFee)
+    })
+  
+    test('should successfully quote a transaction with a fixed fee rate (bigint)', async () => {
+      const TRANSACTION = { to: recipient, value: 1000, feeRate: 10n }
+
+      const { fee } = await account.quoteSendTransaction(TRANSACTION)
+      
+      const expectedFee = FEES[bip] * TRANSACTION.feeRate
+      expect(fee).toBe(expectedFee)
+    })
+    
+    test('should successfully quote a transaction with confirmation target', async () => {
+      const TRANSACTION = { to: recipient, value: 1000, cofnirmationTarget: 5 }
+
+      const { fee } = await account.quoteSendTransaction(TRANSACTION)
+      const satsPerVByte = bitcoin.estimateSatsPerVByte(5)
       const expectedFee = FEES[bip] * BigInt(satsPerVByte)
       expect(fee).toBe(expectedFee)
     })
