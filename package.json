@@ -28,6 +28,10 @@
     "@bitcoinerlab/coinselect": "1.3.1",
     "@bitcoinerlab/descriptors": "2.3.1",
     "@bitcoinerlab/secp256k1": "1.2.0",
+    "@ledgerhq/device-management-kit": "0.11.0",
+    "@ledgerhq/device-signer-kit-bitcoin": "1.0.2",
+    "@ledgerhq/device-transport-kit-web-hid": "1.2.1",
+    "@ledgerhq/signer-utils": "1.1.0",
     "@mempool/electrum-client": "1.1.9",
     "@tetherto/wdk-wallet": "github:claudiovb/wdk-wallet#poc-signer",
     "bare-node-runtime": "^1.1.4",
@@ -36,6 +40,7 @@
     "bitcoinjs-lib": "6.1.7",
     "lru-cache": "11.2.2",
     "p-limit": "7.1.1",
+    "rxjs": "7.8.2",
     "sodium-universal": "5.0.1"
   },
   "devDependencies": {

@@ -134,8 +134,8 @@ export default class SeedSignerBtc {
 
     const network = networks[config.network] || networks.bitcoin
     const { address } = bip === 44
-      ? payments.p2pkh({ pubkey: account.publicKey, network: network })
-      : payments.p2wpkh({ pubkey: account.publicKey, network: network })
+      ? payments.p2pkh({ pubkey: account.publicKey, network })
+      : payments.p2wpkh({ pubkey: account.publicKey, network })
 
     this._isActive = true
     /**
