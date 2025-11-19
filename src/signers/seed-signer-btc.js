@@ -37,20 +37,19 @@ const bip32 = BIP32Factory(ecc)
 
 initEccLib(ecc)
 
-function derivePath (seed, path) {
+function deriveMasterNode (seed) {
   const masterKeyAndChainCodeBuffer = hmac(sha512, MASTER_SECRET, seed)
 
   const privateKey = masterKeyAndChainCodeBuffer.slice(0, 32)
   const chainCode = masterKeyAndChainCodeBuffer.slice(32)
 
   const masterNode = bip32.fromPrivateKey(Buffer.from(privateKey), Buffer.from(chainCode), BITCOIN)
-  const account = masterNode.derivePath(path)
 
   sodium_memzero(masterKeyAndChainCodeBuffer)
   sodium_memzero(privateKey)
   sodium_memzero(chainCode)
 
-  return { masterNode, account }
+  return masterNode
 }
 
 // TODO: generate JSDoc and create types for this interface, export it in package.json
@@ -106,7 +105,7 @@ export class ISignerBtc {
 
 /** @implements {ISignerBtc} */
 export default class SeedSignerBtc {
-  constructor (seed, path, config = {}, opts = {}) {
+  constructor (seed, config = {}, opts = {}) {
     if (typeof seed === 'string') {
       if (!bip39.validateMnemonic(seed)) {
         throw new Error('The seed phrase is invalid.')
@@ -114,48 +113,59 @@ export default class SeedSignerBtc {
       seed = bip39.mnemonicToSeedSync(seed)
     }
 
-    const bip = config.bip ?? 44
-    if (![44, 84].includes(bip)) {
-      throw new Error('Invalid bip specification. Supported bips: 44, 84.')
-    }
-
-    const netdp = config.network === 'testnet' ? 1 : 0
-    const fullPath = `m/${bip}'/${netdp}'/${path}`
-
-    let masterNode, account
+    // TODO: add support for privKey import
+    let masterNode
     if (opts.masterNode) {
       masterNode = opts.masterNode
-      account = masterNode.derivePath(fullPath)
     } else {
-      const { masterNode: m, account: a } = derivePath(seed, fullPath)
-      masterNode = m
-      account = a
+      masterNode = deriveMasterNode(seed)
     }
 
-    const network = networks[config.network] || networks.bitcoin
-    const { address } = bip === 44
-      ? payments.p2pkh({ pubkey: account.publicKey, network: network })
-      : payments.p2wpkh({ pubkey: account.publicKey, network: network })
-
-    this._isActive = true
-    /**
-     * The wallet account configuration.
-     *
-     * @protected
-     * @type {BtcWalletConfig}
-     */
-    this._config = config
-
-    this._path = fullPath
-
-    this._bip = bip
-
     this._masterNode = masterNode
+    this._isActive = true
+    this._bip = undefined
+    this._path = undefined
+    this._account = undefined
+    this._address = undefined
+    /**
+       * The wallet account configuration.
+       *
+       * @protected
+       * @type {BtcWalletConfig}
+    */
+    this._config = config
+    this._isRoot = true
 
-    /** @private */
-    this._account = account
+    if (opts.path) {
+      const bip = (config.bip ?? 44)
+      if (![44, 84].includes(bip)) {
+        throw new Error('Invalid bip specification. Supported bips: 44, 84.')
+      }
+      const netdp = config.network === 'testnet' ? 1 : 0
+      const fullPath = `m/${bip}'/${netdp}'/${opts.path}`
+      const account = masterNode.derivePath(fullPath)
+      const network = networks[config.network] || networks.bitcoin
+      const { address } = bip === 44
+        ? payments.p2pkh({ pubkey: account.publicKey, network })
+        : payments.p2wpkh({ pubkey: account.publicKey, network })
 
-    this._address = address
+      this._path = fullPath
+
+      this._bip = bip
+
+      this._masterNode = masterNode
+
+      /** @private */
+      this._account = account
+
+      this._address = address
+
+      this._isRoot = false
+    }
+  }
+
+  get isRoot () {
+    return this._isRoot
   }
 
   get isActive () {
@@ -195,13 +205,19 @@ export default class SeedSignerBtc {
     return this._address
   }
 
-  derive (relPath) {
-  // Clone master so each child owns/zeroizes its own copy
-    const src = this._masterNode
+  derive (relPath, config = {}) {
+    const cfg = {
+      ...this._config,
+      ...Object.fromEntries(Object.entries(config || {}).filter(([, v]) => v !== undefined))
+    }
     // Recreate a fresh root from the same material; no manual field assignment needed
-    const cloned = bip32.fromPrivateKey(Buffer.from(src.privateKey), Buffer.from(src.chainCode), BITCOIN)
+    const cloned = bip32.fromPrivateKey(Buffer.from(this._masterNode.privateKey), Buffer.from(this._masterNode.chainCode), BITCOIN)
+    const opts = {
+      masterNode: cloned,
+      path: relPath
+    }
 
-    return new SeedSignerBtc(null, relPath, this._config, { masterNode: cloned })
+    return new SeedSignerBtc(null, cfg, opts)
   }
 
   async getExtendedPublicKey () {
@@ -329,8 +345,10 @@ export default class SeedSignerBtc {
   }
 
   dispose () {
-    sodium_memzero(this._account.privateKey)
-    sodium_memzero(this._account.chainCode)
+    if (this._account) {
+      sodium_memzero(this._account.privateKey)
+      sodium_memzero(this._account.chainCode)
+    }
 
     sodium_memzero(this._masterNode.privateKey)
     sodium_memzero(this._masterNode.chainCode)

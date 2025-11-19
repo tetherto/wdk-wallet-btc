@@ -55,6 +55,9 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    */
   constructor (signer) {
     // TODO: add validation for signer
+    if (signer.isRoot) {
+      throw new Error('The signer is the root signer. Call derive method to create a child signer. Or use WalletManagerBtc to create a new account.')
+    }
     super(signer.address, signer.config)
     this._signer = signer
     this._isActive = true
