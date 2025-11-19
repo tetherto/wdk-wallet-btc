@@ -36,7 +36,9 @@ import ElectrumClient from './electrum-client.js'
  * @typedef {Object} BtcTransaction
  * @property {string} to - The transaction's recipient.
  * @property {number | bigint} value - The amount of bitcoins to send to the recipient (in satoshis).
- */
+ * @property {number} [confirmationTarget] - Optional confirmation target in blocks (default: 1).
+ * @property {number | bigint} [feeRate] - Optional fee rate in satoshis per virtual byte. If provided, this value overrides the fee rate estimated from the blockchain (default: undefined).
+ * */
 
 /**
  * @typedef {Object} BtcWalletConfig
@@ -72,8 +74,8 @@ const BIP_BY_ADDRESS_PREFIX = {
 }
 
 const DUST_LIMIT = {
-  44: 546,
-  84: 294
+  44: 546n,
+  84: 294n
 }
 
 export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
@@ -156,16 +158,19 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * @param {BtcTransaction} tx - The transaction.
    * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transaction's quotes.
    */
-  async quoteSendTransaction ({ to, value }) {
+  async quoteSendTransaction ({ to, value, feeRate, confirmationTarget = 1 }) {
     const address = await this.getAddress()
 
-    const feeRate = await this._electrumClient.blockchainEstimatefee(1)
+    if (!feeRate) {
+      const feeEstimate = await this._electrumClient.blockchainEstimatefee(confirmationTarget)
+      feeRate = this._toBigInt(Math.max(feeEstimate * 100_000, 1))
+    }
 
     const { fee } = await this._planSpend({
       fromAddress: address,
       toAddress: to,
       amount: value,
-      feeRate: Math.max(Number(feeRate) * 100_000, 1)
+      feeRate
     })
 
     return { fee: BigInt(fee) }
@@ -255,12 +260,12 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
     const twoOutputsVSize = txOverheadVBytes + (inputCount * inputVBytes) + (2 * outputVBytes)
     const twoOutputsFeeSats = Math.max(Math.ceil(twoOutputsVSize * feeRate), MIN_TX_FEE_SATS)
-    const twoOutputsRecipientAmountSats = totalInputValueSats - twoOutputsFeeSats - this._dustLimit
-    if (twoOutputsRecipientAmountSats > this._dustLimit) {
+    const twoOutputsRecipientAmountSats = totalInputValueSats - twoOutputsFeeSats - Number(this._dustLimit)
+    if (twoOutputsRecipientAmountSats > Number(this._dustLimit)) {
       return {
         amount: BigInt(twoOutputsRecipientAmountSats),
         fee: BigInt(twoOutputsFeeSats),
-        changeValue: BigInt(this._dustLimit)
+        changeValue: this._dustLimit
       }
     }
 
@@ -295,6 +300,9 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     return buffer.toString('hex')
   }
 
+  /** @private */
+  _toBigInt (v) { return typeof v === 'bigint' ? v : BigInt(Math.round(Number(v))) }
+
   /**
    * Builds and returns a fee-aware funding plan for sending a transaction.
    *
@@ -306,10 +314,14 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * @param {string} tx.fromAddress - The sender's address.
    * @param {string} tx.toAddress - The recipient's address.
    * @param {number | bigint} tx.amount - The amount to send (in satoshis).
-   * @param {number} tx.feeRate - The fee rate (in sats/vB).
+   * @param {number | bigint} tx.feeRate - The fee rate (in sats/vB).
    * @returns {Promise<{ utxos: OutputWithValue[], fee: number, changeValue: number }>} - The funding plan.
    */
   async _planSpend ({ fromAddress, toAddress, amount, feeRate }) {
+    amount = this._toBigInt(amount)
+    feeRate = this._toBigInt(feeRate)
+    if (feeRate < 1n) feeRate = 1n
+
     if (amount <= this._dustLimit) {
       throw new Error(`The amount must be bigger than the dust limit (= ${this._dustLimit}).`)
     }
@@ -338,7 +350,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
       utxos: utxosForCoinSelect,
       remainder: fromAddressOutput,
       targets: [{ output: toAddressOutput, value: Number(amount) }],
-      feeRate: Math.max(Number(feeRate) || 0, 1)
+      feeRate: Number(feeRate)
     })
 
     if (!result) {
@@ -349,25 +361,29 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
       throw new Error('Exceeded maximum allowed inputs for transaction.')
     }
 
-    const fee = Number.isFinite(result.fee)
-      ? Math.max(result.fee, MIN_TX_FEE_SATS)
-      : MIN_TX_FEE_SATS
+    const fee = this._toBigInt(Math.max(result.fee ?? 0, MIN_TX_FEE_SATS))
 
     const utxos = result.utxos.map(({ __ref }) => ({
       ...__ref,
-      vout: { value: __ref.value, scriptPubKey: { hex: fromAddressScriptHex } }
+      vout: {
+        value: this._toBigInt(__ref.value),
+        scriptPubKey: { hex: fromAddressScriptHex }
+      }
     }))
 
-    const total = utxos.reduce((s, u) => s + u.value, 0)
+    const total = utxos.reduce((s, u) => s + this._toBigInt(u.value), 0n)
+    const changeValue = total - fee - amount
 
-    const changeValue = total - fee - Number(amount)
-
-    if (changeValue < 0) {
+    if (changeValue < 0n) {
       throw new Error('Insufficient balance after fees.')
     }
 
     if (changeValue <= this._dustLimit) {
-      return { utxos, fee: fee + changeValue, changeValue: 0 }
+      return {
+        utxos,
+        fee: fee + changeValue,
+        changeValue: 0n
+      }
     }
 
     return { utxos, fee, changeValue }

@@ -42,6 +42,11 @@ const SIGNATURES = {
   84: "c104fbb055a6e84e5dac2bd2ef8bab89bb12e30a89bc2f54ee45ba8306543fe42b200d9eec638548126b99eef99f14a1c95e3f35b34259fb244a545cc16049d7"
 }
 
+export const FEES = {
+  44: 223n,
+  84: 141n
+}
+
 describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
   const CONFIGURATION = {
     host: HOST,
@@ -157,7 +162,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
 
     test('should throw on a malformed signature', async () => {
       await expect(account.verify(MESSAGE, 'A bad signature'))
-        .rejects.toThrow('Expected Signature')
+        .rejects.toThrow('Invalid signature')
     })
   })
 
@@ -178,6 +183,78 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
 
       const feeSats = bitcoin.getTransactionFeeSats(hash)
       expect(fee).toBe(BigInt(feeSats))
+    })
+
+    test('should successfully send a transaction (bigint)', async () => {
+      const TRANSACTION = { to: recipient, value: 1000n }
+
+      const { hash, fee } = await account.sendTransaction(TRANSACTION)
+
+      await waiter.mine()
+
+      const transaction = bitcoin.getTransaction(hash)
+      expect(transaction.txid).toBe(hash)
+      expect(transaction.details[0].address).toBe(TRANSACTION.to)
+
+      const amount = BigInt(Math.round(transaction.details[0].amount * 1e+8))
+      expect(amount).toBe(TRANSACTION.value)
+
+      const feeSats = bitcoin.getTransactionFeeSats(hash)
+      expect(fee).toBe(BigInt(feeSats))
+    })
+
+    test('should successfully send a transaction with confirmation target', async () => {
+      const TRANSACTION = { to: recipient, value: 1_000, confirmationTarget: 5 }
+
+      const { hash, fee } = await account.sendTransaction(TRANSACTION)
+
+      await waiter.mine()
+
+      const transaction = bitcoin.getTransaction(hash)
+      expect(transaction.txid).toBe(hash)
+      expect(transaction.details[0].address).toBe(TRANSACTION.to)
+
+      const amount = Math.round(transaction.details[0].amount * 1e+8)
+      expect(amount).toBe(TRANSACTION.value)
+
+      const feeSats = bitcoin.getTransactionFeeSats(hash)
+      expect(fee).toBe(BigInt(feeSats))
+    })
+
+    test('should successfully send a transaction with a fixed fee rate', async () => {
+      const TRANSACTION = { to: recipient, value: 1_000, feeRate: 10 }
+
+      const { hash, fee } = await account.sendTransaction(TRANSACTION)
+
+      await waiter.mine()
+
+      const transaction = bitcoin.getTransaction(hash)
+      expect(transaction.txid).toBe(hash)
+      expect(transaction.details[0].address).toBe(TRANSACTION.to)
+
+      const amount = Math.round(transaction.details[0].amount * 1e8)
+      expect(amount).toBe(TRANSACTION.value)
+
+      const expectedFee = FEES[bip] * BigInt(TRANSACTION.feeRate)
+      expect(fee).toBe(expectedFee)
+    })
+
+    test('should successfully send a transaction with a fixed fee rate (bigint)', async () => {
+      const TRANSACTION = { to: recipient, value: 1000, feeRate: 10n }
+
+      const { hash, fee } = await account.sendTransaction(TRANSACTION)
+
+      await waiter.mine()
+
+      const transaction = bitcoin.getTransaction(hash)
+      expect(transaction.txid).toBe(hash)
+      expect(transaction.details[0].address).toBe(TRANSACTION.to)
+
+      const amount = Math.round(transaction.details[0].amount * 1e8)
+      expect(amount).toBe(TRANSACTION.value)
+
+      const expectedFee = FEES[bip] * TRANSACTION.feeRate
+      expect(fee).toBe(expectedFee)
     })
 
     test('should create a change output when leftover > dust limit', async () => {
@@ -215,7 +292,9 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
       const { fee: feeEstimate } = await account.quoteSendTransaction({ to: recipient, value: nearMaxAmount })
 
       const dustLimit = account._dustLimit
-      const spend = Math.max(1, Number(balance) - Number(feeEstimate) - (dustLimit - 1))
+      let spend = balance - feeEstimate - dustLimit + 1n
+      if (spend < 1n) spend = 1n
+
       const { hash, fee } = await account.sendTransaction({ to: recipient, value: spend })
       await waiter.mine()
 
@@ -227,13 +306,13 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
 
       expect(outputs).toContain(recipient)
       expect(outputs).not.toContain(address)
-      expect(fee).toBe(balance - BigInt(spend))
+      expect(fee).toBe(balance - spend)
 
       account.dispose()
     })
 
     test('should throw if value is less than the dust limit', async () => {
-      const value = Math.floor(account._dustLimit / 2)
+      const value = Math.floor(Number(account._dustLimit) / 2)
       await expect(account.sendTransaction({ to: recipient, value }))
         .rejects.toThrow('The amount must be bigger than the dust limit')
     })
@@ -327,9 +406,9 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
         address,
         vout: transaction.details[0].vout,
         height: transaction.blockheight,
-        value: 1_000_000,
+        value: 1_000_000n,
         direction: 'incoming',
-        fee,
+        fee: BigInt(fee),
         recipient: address
       }
     }
@@ -353,9 +432,9 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
         address,
         vout: 0,
         height: transaction.blockheight,
-        value: 100_000,
+        value: 100_000n,
         direction: 'outgoing',
-        fee: Number(fee),
+        fee: BigInt(fee),
         recipient
       }
     }

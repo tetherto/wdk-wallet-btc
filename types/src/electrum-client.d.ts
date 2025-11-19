@@ -7,7 +7,7 @@
  * @typedef {Object} PersistencePolicy
  * @property {number} [maxRetry] - The maximum reconnection attempts before failing (default: 2).
  * @property {number} [retryPeriod] - The delay between reconnect attempts, in ms (default: 1_000).
- * @property {number} [pingPeriod] - The delay between keep-alive pings, in ms (default: 100_000).
+ * @property {number} [pingPeriod] - The delay between keep-alive pings, in ms (default: 120_000).
  * @property {(err: Error | null) => void} [callback] - An optional status callback.
  */
 /**
@@ -84,7 +84,7 @@ export type PersistencePolicy = {
      */
     retryPeriod?: number;
     /**
-     * - The delay between keep-alive pings, in ms (default: 100_000).
+     * - The delay between keep-alive pings, in ms (default: 120_000).
      */
     pingPeriod?: number;
     /**

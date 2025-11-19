@@ -35,6 +35,13 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      */
     private _dustLimit;
     /**
+     * Quotes the costs of a send transaction operation.
+     *
+     * @param {BtcTransaction} tx - The transaction.
+     * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transaction's quotes.
+     */
+    quoteSendTransaction({ to, value, feeRate, confirmationTarget }: BtcTransaction): Promise<Omit<TransactionResult, "hash">>;
+    /**
      * Returns a transaction's receipt.
      *
      * @param {string} hash - The transaction's hash.
@@ -61,6 +68,8 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @returns {Promise<string>} The reversed sha-256 script hash as a hex-encoded string.
      */
     protected _getScriptHash(): Promise<string>;
+    /** @private */
+    private _toBigInt;
     /**
      * Builds and returns a fee-aware funding plan for sending a transaction.
      *
@@ -72,14 +81,14 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @param {string} tx.fromAddress - The sender's address.
      * @param {string} tx.toAddress - The recipient's address.
      * @param {number | bigint} tx.amount - The amount to send (in satoshis).
-     * @param {number} tx.feeRate - The fee rate (in sats/vB).
+     * @param {number | bigint} tx.feeRate - The fee rate (in sats/vB).
      * @returns {Promise<{ utxos: OutputWithValue[], fee: number, changeValue: number }>} - The funding plan.
      */
     protected _planSpend({ fromAddress, toAddress, amount, feeRate }: {
         fromAddress: string;
         toAddress: string;
         amount: number | bigint;
-        feeRate: number;
+        feeRate: number | bigint;
     }): Promise<{
         utxos: OutputWithValue[];
         fee: number;
@@ -101,6 +110,14 @@ export type BtcTransaction = {
      * - The amount of bitcoins to send to the recipient (in satoshis).
      */
     value: number | bigint;
+    /**
+     * - Optional confirmation target in blocks (default: 1).
+     */
+    confirmationTarget?: number;
+    /**
+     * - Optional fee rate in satoshis per virtual byte. If provided, this value overrides the fee rate estimated from the blockchain (default: undefined).
+     */
+    feeRate?: number | bigint;
 };
 export type BtcWalletConfig = {
     /**
