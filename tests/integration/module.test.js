@@ -19,8 +19,6 @@ function parseRawTransaction (rawTransaction, recipientAddress) {
   }
 }
 
-const TIMEOUT = 30000 // 30 seconds
-
 const SEED_PHRASE = 'cook voyage document eight skate token alien guide drink uncle term abuse'
 
 const CONFIGURATION = {
@@ -79,7 +77,7 @@ describe('@wdk/wallet-btc', () => {
     const amount = Math.round(transaction.details[0].amount * 1e+8)
     expect(amount).toBe(Number(TRANSACTION.value))
     await waiter.mine()
-  }, TIMEOUT)
+  })
 
   test('should derive two accounts, send a tx from account 2 to 3 and get the correct balances', async () => {
     const account0 = await wallet.getAccount(2)
@@ -109,7 +107,7 @@ describe('@wdk/wallet-btc', () => {
     expect(abs(initialBalance0 - finalBalance0 - TRANSACTION.value - actualFee)).toBeLessThanOrEqual(1n)
 
     expect(finalBalance1).toBe(initialBalance1 + TRANSACTION.value)
-  }, TIMEOUT)
+  })
 
   test('should derive an account, sign a message and verify its signature', async () => {
     const account0 = await wallet.getAccount(2)
@@ -119,7 +117,7 @@ describe('@wdk/wallet-btc', () => {
     const signature = await account0.sign(message)
     const verified = await account0.verify(message, signature)
     expect(verified).toBe(true)
-  }, TIMEOUT)
+  })
 
   test('should dispose the wallet and erase the private keys of the accounts', async () => {
     const account0 = await wallet.getAccount(2)
@@ -134,5 +132,5 @@ describe('@wdk/wallet-btc', () => {
 
       await expect(account.sign(MESSAGE)).rejects.toThrow("Cannot read properties of undefined (reading 'privateKey')")
     }
-  }, TIMEOUT)
+  })
 })
