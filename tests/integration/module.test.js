@@ -19,30 +19,36 @@ function parseRawTransaction (rawTransaction, recipientAddress) {
   }
 }
 
-const SEED_PHRASE = 'cook voyage document eight skate token alien guide drink uncle term abuse'
-
-const CONFIGURATION = {
-  host: HOST,
-  port: ELECTRUM_PORT,
-  network: 'regtest'
+const fees = {
+  44: 226n,
+  84: 141n
 }
 
-describe('@wdk/wallet-btc', () => {
+const SEED_PHRASE = 'cook voyage document eight skate token alien guide drink uncle term abuse'
+
+const bitcoin = new BitcoinCli({
+  host: HOST,
+  port: PORT,
+  zmqPort: ZMQ_PORT,
+  dataDir: DATA_DIR,
+  wallet: 'testwallet'
+})
+
+const waiter = new Waiter(bitcoin, {
+  host: HOST,
+  electrumPort: ELECTRUM_PORT,
+  zmqPort: ZMQ_PORT
+})
+
+describe.each([44, 84])('@wdk/wallet-btc (BIP %i)', (bip) => {
+  const CONFIGURATION = {
+    host: HOST,
+    port: ELECTRUM_PORT,
+    network: 'regtest',
+    bip
+  }
+
   let wallet, account0, account1
-
-  const bitcoin = new BitcoinCli({
-    host: HOST,
-    port: PORT,
-    zmqPort: ZMQ_PORT,
-    dataDir: DATA_DIR,
-    wallet: 'testwallet'
-  })
-
-  const waiter = new Waiter(bitcoin, {
-    host: HOST,
-    electrumPort: ELECTRUM_PORT,
-    zmqPort: ZMQ_PORT
-  })
 
   beforeAll(async () => {
     wallet = new WalletManagerBtc(SEED_PHRASE, CONFIGURATION)
@@ -102,7 +108,7 @@ describe('@wdk/wallet-btc', () => {
     expect(transaction.txid).toBe(hash)
     expect(transaction.details[0].address).toBe(TRANSACTION.to)
 
-    const actualFee = 226n
+    const actualFee = fees[bip]
 
     expect(abs(initialBalance0 - finalBalance0 - TRANSACTION.value - actualFee)).toBeLessThanOrEqual(1n)
 
