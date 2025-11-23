@@ -46,8 +46,11 @@ import ElectrumClient from './electrum-client.js'
  * @property {number} [port] - The electrum server's port (default: 50001).
  * @property {"bitcoin" | "regtest" | "testnet"} [network] The name of the network to use (default: "bitcoin").
  * @property {"tcp" | "tls" | "ssl"} [protocol] - The transport protocol to use (default: "tcp").
- * @property {44 | 84} [bip] - The bip address type; available values: 44 or 84 (default: 44).
-*/
+ * @property {44 | 84} [bip] - The BIP address type used for key and address derivation.
+ *   - 44: [BIP-44 (P2PKH / legacy)](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)
+ *   - 84: [BIP-84 (P2WPKH / native SegWit)](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki)
+ *   - Default: 84 (P2WPKH).
+ * */
 
 /**
  * @typedef {Object} BtcMaxSpendableResult

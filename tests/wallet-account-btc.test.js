@@ -17,27 +17,29 @@ const SEED = mnemonicToSeedSync(SEED_PHRASE)
 const ACCOUNTS = {
   44: {
     index: 0,
-    path: "m/44'/0'/0'/0/0",
-    address: 'mjWcNW3MnJdb6ihYRmyoywL4xm4a7n4JYH',
+    path: "m/44'/1'/0'/0/0",
+    address: 'mjsVx6s5oH9VqwmhfjCyVo6t7APRGY6T8o',
     keyPair: {
-      privateKey: 'd405730e81abfd3c50de982134b2117469915df4b03dc2827fd646410485c148',
-      publicKey: '03c061f44a568ab1b16db34b9bef4eeb21b75bb25fcd3af48e4eb60313fc99c86b'
+      privateKey: '15e083525dac99a2a9bba8f14a6eed9704a77c5994b1a9b4d7271ebd353b7966',
+      publicKey: '02f8044c82d6b9dfcfc3e6f3424cb11cc747bb34766bcbef72d2f52f6c4e8e07aa'
     }
   },
   84: {
     index: 0,
-    path: "m/84'/0'/0'/0/0",
-    address: 'bcrt1qxn0te9ecv864wtu53cccjhuuy5dphvemjt58ge',
+    path: "m/84'/1'/0'/0/0",
+    address: 'bcrt1q8dqnpagwt9rtl7k38nuaa2ahf690avzkm74nhn',
     keyPair: {
-      privateKey: '433c8e1e0064cdafe991f1efb4803d7dfcc2533db7d5cfa963ed53917b720248',
-      publicKey: '035a48902f37c03901f36fea0a06aef2be29d9c55da559f5bd02c2d02d2b516382'
+      privateKey: '007335c465cb8183b8a43d3f4eb7dbeb65f51e3a94c4a42369f3d2979ffa35fa',
+      publicKey: '02e928d54a04833586b14e9c910884f589aebdc713a055e655c2fa13306c1b4f7f'
     }
   }
 }
 
+const MESSAGE = 'Dummy message to sign.'
+
 const SIGNATURES = {
-  44: 'INsRYYzYTTRepRFG4BprLGsi+Cv3yG11FCKi7Zei0t4zIxKpt7bQYM7PjVDXIz5XRPNvT85RmQH6pfuk+MulHgU=',
-  84: 'KE9Kx33p5HM4OOcyi1RMvqJ+ugODuEYYvBQOBOSP9mUqeQeNNzn4aaFnkfL9ICO253GMEpJO84Htot+RVWI+uAk='
+  44: 'H4RwJWJzRmVkgQDqmTgX0qCbSONLQjvjfXH7ZdKZs5S3BWbpfjqbGdIJQXy/+ppW4Lvaw0wZ/UaDOLhMw5TIDuk=',
+  84: 'KAVgsxrQT5V4Mhfnk6taeCN1/j8p/sa8S9iNsbsgRb8zbfNOOPXV1w3dQQV0IjboJrlxYuDJnHw5a/E6vRJ+0Ek='
 }
 
 export const FEES = {
@@ -138,8 +140,6 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
   })
 
   describe('sign', () => {
-    const MESSAGE = 'Dummy message to sign.'
-
     test('should return the correct signature', async () => {
       const signature = await account.sign(MESSAGE)
 
@@ -148,8 +148,6 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
   })
 
   describe('verify', () => {
-    const MESSAGE = 'Dummy message to sign.'
-
     test('should return true for a valid signature', async () => {
       const result = await account.verify(MESSAGE, SIGNATURES[bip])
 
