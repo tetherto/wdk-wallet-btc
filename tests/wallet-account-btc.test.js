@@ -7,7 +7,11 @@ import { HOST, PORT, ELECTRUM_PORT, ZMQ_PORT, DATA_DIR } from './config.js'
 import { BitcoinCli, Waiter } from './helpers/index.js'
 
 import { WalletAccountBtc, WalletAccountReadOnlyBtc } from '../index.js'
-import SeedSignerBtc  from '../src/signers/index.js'
+import SeedSignerBtc from '../src/signers/index.js'
+import { hmac } from '@noble/hashes/hmac'
+import { sha512 } from '@noble/hashes/sha512'
+import { BIP32Factory } from 'bip32'
+import * as ecc from '@bitcoinerlab/secp256k1'
 
 const SEED_PHRASE = 'cook voyage document eight skate token alien guide drink uncle term abuse'
 
@@ -265,6 +269,74 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     test('should throw an unsupported operation error', async () => {
       await expect(account.transfer({}))
         .rejects.toThrow("The 'transfer' method is not supported on the bitcoin blockchain.")
+    })
+  })
+
+  describe('PrivateKeySignerBtc integration', () => {
+    const MESSAGE = 'Dummy message to sign.'
+    let accountPk, recipientPk
+
+    beforeAll(async () => {
+      // Use the known private key for the first address for this bip
+      const privHex = ACCOUNTS[bip].keyPair.privateKey
+      accountPk = WalletAccountBtc.fromPrivateKey(privHex, CONFIGURATION)
+      recipientPk = bitcoin.getNewAddress()
+
+      // Fund the private-key-based address so we can spend
+      const addr = await accountPk.getAddress()
+      bitcoin.sendToAddress(addr, 0.01)
+      await waiter.mine()
+    })
+
+    afterAll(() => {
+      accountPk.dispose()
+    })
+
+    test('getAddress returns the expected address', async () => {
+      const result = await accountPk.getAddress()
+      expect(result).toBe(ACCOUNTS[bip].address)
+    })
+
+    test('sign/verify with raw private key', async () => {
+      const sig = await accountPk.sign(MESSAGE)
+      expect(await accountPk.verify(MESSAGE, sig)).toBe(true)
+      expect(await accountPk.verify('Another message.', sig)).toBe(false)
+    })
+
+    test('sendTransaction with raw private key signer', async () => {
+      const TRANSACTION = { to: recipientPk, value: 1_000 }
+      const { hash } = await accountPk.sendTransaction(TRANSACTION)
+      await waiter.mine()
+      const transaction = bitcoin.getTransaction(hash)
+      expect(transaction.txid).toBe(hash)
+      expect(transaction.details[0].address).toBe(TRANSACTION.to)
+      const amount = Math.round(transaction.details[0].amount * 1e+8)
+      expect(amount).toBe(TRANSACTION.value)
+    })
+  })
+
+  describe('SeedSignerBtc.fromXprv', () => {
+    test('derives the same first address as seed flow', async () => {
+      // Build a regtest tprv from the seed (root)
+      const seed = mnemonicToSeedSync(SEED_PHRASE)
+      const masterSecret = Buffer.from('Bitcoin seed', 'utf8')
+      const masterKeyAndChainCode = hmac(sha512, masterSecret, seed)
+      const privateKey = masterKeyAndChainCode.slice(0, 32)
+      const chainCode = masterKeyAndChainCode.slice(32)
+      const bip32 = BIP32Factory(ecc)
+      // testnet/regtest versions
+      const network = { wif: 0xef, bip32: { public: 0x043587cf, private: 0x04358394 } }
+      const master = bip32.fromPrivateKey(Buffer.from(privateKey), Buffer.from(chainCode), network)
+      const xprv = master.toBase58()
+
+      const root = SeedSignerBtc.fromXprv(xprv, CONFIGURATION)
+      const signer = root.derive("0'/0/0")
+      const accountX = new WalletAccountBtc(signer)
+
+      const addr = await accountX.getAddress()
+      expect(addr).toBe(ACCOUNTS[bip].address)
+
+      accountX.dispose()
     })
   })
 
