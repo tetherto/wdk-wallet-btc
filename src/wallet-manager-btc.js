@@ -26,10 +26,8 @@ import WalletAccountBtc from './wallet-account-btc.js'
 const MEMPOOL_SPACE_URL = 'https://mempool.space'
 
 export default class WalletManagerBtc extends WalletManager {
-  constructor (signer) {
-    super(signer)
-    const key = `default:${signer.path}`
-    this._accounts.set(key, new WalletAccountBtc(signer))
+  constructor (signer, config = {}) {
+    super(signer, config)
   }
 
   /**
@@ -81,7 +79,7 @@ export default class WalletManagerBtc extends WalletManager {
     if (!signer) {
       throw new Error(`Signer ${signerName} not found.`)
     }
-    const childSigner = signer.derive(path)
+    const childSigner = signer.derive(path, this._config)
     const account = new WalletAccountBtc(childSigner)
     this._accounts[key] = account
     return account

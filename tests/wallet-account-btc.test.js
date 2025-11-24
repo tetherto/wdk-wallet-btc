@@ -66,7 +66,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
   let account, recipient
 
   beforeAll(async () => {
-    const signer = new SeedSignerBtc(SEED_PHRASE, "0'/0/0", CONFIGURATION).derive("0'/0/0")
+    const signer = new SeedSignerBtc(SEED_PHRASE, CONFIGURATION).derive("0'/0/0")
     account = new WalletAccountBtc(signer)
     recipient = bitcoin.getNewAddress()
 
@@ -81,7 +81,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
 
   describe('constructor', () => {
     test('should successfully initialize an account for the given seed phrase and path', () => {
-      const signer = new SeedSignerBtc(SEED_PHRASE, "0'/0/0", CONFIGURATION)
+      const signer = new SeedSignerBtc(SEED_PHRASE, CONFIGURATION, { path: "0'/0/0" })
       const account = new WalletAccountBtc(signer)
 
       expect(account.index).toBe(ACCOUNTS[bip].index)
@@ -97,7 +97,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     })
 
     test('should successfully initialize an account for the given seed and path', () => {
-      const signer = new SeedSignerBtc(SEED, "0'/0/0", CONFIGURATION)
+      const signer = new SeedSignerBtc(SEED, CONFIGURATION).derive("0'/0/0")
       const account = new WalletAccountBtc(signer)
 
       expect(account.index).toBe(ACCOUNTS[bip].index)
@@ -188,7 +188,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
 
     test('should create a change output when leftover > dust limit', async () => {
       const TRANSACTION = { to: recipient, value: 500_000 }
-      const signer = new SeedSignerBtc(SEED_PHRASE, "0'/0/1", CONFIGURATION)
+      const signer = new SeedSignerBtc(SEED_PHRASE, CONFIGURATION, { path: "0'/0/1" })
       const account = new WalletAccountBtc(signer)
       const address = await account.getAddress()
       bitcoin.sendToAddress(address, 0.02)
@@ -211,7 +211,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     })
 
     test('should collapse dust change into fee when leftover <= dust limit', async () => {
-      const signer = new SeedSignerBtc(SEED_PHRASE, "0'/0/5", CONFIGURATION)
+      const signer = new SeedSignerBtc(SEED_PHRASE, CONFIGURATION).derive("0'/0/5")
       const account = new WalletAccountBtc(signer)
       const address = await account.getAddress()
       bitcoin.sendToAddress(address, 0.001)
@@ -251,7 +251,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     })
 
     test('should throw if there an no utxos available', async () => {
-      const signer = new SeedSignerBtc(SEED_PHRASE, "0'/0/2", CONFIGURATION)
+      const signer = new SeedSignerBtc(SEED_PHRASE, CONFIGURATION, { path: "0'/0/2" })
       const account = new WalletAccountBtc(signer)
 
       await expect(account.sendTransaction({ to: recipient, value: 1_000 }))
@@ -272,7 +272,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     test('should return the correct transaction receipt', async () => {
       const TRANSACTION = { to: recipient, value: 1_000 }
 
-      const signer = new SeedSignerBtc(SEED_PHRASE, "0'/0/4", CONFIGURATION)
+      const signer = new SeedSignerBtc(SEED_PHRASE, CONFIGURATION).derive("0'/0/4")
       const account = new WalletAccountBtc(signer)
       const address = await account.getAddress()
       bitcoin.sendToAddress(address, 0.01)
@@ -370,7 +370,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     }
 
     beforeAll(async () => {
-      const signer = new SeedSignerBtc(SEED_PHRASE, "0'/0/10", CONFIGURATION)
+      const signer = new SeedSignerBtc(SEED_PHRASE, CONFIGURATION, { path: "0'/0/10" })
       account = new WalletAccountBtc(signer)
 
       for (let i = 0; i < 5; i++) {
