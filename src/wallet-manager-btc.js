@@ -27,6 +27,9 @@ const MEMPOOL_SPACE_URL = 'https://mempool.space'
 
 export default class WalletManagerBtc extends WalletManager {
   constructor (signer, config = {}) {
+    if (signer.isPrivateKey) {
+      throw new Error('Private key signers are not supported for wallet managers.')
+    }
     super(signer, config)
   }
 

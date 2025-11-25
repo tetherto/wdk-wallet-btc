@@ -16,7 +16,7 @@
 import { address as btcAddress, Psbt, Transaction } from 'bitcoinjs-lib'
 import pLimit from 'p-limit'
 import { LRUCache } from 'lru-cache'
-
+import PrivateKeySignerBtc from './signers/private-key-signer-btc.js'
 import WalletAccountReadOnlyBtc from './wallet-account-read-only-btc.js'
 
 /** @typedef {import('@tetherto/wdk-wallet').IWalletAccount} IWalletAccount */
@@ -97,6 +97,11 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    */
   get keyPair () {
     return this._signer.keyPair
+  }
+
+  static fromPrivateKey (privateKey, config = {}) {
+    const signer = new PrivateKeySignerBtc(privateKey, config)
+    return new WalletAccountBtc(signer)
   }
 
   /**

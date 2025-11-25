@@ -8,7 +8,7 @@ describe('WalletManagerBtc', () => {
   let wallet
 
   beforeEach(() => {
-    const signer = new SeedSignerBtc(SEED_PHRASE, "0'/0/0")
+    const signer = new SeedSignerBtc(SEED_PHRASE)
     wallet = new WalletManagerBtc(signer)
   })
 

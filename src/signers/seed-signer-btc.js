@@ -14,14 +14,7 @@
 'use strict'
 import { hmac } from '@noble/hashes/hmac'
 import { sha512 } from '@noble/hashes/sha512'
-import {
-  crypto,
-  initEccLib,
-  networks,
-  payments,
-  Psbt,
-  Transaction
-} from 'bitcoinjs-lib'
+import { initEccLib, networks, Psbt } from 'bitcoinjs-lib'
 import { BIP32Factory } from 'bip32'
 
 import * as bip39 from 'bip39'
@@ -29,6 +22,15 @@ import * as ecc from '@bitcoinerlab/secp256k1'
 
 // eslint-disable-next-line camelcase
 import { sodium_memzero } from 'sodium-universal'
+
+import {
+  hashMessage,
+  buildPaymentScript,
+  detectInputOwnership,
+  ensureWitnessUtxoIfNeeded,
+  normalizeConfig,
+  getAddressFromPublicKey
+} from './utils.js'
 
 const MASTER_SECRET = Buffer.from('Bitcoin seed', 'utf8')
 
@@ -144,26 +146,24 @@ export default class SeedSignerBtc {
      * @protected
      * @type {BtcWalletConfig}
      */
+    config = normalizeConfig(config)
     this._config = config
     this._isRoot = true
 
     if (opts.path) {
-      const bip = config.bip ?? 44
-      if (![44, 84].includes(bip)) {
-        throw new Error('Invalid bip specification. Supported bips: 44, 84.')
-      }
       const netdp = config.network === 'testnet' ? 1 : 0
-      const fullPath = `m/${bip}'/${netdp}'/${opts.path}`
+      const fullPath = `m/${config.bip}'/${netdp}'/${opts.path}`
       const account = masterNode.derivePath(fullPath)
       const network = networks[config.network] || networks.bitcoin
-      const { address } =
-        bip === 44
-          ? payments.p2pkh({ pubkey: account.publicKey, network })
-          : payments.p2wpkh({ pubkey: account.publicKey, network })
+      const address = getAddressFromPublicKey(
+        account.publicKey,
+        network,
+        config.bip
+      )
 
       this._path = fullPath
 
-      this._bip = bip
+      this._bip = config.bip
 
       this._masterNode = masterNode
 
@@ -174,6 +174,12 @@ export default class SeedSignerBtc {
 
       this._isRoot = false
     }
+  }
+
+  static fromXprv (xprv, config = {}) {
+    const network = networks[config.network] || networks.bitcoin
+    const masterNode = bip32.fromBase58(xprv, network)
+    return new SeedSignerBtc(null, config, { masterNode })
   }
 
   get isRoot () {
@@ -284,47 +290,20 @@ export default class SeedSignerBtc {
     const pubkey = this._account && this._account.publicKey
     if (!pubkey) return psbtInstance.toBase64()
 
-    // Build our payment script based on BIP (44 -> p2pkh, 84 -> p2wpkh)
-    const payment =
-      this._bip === 84
-        ? payments.p2wpkh({ pubkey })
-        : payments.p2pkh({ pubkey })
-    const myScript = payment.output
+    const network = networks[this._config.network] || networks.bitcoin
+    const myScript = buildPaymentScript(this._bip, pubkey, network)
 
     for (let i = 0; i < psbtInstance.inputCount; i++) {
-      const input = psbtInstance.data.inputs[i] || {}
-      const txIn = psbtInstance.txInputs[i]
-      let prevOut = null
-      let isOurs = false
-
-      try {
-        if (input.nonWitnessUtxo) {
-          const prevTx = Transaction.fromBuffer(input.nonWitnessUtxo)
-          prevOut = prevTx.outs[txIn.index]
-          isOurs = !!(
-            prevOut &&
-            prevOut.script &&
-            myScript &&
-            prevOut.script.equals(myScript)
-          )
-        } else if (input.witnessUtxo) {
-          prevOut = input.witnessUtxo
-          isOurs = !!(
-            prevOut &&
-            prevOut.script &&
-            myScript &&
-            prevOut.script.equals(myScript)
-          )
-        }
-      } catch (err) {
-        // If we cannot parse/compare, skip this input
-        isOurs = false
-      }
+      const { input, prevOut, isOurs } = detectInputOwnership(
+        psbtInstance,
+        i,
+        myScript
+      )
 
       if (!isOurs) continue
 
-      // Ensure bip32Derivation is present so we can use signInputHD
       try {
+        // Ensure bip32Derivation is present so we can use signInputHD
         const hasDerivation = (input.bip32Derivation || []).some(
           (d) =>
             d &&
@@ -345,20 +324,7 @@ export default class SeedSignerBtc {
         }
 
         // For BIP84, prefer witnessUtxo if we can derive it from prevOut
-        if (
-          this._bip === 84 &&
-          prevOut &&
-          prevOut.script &&
-          typeof prevOut.value === 'number' &&
-          !input.witnessUtxo
-        ) {
-          psbtInstance.updateInput(i, {
-            witnessUtxo: {
-              script: prevOut.script,
-              value: prevOut.value
-            }
-          })
-        }
+        ensureWitnessUtxoIfNeeded(psbtInstance, i, this._bip, prevOut, input)
 
         psbtInstance.signInputHD(i, this._masterNode)
       } catch (err) {
@@ -377,7 +343,7 @@ export default class SeedSignerBtc {
    * @returns {Promise<string>} The message's signature.
    */
   async sign (message) {
-    const messageHash = crypto.sha256(Buffer.from(message, 'utf8'))
+    const messageHash = hashMessage(message)
     return this._account.sign(messageHash).toString('hex')
   }
 
@@ -389,7 +355,7 @@ export default class SeedSignerBtc {
    * @returns {Promise<boolean>} True if the signature is valid.
    */
   async verify (message, signature) {
-    const messageHash = crypto.sha256(Buffer.from(message, 'utf8'))
+    const messageHash = hashMessage(message)
     const signatureBuffer = Buffer.from(signature, 'hex')
     return this._account.verify(messageHash, signatureBuffer)
   }
