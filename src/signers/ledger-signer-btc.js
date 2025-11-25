@@ -1,17 +1,19 @@
 import { ISignerBtc } from './seed-signer-btc.js'
 
 import {
-  CommandResultStatus,
   DeviceActionStatus,
   DeviceManagementKitBuilder
 } from '@ledgerhq/device-management-kit'
 import { webHidTransportFactory } from '@ledgerhq/device-transport-kit-web-hid'
+import {
+  DefaultDescriptorTemplate,
+  DefaultWallet,
+  SignerBtcBuilder
+} from '@ledgerhq/device-signer-kit-bitcoin'
 import { crypto, networks, payments } from 'bitcoinjs-lib'
 import { BIP32Factory } from 'bip32'
 import * as ecc from '@bitcoinerlab/secp256k1'
 import { filter, firstValueFrom, map } from 'rxjs'
-import { DefaultDescriptorTemplate } from '@ledgerhq/device-signer-kit-bitcoin'
-import { GetMasterFingerprintCommand } from '@ledgerhq/device-signer-kit-bitcoin/internal/app-binder/command/GetMasterFingerprintCommand.js'
 
 const BITCOIN = {
   wif: 0x80,
@@ -23,10 +25,6 @@ const BITCOIN = {
 }
 
 const bip32 = BIP32Factory(ecc)
-
-const dmk = new DeviceManagementKitBuilder()
-  .addTransport(webHidTransportFactory)
-  .build()
 
 /**
  * @implements {ISignerBtc}
@@ -45,21 +43,29 @@ export default class LedgerSignerBtc {
      * Discover & connect a device
      */
 
-    dmk.startDiscovering({}).subscribe({
+    this._dmk =
+      opts.dmk ||
+      new DeviceManagementKitBuilder()
+        .addTransport(webHidTransportFactory)
+        .build()
+
+    this._dmk.startDiscovering({}).subscribe({
       next: async (device) => {
-        this._sessionId = await dmk.connect({
+        this._sessionId = await this._dmk.connect({
           device,
           sessionRefresherOptions: { isRefresherDisabled: true }
         })
 
         // Create a hardware signer
         this._signerBtc = new SignerBtcBuilder({
-          dmk,
+          dmk: this._dmk,
           sessionId: this._sessionId
         }).build()
 
         // Get the extended pubkey
-        const { observable } = signer.getExtendedPublicKey(fullPath)
+        const { observable } = this._signerBtc.getExtendedPublicKey(
+          fullPath.split('/').splice(1).join('/')
+        )
         const xpub = await firstValueFrom(
           observable.pipe(
             filter((evt) => evt.status === DeviceActionStatus.Completed),
@@ -140,7 +146,7 @@ export default class LedgerSignerBtc {
       psbt
     )
 
-    const sig = await firstValueFrom(
+    const [partialSig] = await firstValueFrom(
       observable.pipe(
         filter((evt) => evt.status === DeviceActionStatus.Completed),
         map((evt) => evt.output)
@@ -155,11 +161,9 @@ export default class LedgerSignerBtc {
         ]
       })
       return psbt
-    } else {
-      // not consider in this poc yet
     }
 
-    return sig
+    return psbt // not consider other cases in this poc yet
   }
 
   /**
@@ -203,7 +207,7 @@ export default class LedgerSignerBtc {
   }
 
   dispose () {
-    dmk.disconnect({ sessionId: this._sessionId })
+    this._dmk.disconnect({ sessionId: this._sessionId })
 
     this._account = undefined
 
