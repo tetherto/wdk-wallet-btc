@@ -93,6 +93,8 @@ function derivePath (seed, path) {
 export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
   /**
    * Creates a new bitcoin wallet account.
+   * Supports P2PKH (BIP-44), P2WPKH (BIP-84), and P2TR Taproot (BIP-86) address types.
+   * Taproot addresses use Schnorr signatures (BIP-340) for transaction signing.
    *
    * @param {string | Uint8Array} seed - The wallet's [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) seed phrase.
    * @param {string} path - The derivation path suffix (e.g. "0'/0/0").
@@ -227,6 +229,8 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
 
   /**
    * Signs a message.
+   * For P2WPKH (BIP-84) and P2TR (BIP-86), uses SegWit message signing format.
+   * P2TR transactions use Schnorr signatures (BIP-340), but message signing format remains compatible.
    *
    * @param {string} message - The message to sign.
    * @returns {Promise<string>} The message's signature.
@@ -471,7 +475,13 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     this._electrumClient.close()
   }
 
-  /** @private */
+  /**
+   * Builds and signs a raw transaction.
+   * For P2TR (Taproot) transactions, uses Schnorr signatures (BIP-340) automatically.
+   * For P2WPKH transactions, uses ECDSA signatures.
+   *
+   * @private
+   */
   async _getRawTransaction ({ utxos, to, value, fee, feeRate, changeValue }) {
     feeRate = this._toBigInt(feeRate)
     if (feeRate < 1n) feeRate = 1n
@@ -492,8 +502,9 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
 
       for (const utxo of utxos) {
         if (this._scriptType === 'P2TR') {
-          // P2TR (Taproot) input creation
-          // For BIP-86, the internal key is the BIP32 derived public key (without prefix)
+          // P2TR (Taproot) input creation for BIP-86
+          // For BIP-86 single-key spends, the internal key is the BIP32 derived public key (without prefix)
+          // Taproot uses Schnorr signatures (BIP-340) instead of ECDSA
           const internalPubkey = this._account.publicKey.slice(1) // Remove 0x02/0x03 prefix
           
           psbt.addInput({
@@ -546,8 +557,8 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
       if (chgVal > 0n) psbt.addOutput({ address: await this.getAddress(), value: Number(chgVal) })
 
       // Sign all inputs
-      // signInputHD automatically detects Taproot inputs and uses Schnorr signatures (BIP-340)
-      // For P2WPKH and P2PKH, it uses standard ECDSA signatures
+      // signInputHD automatically detects Taproot inputs (P2TR/BIP-86) and uses Schnorr signatures (BIP-340)
+      // For P2WPKH (BIP-84) and P2PKH (BIP-44), it uses standard ECDSA signatures
       utxos.forEach((_, index) => psbt.signInputHD(index, this._masterNode))
       
       psbt.finalizeAllInputs()

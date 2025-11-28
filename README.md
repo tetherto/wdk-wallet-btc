@@ -2,7 +2,7 @@
 
 **Note**: This package is currently in beta. Please test thoroughly in development environments before using in production.
 
-A simple and secure package to manage BIP-84 (SegWit) wallets for the Bitcoin blockchain. This package provides a clean API for creating, managing, and interacting with Bitcoin wallets using BIP-39 seed phrases and Bitcoin-specific derivation paths.
+A simple and secure package to manage Bitcoin wallets supporting BIP-84 (P2WPKH/SegWit) and BIP-86 (P2TR/Taproot) address types. This package provides a clean API for creating, managing, and interacting with Bitcoin wallets using BIP-39 seed phrases and Bitcoin-specific derivation paths.
 
 ## 🔍 About WDK
 
@@ -12,7 +12,8 @@ For detailed documentation about the complete WDK ecosystem, visit [docs.wallet.
 
 ## 🌟 Features
 
-- **Bitcoin Derivation Paths**: Support for BIP-84 standard derivation paths for Bitcoin (m/84'/0')
+- **Bitcoin Derivation Paths**: Support for BIP-44 (P2PKH), BIP-84 (P2WPKH/SegWit), and BIP-86 (P2TR/Taproot) derivation paths
+- **Taproot Support**: Full support for Taproot (P2TR) addresses with Schnorr signatures (BIP-340)
 - **Multi-Account Management**: Create and manage multiple accounts from a single seed phrase
 - **Transaction Management**: Create, sign, and broadcast Bitcoin transactions
 - **UTXO Management**: Track and manage unspent transaction outputs using Electrum servers
@@ -85,7 +86,7 @@ console.log('Custom account address:', customAddress)
 // All accounts inherit the provider configuration from the wallet manager
 ```
 
-**Note**: This implementation generates Native SegWit (bech32) addresses only. Legacy and P2SH-wrapped SegWit address types are not supported. All accounts use BIP-84 derivation paths (m/84'/0'/account'/0/index).
+**Note**: This implementation supports Native SegWit (P2WPKH/bech32) and Taproot (P2TR/bech32m) addresses. Legacy (P2PKH) and P2SH-wrapped SegWit address types are not supported. Accounts use BIP-84 derivation paths (m/84'/0'/account'/0/index) for P2WPKH or BIP-86 derivation paths (m/86'/0'/account'/0/index) for P2TR, depending on the `script_type` configuration.
 
 ### Checking Balances
 
@@ -235,12 +236,12 @@ const wallet = new WalletManagerBtc(seedPhrase, {
 | Method | Description | Returns |
 |--------|-------------|---------|
 | `getAccount(index)` | Returns a wallet account at the specified index | `Promise<WalletAccountBtc>` |
-| `getAccountByPath(path)` | Returns a wallet account at the specified BIP-84 derivation path | `Promise<WalletAccountBtc>` |
+| `getAccountByPath(path)` | Returns a wallet account at the specified derivation path (BIP-44, BIP-84, or BIP-86) | `Promise<WalletAccountBtc>` |
 | `getFeeRates()` | Returns current fee rates for transactions | `Promise<{normal: number, fast: number}>` |
 | `dispose()` | Disposes all wallet accounts, clearing private keys from memory | `void` |
 
 ##### `getAccount(index)`
-Returns a wallet account at the specified index using BIP-84 derivation.
+Returns a wallet account at the specified index. Defaults to BIP-84 (P2WPKH) derivation. Set `config.bip=86` with `config.script_type="P2TR"` for Taproot (BIP-86) derivation.
 
 **Parameters:**
 - `index` (number, optional): The index of the account to get (default: 0)
@@ -253,7 +254,7 @@ const account = await wallet.getAccount(0)
 ```
 
 ##### `getAccountByPath(path)`
-Returns a wallet account at the specified BIP-84 derivation path.
+Returns a wallet account at the specified derivation path. Supports BIP-44 (P2PKH), BIP-84 (P2WPKH), and BIP-86 (P2TR) paths based on configuration.
 
 **Parameters:**
 - `path` (string): The derivation path (e.g., "0'/0/0")
@@ -301,7 +302,7 @@ new WalletAccountBtc(seed, path, config)
 
 **Parameters:**
 - `seed` (string | Uint8Array): BIP-39 mnemonic seed phrase or seed bytes
-- `path` (string): BIP-84 derivation path (e.g., "0'/0/0")
+- `path` (string): Derivation path suffix (e.g., "0'/0/0"). Full path depends on BIP type (BIP-44, BIP-84, or BIP-86)
 - `config` (object, optional): Configuration object
   - `host` (string, optional): Electrum server hostname (default: "electrum.blockstream.info")
   - `port` (number, optional): Electrum server port (default: 50001)
@@ -311,7 +312,7 @@ new WalletAccountBtc(seed, path, config)
 
 | Method | Description | Returns |
 |--------|-------------|---------|
-| `getAddress()` | Returns the account's Native SegWit address | `Promise<string>` |
+| `getAddress()` | Returns the account's address (P2WPKH or P2TR based on script_type) | `Promise<string>` |
 | `getBalance()` | Returns the confirmed account balance in satoshis | `Promise<bigint>` |
 | `sendTransaction(options)` | Sends a Bitcoin transaction | `Promise<{hash: string, fee: bigint}>` |
 | `quoteSendTransaction(options)` | Estimates the fee for a transaction | `Promise<{fee: bigint}>` |
@@ -322,7 +323,7 @@ new WalletAccountBtc(seed, path, config)
 | `dispose()` | Disposes the wallet account, clearing private keys from memory | `void` |
 
 ##### `getAddress()`
-Returns the account's Native SegWit (bech32) address.
+Returns the account's address. For P2WPKH (BIP-84), returns a Bech32 address (starts with bc1q). For P2TR (BIP-86), returns a Bech32m address (starts with bc1p).
 
 **Returns:** `Promise<string>` - The Bitcoin address
 
@@ -497,14 +498,20 @@ This package works with Bitcoin networks:
 
 ### Supported Address Types
 
-This implementation supports **Native SegWit (P2WPKH) addresses only**:
+This implementation supports **Native SegWit (P2WPKH) and Taproot (P2TR) addresses**:
 
-- **Native SegWit (P2WPKH)**: Addresses starting with 'bc1' (mainnet) or 'tb1' (testnet)
+- **Native SegWit (P2WPKH)**: Addresses starting with 'bc1q' (mainnet) or 'tb1q' (testnet)
   - Uses BIP-84 derivation paths (`m/84'/0'/account'/0/index`)
+  - Uses ECDSA signatures for transactions
   - Lower transaction fees compared to legacy formats
   - Full SegWit benefits including transaction malleability protection
+- **Taproot (P2TR)**: Addresses starting with 'bc1p' (mainnet) or 'tb1p' (testnet)
+  - Uses BIP-86 derivation paths (`m/86'/0'/account'/0/index`)
+  - Uses Schnorr signatures (BIP-340) for transactions
+  - Set `config.bip=86` and `config.script_type="P2TR"` to enable
+  - Even lower transaction fees and enhanced privacy
 
-**Note**: Legacy (P2PKH) and wrapped SegWit (P2SH-P2WPKH) address types are not supported by this implementation. All generated addresses use the Native SegWit format for optimal fee efficiency and modern Bitcoin standards.
+**Note**: Legacy (P2PKH) and wrapped SegWit (P2SH-P2WPKH) address types are not supported by this implementation. All generated addresses use modern Bitcoin standards for optimal fee efficiency.
 
 ## 🔒 Security Considerations
 
@@ -515,7 +522,7 @@ This implementation supports **Native SegWit (P2WPKH) addresses only**:
 - **Memory Cleanup**: Use the `dispose()` method to clear private keys from memory when done
 - **UTXO Management**: UTXO selection and change handling is managed automatically by the wallet
 - **Fee Management**: Fee rates are fetched from mempool.space API automatically
-- **Address Format**: Only Native SegWit (bech32) addresses are supported
+- **Address Format**: Native SegWit (P2WPKH/bech32) and Taproot (P2TR/bech32m) addresses are supported
 
 ## 🛠️ Development
 
