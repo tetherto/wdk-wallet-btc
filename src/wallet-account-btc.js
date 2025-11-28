@@ -667,7 +667,9 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
           psbt.addOutput({ script: output.script, value: 0 })
         } else if (output.address) {
           // Regular address output
-          psbt.addOutput({ address: output.address, value: Number(output.value) })
+          // Convert BigInt to Number explicitly to avoid mixing BigInt and Number
+          const outputValue = typeof output.value === 'bigint' ? Number(output.value) : output.value
+          psbt.addOutput({ address: output.address, value: Number(outputValue) })
         } else {
           throw new Error('Additional output must have either "script" or "address" property')
         }
@@ -706,7 +708,8 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
           // Apply tweak to private key: tweakedPrivkey = internalPrivkey + tweakHash (mod n)
           // This ensures the tweaked private key corresponds to the tweaked public key
           // used in the Taproot address (which payments.p2tr() calculates)
-          const tweakedPrivkey = ecc.privateAdd(internalPrivkey, tweakHash)
+          // Ensure tweakedPrivkey is a Buffer (ecc.privateAdd should return Buffer)
+          const tweakedPrivkey = Buffer.from(ecc.privateAdd(internalPrivkey, tweakHash))
           
           // Get the tweaked public key from payments.p2tr() which calculates it correctly
           // This matches the public key in the Taproot output script
