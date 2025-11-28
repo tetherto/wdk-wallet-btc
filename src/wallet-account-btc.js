@@ -708,18 +708,24 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
           // used in the Taproot address (which payments.p2tr() calculates)
           const tweakedPrivkey = ecc.privateAdd(internalPrivkey, tweakHash)
           
-          // Create Schnorr signer function for Taproot
-          // PSBT will call signSchnorr with the message hash to be signed
-          // The signer must return a 64-byte Schnorr signature (BIP-340)
-          const schnorrSigner = {
+          // Create signer object for Taproot
+          // PSBT signInput for Taproot expects a signer object with signSchnorr method
+          // The signer must match the tapInternalKey in the input
+          const signer = {
+            publicKey: internalPubkey, // Internal public key (x-coordinate, matches tapInternalKey)
             signSchnorr: (hash) => {
               // Sign the hash with the tweaked private key using Schnorr signature (BIP-340)
               // Returns 64-byte signature: r (32 bytes) || s (32 bytes)
+              // The tweak is applied to match the tweaked public key in the Taproot output
               return ecc.signSchnorr(hash, tweakedPrivkey)
-            }
+            },
+            // Some PSBT implementations may also check for these properties
+            tweakHash: tweakHash // Store tweak hash for reference
           }
           
-          psbt.signInput(index, schnorrSigner)
+          // Use signInput with the Taproot signer
+          // PSBT will detect Taproot input and use signSchnorr method
+          psbt.signInput(index, signer)
         } else {
           // P2WPKH and P2PKH use standard ECDSA signatures with HD derivation
           psbt.signInputHD(index, this._masterNode)
