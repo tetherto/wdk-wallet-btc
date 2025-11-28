@@ -195,6 +195,13 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
 
     /** @private */
     this._account = account
+
+    // For BIP-86 single-key Taproot, store the internal public key (32-byte x-coordinate)
+    // The publicKey from BIP32 is compressed (33 bytes), so we extract the 32-byte x-coordinate
+    if (scriptType === 'P2TR') {
+      /** @private */
+      this._internalPubkey = account.publicKey.slice(1)
+    }
   }
 
   /**
@@ -604,25 +611,32 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
           // P2TR (Taproot) input creation for BIP-86
           // For BIP-86 single-key spends, the internal key is the BIP32 derived public key (without prefix)
           // Taproot uses Schnorr signatures (BIP-340) instead of ECDSA
-          // Note: For Taproot, we use tapBip32Derivation (not bip32Derivation)
-          // signInputHD automatically detects Taproot inputs and uses tapBip32Derivation
-          const internalPubkey = this._account.publicKey.slice(1) // Remove 0x02/0x03 prefix
-          
-          psbt.addInput({
+          // Note: We're omitting tapBip32Derivation to work around a validation bug in bitcoinjs-lib v6.1.7
+          // We'll sign manually using signTaprootInput with a custom signer
+          const inputData = {
             hash: utxo.tx_hash,
             index: utxo.tx_pos,
             witnessUtxo: {
               script: Buffer.from(utxo.vout.scriptPubKey.hex, 'hex'),
               value: Number(utxo.value)
             },
-            tapInternalKey: internalPubkey,
-            tapBip32Derivation: [{
+            tapInternalKey: this._internalPubkey
+            // tapBip32Derivation omitted due to validation bug - we'll sign manually
+          }
+          psbt.addInput(inputData)
+          // Workaround: Directly modify PSBT internal data to bypass validation bug
+          // This is non-standard but works around the validation issue in bitcoinjs-lib v6.1.7
+          // We access the internal data structure and add tapBip32Derivation directly
+          const inputIndex = psbt.inputCount - 1
+          const input = psbt.data.inputs[inputIndex]
+          if (input) {
+            input.tapBip32Derivation = [{
               masterFingerprint: this._masterNode.fingerprint,
               path: this._path,
-              leafHashes: [],
-              pubkey: internalPubkey
+              pubkey: Buffer.from(this._internalPubkey), // Use internal pubkey (32 bytes) to match signer's publicKey
+              leafHashes: [] // Empty array for key path spends (BIP86 Taproot)
             }]
-          })
+          }
         } else if (this._bip === 84) {
           // P2WPKH (Native SegWit) input creation
           psbt.addInput({
@@ -655,7 +669,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
       }
 
       psbt.addOutput({ address: to, value: Number(rcptVal) })
-      
+
       // Add additional outputs (OP_RETURN scripts or regular address outputs)
       // Logic works for both P2TR and P2WPKH script types
       for (const output of additionalOutputs) {
@@ -674,74 +688,48 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
           throw new Error('Additional output must have either "script" or "address" property')
         }
       }
-      
+
       if (chgVal > 0n) psbt.addOutput({ address: await this.getAddress(), value: Number(chgVal) })
 
       // Sign all inputs
-      // For P2TR (Taproot), we need to manually sign with a Schnorr signer
-      // because signInputHD requires bip32Derivation which conflicts with tapBip32Derivation
+      // For Taproot inputs, use signTaprootInput which handles Schnorr signatures (BIP-340)
+      // signInputHD doesn't support Taproot, so we use the Taproot-specific signing method
       // For P2WPKH (BIP-84) and P2PKH (BIP-44), use signInputHD
-      for (let index = 0; index < utxos.length; index++) {
-        if (this._scriptType === 'P2TR') {
-          // Taproot signing: Create a Schnorr signer function
-          // For BIP-86, the internal key is the BIP32 public key's x-coordinate (32 bytes)
-          // We need to calculate the Taproot tweak and create a tweaked private key
-          // This matches the tweak calculation used by payments.p2tr() for address generation
-          const internalPubkey = this._account.publicKey.slice(1) // Remove 0x02/0x03 prefix to get x-coordinate
-          const internalPrivkey = this._account.privateKey // 32-byte private key
-          
-          // Calculate Taproot tweak: H_TapTweak(internalPubkey || 0x00) for BIP-86 single-key spends
-          // Per BIP-341: tweak = H_TapTweak(internalPubkey || scriptTreeHash)
-          // For BIP-86 (single-key spends), scriptTreeHash is 0x00
-          // TapTweak uses tagged hash (BIP-340): SHA256(SHA256(tag) || SHA256(tag) || msg)
-          // Tag: "TapTweak" (UTF-8 encoded)
-          const tapTweakTag = Buffer.from('TapTweak', 'utf8')
-          const tagHash = crypto.sha256(tapTweakTag) // SHA256(tag)
-          const tapTweakMsg = Buffer.concat([
-            tagHash, // First SHA256(tag)
-            tagHash, // Second SHA256(tag) (repeated per BIP-340 spec)
-            internalPubkey, // 32-byte x-coordinate of internal public key
-            Buffer.from([0x00]) // 0x00 for single-key spends (no script path in BIP-86)
-          ])
-          const tweakHash = crypto.sha256(tapTweakMsg) // Final tagged hash
-          
-          // Apply tweak to private key: tweakedPrivkey = internalPrivkey + tweakHash (mod n)
-          // This ensures the tweaked private key corresponds to the tweaked public key
-          // used in the Taproot address (which payments.p2tr() calculates)
-          // Ensure tweakedPrivkey is a Buffer (ecc.privateAdd should return Buffer)
-          const tweakedPrivkey = Buffer.from(ecc.privateAdd(internalPrivkey, tweakHash))
-          
-          // Get the tweaked public key from payments.p2tr() which calculates it correctly
-          // This matches the public key in the Taproot output script
-          const { output } = payments.p2tr({
-            internalPubkey: internalPubkey,
-            network: this._network
-          })
-          // Extract the tweaked public key from the output script (OP_1 <32-byte pubkey>)
-          // The output script is: 0x51 (OP_1) + 0x20 (push 32 bytes) + 32-byte tweaked pubkey
-          const tweakedPubkey = output.slice(2, 34) // Skip OP_1 (0x51) and push opcode (0x20)
-          
-          // Create signer object for Taproot
-          // PSBT signInput for Taproot expects a signer with the tweaked public key (output key)
-          // The signer's publicKey must match the public key in the Taproot output script
-          const signer = {
-            publicKey: tweakedPubkey, // Tweaked public key (output key, matches Taproot address)
-            signSchnorr: (hash) => {
-              // Sign the hash with the tweaked private key using Schnorr signature (BIP-340)
-              // Returns 64-byte signature: r (32 bytes) || s (32 bytes)
-              return ecc.signSchnorr(hash, tweakedPrivkey)
-            }
-          }
-          
-          // Use signInput with the Taproot signer
-          // PSBT will detect Taproot input and use signSchnorr method
-          psbt.signInput(index, signer)
-        } else {
-          // P2WPKH and P2PKH use standard ECDSA signatures with HD derivation
-          psbt.signInputHD(index, this._masterNode)
+      if (this._scriptType === 'P2TR') {
+        // For Taproot key path spends, we need to tweak the private key for signing
+        // Get the tweaked output key from the address (p2tr payment)
+        const { output } = payments.p2tr({
+          internalPubkey: this._internalPubkey,
+          network: this._network
+        })
+        // Calculate tapTweak hash (BIP-341): HashTapTweak(internal_pubkey || merkle_root)
+        // For key path spends, merkle_root is empty (32 zero bytes)
+        const tapTweakHash = crypto.taggedHash('TapTweak', Buffer.concat([Buffer.from(this._internalPubkey), Buffer.alloc(32)]))
+        // Tweak the private key: tweaked_privkey = internal_privkey + tapTweakHash
+        const tweakedPrivKey = ecc.privateAdd(this._account.privateKey, tapTweakHash)
+        if (!tweakedPrivKey) {
+          throw new Error('Failed to tweak private key')
         }
+        // Extract the x-coordinate from the output script (last 32 bytes of P2TR output)
+        const tweakedOutputPubkey = output.slice(2, 34) // Skip OP_1 (0x51) and 32-byte pubkey
+        const taprootSigner = {
+          publicKey: tweakedOutputPubkey, // Tweaked output public key (32-byte x-coordinate)
+          network: this._network,
+          signSchnorr: (hash) => {
+            // Sign with Schnorr signature using the tweaked private key
+            return ecc.signSchnorr(hash, tweakedPrivKey)
+          }
+        }
+        utxos.forEach((_, index) => {
+          // signTaprootInput automatically uses Schnorr signatures for Taproot key path spends
+          // For key path spends (BIP-86), tapLeafHashToSign is undefined (defaults to key path)
+          psbt.signTaprootInput(index, taprootSigner)
+        })
+      } else {
+        // P2WPKH and P2PKH use standard ECDSA signatures with HD derivation
+        utxos.forEach((_, index) => psbt.signInputHD(index, this._masterNode))
       }
-      
+
       psbt.finalizeAllInputs()
 
       return psbt.extractTransaction()
