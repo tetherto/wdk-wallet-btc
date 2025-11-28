@@ -708,19 +708,26 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
           // used in the Taproot address (which payments.p2tr() calculates)
           const tweakedPrivkey = ecc.privateAdd(internalPrivkey, tweakHash)
           
+          // Get the tweaked public key from payments.p2tr() which calculates it correctly
+          // This matches the public key in the Taproot output script
+          const { output } = payments.p2tr({
+            internalPubkey: internalPubkey,
+            network: this._network
+          })
+          // Extract the tweaked public key from the output script (OP_1 <32-byte pubkey>)
+          // The output script is: 0x51 (OP_1) + 0x20 (push 32 bytes) + 32-byte tweaked pubkey
+          const tweakedPubkey = output.slice(2, 34) // Skip OP_1 (0x51) and push opcode (0x20)
+          
           // Create signer object for Taproot
-          // PSBT signInput for Taproot expects a signer object with signSchnorr method
-          // The signer must match the tapInternalKey in the input
+          // PSBT signInput for Taproot expects a signer with the tweaked public key (output key)
+          // The signer's publicKey must match the public key in the Taproot output script
           const signer = {
-            publicKey: internalPubkey, // Internal public key (x-coordinate, matches tapInternalKey)
+            publicKey: tweakedPubkey, // Tweaked public key (output key, matches Taproot address)
             signSchnorr: (hash) => {
               // Sign the hash with the tweaked private key using Schnorr signature (BIP-340)
               // Returns 64-byte signature: r (32 bytes) || s (32 bytes)
-              // The tweak is applied to match the tweaked public key in the Taproot output
               return ecc.signSchnorr(hash, tweakedPrivkey)
-            },
-            // Some PSBT implementations may also check for these properties
-            tweakHash: tweakHash // Store tweak hash for reference
+            }
           }
           
           // Use signInput with the Taproot signer
