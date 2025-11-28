@@ -295,12 +295,14 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
   /**
    * Computes the sha-256 hash of the output script for this wallet's address, reverses the byte order,
    * and returns it as a hex string.
+   * Supports both P2WPKH (Bech32) and P2TR (Bech32m) address formats.
    *
    * @protected
    * @returns {Promise<string>} The reversed sha-256 script hash as a hex-encoded string.
    */
   async _getScriptHash () {
     const address = await this.getAddress()
+    // toOutputScript automatically handles both Bech32 (P2WPKH) and Bech32m (P2TR) addresses
     const script = btcAddress.toOutputScript(address, this._network)
     const hash = crypto.sha256(script)
 

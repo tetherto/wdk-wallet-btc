@@ -316,6 +316,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     const history = await this._electrumClient.blockchainScripthash_getHistory(scriptHash)
 
     const address = await this.getAddress()
+    // toOutputScript automatically handles both Bech32 (P2WPKH) and Bech32m (P2TR) addresses
     const myScript = btcAddress.toOutputScript(address, network)
 
     const txCache = new LRUCache({ max: MAX_CACHE_ENTRIES })
@@ -392,6 +393,8 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
 
         let recipient = null
         try {
+          // fromOutputScript automatically handles both P2WPKH and P2TR output scripts
+          // P2WPKH scripts decode to Bech32 addresses, P2TR scripts decode to Bech32m addresses
           recipient = btcAddress.fromOutputScript(utxo.script, network)
         } catch (err) {
           console.warn('Failed to decode recipient address', utxo, err)
