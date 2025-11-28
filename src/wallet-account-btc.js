@@ -614,6 +614,12 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
               value: Number(utxo.value)
             },
             tapInternalKey: internalPubkey,
+            // bip32Derivation is required for signInputHD to work with HD wallets
+            bip32Derivation: [{
+              masterFingerprint: this._masterNode.fingerprint,
+              path: this._path,
+              pubkey: this._account.publicKey
+            }],
             tapBip32Derivation: [{
               masterFingerprint: this._masterNode.fingerprint,
               path: this._path,
