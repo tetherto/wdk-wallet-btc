@@ -228,6 +228,15 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
   }
 
   /**
+   * The script type of this account (P2TR, P2WPKH, or P2PKH).
+   *
+   * @type {string}
+   */
+  get scriptType () {
+    return this._scriptType
+  }
+
+  /**
    * Signs a message.
    * For P2WPKH (BIP-84) and P2TR (BIP-86), uses SegWit message signing format.
    * P2TR transactions use Schnorr signatures (BIP-340), but message signing format remains compatible.
@@ -459,6 +468,86 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
   }
 
   /**
+   * Creates an OP_RETURN script for embedding arbitrary data in a transaction.
+   * Works for both P2WPKH and P2TR script types.
+   *
+   * @param {string} data - The data to embed (will be UTF-8 encoded).
+   * @returns {Buffer} The OP_RETURN script as a Buffer.
+   */
+  createOpReturnScript (data) {
+    const dataBuffer = Buffer.from(data, 'utf8')
+    const dataLength = dataBuffer.length
+
+    // OP_RETURN (0x6a) + push opcode + data
+    // For data <= 75 bytes, use OP_PUSHBYTES_<n> (0x01-0x4b)
+    // For larger data, we'd need OP_PUSHDATA1/2/4, but 75 bytes is usually enough
+    if (dataLength > 75) {
+      throw new Error('OP_RETURN data cannot exceed 75 bytes')
+    }
+
+    const script = Buffer.allocUnsafe(1 + 1 + dataLength)
+    script[0] = 0x6a // OP_RETURN
+    script[1] = dataLength // OP_PUSHBYTES_<n>
+    dataBuffer.copy(script, 2)
+
+    return script
+  }
+
+  /**
+   * Builds a transaction without broadcasting it.
+   * Supports additional outputs including OP_RETURN scripts.
+   * Logic is isolated by script_type (P2TR vs P2WPKH).
+   *
+   * @param {Object} options - Transaction options.
+   * @param {string} options.recipient - The recipient's Bitcoin address.
+   * @param {number | bigint} options.amount - The amount to send (in satoshis).
+   * @param {number | bigint} options.feeRate - The fee rate (in sats/vB).
+   * @param {Array<Object>} [options.additionalOutputs] - Additional outputs to include.
+   *   Each output can be:
+   *   - { address: string, value: number } for regular address outputs
+   *   - { script: Buffer, value: 0 } for OP_RETURN outputs
+   * @returns {Promise<{txid: string, hex: string, fee: bigint, vsize: number}>} The transaction details.
+   * @private
+   */
+  async _getTransaction ({ recipient, amount, feeRate, additionalOutputs = [] }) {
+    const address = await this.getAddress()
+
+    // Validate script_type is supported
+    if (this._scriptType !== 'P2TR' && this._scriptType !== 'P2WPKH') {
+      throw new Error(`Transaction composition not yet supported for script_type: ${this._scriptType}`)
+    }
+
+    feeRate = this._toBigInt(feeRate)
+    amount = this._toBigInt(amount)
+
+    // Plan the spend (this handles UTXO selection and fee calculation)
+    const { utxos, fee, changeValue } = await this._planSpend({
+      fromAddress: address,
+      toAddress: recipient,
+      amount,
+      feeRate
+    })
+
+    // Build and sign the transaction with additional outputs
+    const tx = await this._getRawTransaction({
+      utxos,
+      to: recipient,
+      value: amount,
+      fee,
+      feeRate,
+      changeValue,
+      additionalOutputs
+    })
+
+    return {
+      txid: tx.txid,
+      hex: tx.hex,
+      fee: tx.fee,
+      vsize: tx.vsize
+    }
+  }
+
+  /**
    * Disposes the wallet account, erasing the private key from memory and closing the connection with the electrum server.
    */
   dispose () {
@@ -479,10 +568,20 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * Builds and signs a raw transaction.
    * For P2TR (Taproot) transactions, uses Schnorr signatures (BIP-340) automatically.
    * For P2WPKH transactions, uses ECDSA signatures.
+   * Supports additional outputs including OP_RETURN scripts.
+   * Logic is isolated by script_type (P2TR vs P2WPKH).
    *
    * @private
+   * @param {Object} options - Transaction options.
+   * @param {Array} options.utxos - The UTXOs to spend.
+   * @param {string} options.to - The recipient's address.
+   * @param {number | bigint} options.value - The amount to send.
+   * @param {number | bigint} options.fee - The transaction fee.
+   * @param {number | bigint} options.feeRate - The fee rate.
+   * @param {number | bigint} options.changeValue - The change amount.
+   * @param {Array<Object>} [options.additionalOutputs] - Additional outputs to include.
    */
-  async _getRawTransaction ({ utxos, to, value, fee, feeRate, changeValue }) {
+  async _getRawTransaction ({ utxos, to, value, fee, feeRate, changeValue, additionalOutputs = [] }) {
     feeRate = this._toBigInt(feeRate)
     if (feeRate < 1n) feeRate = 1n
     value = this._toBigInt(value)
@@ -554,6 +653,24 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
       }
 
       psbt.addOutput({ address: to, value: Number(rcptVal) })
+      
+      // Add additional outputs (OP_RETURN scripts or regular address outputs)
+      // Logic works for both P2TR and P2WPKH script types
+      for (const output of additionalOutputs) {
+        if (output.script) {
+          // OP_RETURN output (value must be 0)
+          if (output.value !== 0 && output.value !== 0n) {
+            throw new Error('OP_RETURN outputs must have value 0')
+          }
+          psbt.addOutput({ script: output.script, value: 0 })
+        } else if (output.address) {
+          // Regular address output
+          psbt.addOutput({ address: output.address, value: Number(output.value) })
+        } else {
+          throw new Error('Additional output must have either "script" or "address" property')
+        }
+      }
+      
       if (chgVal > 0n) psbt.addOutput({ address: await this.getAddress(), value: Number(chgVal) })
 
       // Sign all inputs
