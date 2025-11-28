@@ -604,6 +604,8 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
           // P2TR (Taproot) input creation for BIP-86
           // For BIP-86 single-key spends, the internal key is the BIP32 derived public key (without prefix)
           // Taproot uses Schnorr signatures (BIP-340) instead of ECDSA
+          // Note: For Taproot, we use tapBip32Derivation (not bip32Derivation)
+          // signInputHD automatically detects Taproot inputs and uses tapBip32Derivation
           const internalPubkey = this._account.publicKey.slice(1) // Remove 0x02/0x03 prefix
           
           psbt.addInput({
@@ -614,12 +616,6 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
               value: Number(utxo.value)
             },
             tapInternalKey: internalPubkey,
-            // bip32Derivation is required for signInputHD to work with HD wallets
-            bip32Derivation: [{
-              masterFingerprint: this._masterNode.fingerprint,
-              path: this._path,
-              pubkey: this._account.publicKey
-            }],
             tapBip32Derivation: [{
               masterFingerprint: this._masterNode.fingerprint,
               path: this._path,
