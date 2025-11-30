@@ -140,9 +140,17 @@ export type BtcWalletConfig = {
      * - The BIP address type used for key and address derivation.
      * - 44: [BIP-44 (P2PKH / legacy)](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)
      * - 84: [BIP-84 (P2WPKH / native SegWit)](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki)
+     * - 86: [BIP-86 (P2TR / Taproot)](https://github.com/bitcoin/bips/blob/master/bip-0086.mediawiki)
      * - Default: 84 (P2WPKH).
      */
-    bip?: 44 | 84;
+    bip?: 44 | 84 | 86;
+    /**
+     * - The script type of the wallet created by WalletManagerBtc.
+     * - "P2WPKH": Pay-to-Witness-Public-Key-Hash (native SegWit)
+     * - "P2TR": Pay-to-Taproot
+     * - Default: "P2WPKH".
+     */
+    script_type?: "P2WPKH" | "P2TR";
 };
 export type BtcMaxSpendableResult = {
     /**

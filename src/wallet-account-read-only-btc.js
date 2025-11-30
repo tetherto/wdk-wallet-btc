@@ -46,10 +46,15 @@ import ElectrumClient from './electrum-client.js'
  * @property {number} [port] - The electrum server's port (default: 50001).
  * @property {"bitcoin" | "regtest" | "testnet"} [network] The name of the network to use (default: "bitcoin").
  * @property {"tcp" | "tls" | "ssl"} [protocol] - The transport protocol to use (default: "tcp").
- * @property {44 | 84} [bip] - The BIP address type used for key and address derivation.
+ * @property {44 | 84 | 86} [bip] - The BIP address type used for key and address derivation.
  *   - 44: [BIP-44 (P2PKH / legacy)](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)
  *   - 84: [BIP-84 (P2WPKH / native SegWit)](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki)
+ *   - 86: [BIP-86 (P2TR / Taproot)](https://github.com/bitcoin/bips/blob/master/bip-0086.mediawiki)
  *   - Default: 84 (P2WPKH).
+ * @property {"P2WPKH" | "P2TR"} [script_type] - The script type of the wallet created by WalletManagerBtc.
+ *   - "P2WPKH": Pay-to-Witness-Public-Key-Hash (native SegWit)
+ *   - "P2TR": Pay-to-Taproot
+ *   - Default: "P2WPKH".
  * */
 
 /**
@@ -70,12 +75,16 @@ const BIP_BY_ADDRESS_PREFIX = {
   n: 44,
   bc1q: 84,
   tb1q: 84,
-  bcrt1q: 84
+  bcrt1q: 84,
+  bc1p: 86,
+  tb1p: 86,
+  bcrt1p: 86
 }
 
 const DUST_LIMIT = {
   44: 546n,
-  84: 294n
+  84: 294n,
+  86: 330n
 }
 
 export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
@@ -286,12 +295,14 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
   /**
    * Computes the sha-256 hash of the output script for this wallet's address, reverses the byte order,
    * and returns it as a hex string.
+   * Supports both P2WPKH (Bech32) and P2TR (Bech32m) address formats.
    *
    * @protected
    * @returns {Promise<string>} The reversed sha-256 script hash as a hex-encoded string.
    */
   async _getScriptHash () {
     const address = await this.getAddress()
+    // toOutputScript automatically handles both Bech32 (P2WPKH) and Bech32m (P2TR) addresses
     const script = btcAddress.toOutputScript(address, this._network)
     const hash = crypto.sha256(script)
 

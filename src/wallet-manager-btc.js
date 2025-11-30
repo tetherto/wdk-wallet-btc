@@ -35,7 +35,7 @@ export default class WalletManagerBtc extends WalletManager {
   }
 
   /**
-   * Returns the wallet account at a specific index (defaults to [BIP-84](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki); set config.bip=44 for [BIP-44](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)).
+   * Returns the wallet account at a specific index (defaults to [BIP-84](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki); set config.bip=44 for [BIP-44](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki) or config.bip=86 for [BIP-86](https://github.com/bitcoin/bips/blob/master/bip-0086.mediawiki)).
    *
    * @example
    * // Returns the account with derivation path
