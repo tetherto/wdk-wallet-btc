@@ -227,7 +227,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     const fromAddress = await this.getAddress()
     const feeRateRaw = await this._electrumClient.blockchainEstimatefee(1)
     const feeRate = Math.max(Math.round(Number(feeRateRaw) * 100_000), 1)
-    
+
     const scriptHash = await this._getScriptHash()
     const unspent = await this._electrumClient.blockchainScripthash_listunspent(scriptHash)
     if (!unspent || unspent.length === 0) {
