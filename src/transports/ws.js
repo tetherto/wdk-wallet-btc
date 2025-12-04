@@ -69,6 +69,7 @@ export default class ElectrumWs extends ElectrumClient {
       }
 
       this._ws.onclose = () => {
+        // eslint-disable-next-line no-unused-vars
         for (const [_id, { reject }] of this._pending) {
           reject(new Error('WebSocket connection closed'))
         }

@@ -4,7 +4,7 @@ import { HOST, PORT, ELECTRUM_PORT, ZMQ_PORT, DATA_DIR } from './config.js'
 
 import { BitcoinCli, Waiter } from './helpers/index.js'
 
-import { WalletAccountReadOnlyBtc, ElectrumTcp } from '../index.js'
+import { WalletAccountReadOnlyBtc } from '../index.js'
 
 const ADDRESSES = {
   44: 'mfXn8RBVY9dNiggLAX8oFdjbYk8UNZi8La',
@@ -17,10 +17,9 @@ export const FEES = {
 }
 
 describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
-  const client = new ElectrumTcp(ELECTRUM_PORT, HOST)
-
   const CONFIGURATION = {
-    client,
+    host: HOST,
+    port: ELECTRUM_PORT,
     network: 'regtest',
     bip
   }
@@ -99,8 +98,7 @@ describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
       const tmpAddress = bip === 44
         ? bitcoin.call('getnewaddress "" legacy', { rawResult: true })
         : bitcoin.call('getnewaddress "" bech32', { rawResult: true })
-      const tmpClient = new ElectrumTcp(ELECTRUM_PORT, HOST)
-      const tmpAccount = new WalletAccountReadOnlyBtc(tmpAddress, { client: tmpClient, network: 'regtest', bip })
+      const tmpAccount = new WalletAccountReadOnlyBtc(tmpAddress, CONFIGURATION)
       const dustLimit = Number(tmpAccount._dustLimit)
 
       const vsizeOneOutput = TX_OVERHEAD_VBYTES + INPUT_VBYTES + OUTPUT_VBYTES
@@ -141,7 +139,7 @@ describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
       const expectedFee = FEES[bip] * BigInt(satsPerVByte)
       expect(fee).toBe(expectedFee)
     })
-
+    
     test('should successfully quote a transaction (bigint)', async () => {
       const TRANSACTION = { to: recipient, value: 1_000n }
 
@@ -156,20 +154,20 @@ describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
       const TRANSACTION = { to: recipient, value: 1_000, feeRate: 10 }
 
       const { fee } = await account.quoteSendTransaction(TRANSACTION)
-
+      
       const expectedFee = FEES[bip] * BigInt(TRANSACTION.feeRate)
       expect(fee).toBe(expectedFee)
     })
-
+  
     test('should successfully quote a transaction with a fixed fee rate (bigint)', async () => {
       const TRANSACTION = { to: recipient, value: 1000, feeRate: 10n }
 
       const { fee } = await account.quoteSendTransaction(TRANSACTION)
-
+      
       const expectedFee = FEES[bip] * TRANSACTION.feeRate
       expect(fee).toBe(expectedFee)
     })
-
+    
     test('should successfully quote a transaction with confirmation target', async () => {
       const TRANSACTION = { to: recipient, value: 1000, cofnirmationTarget: 5 }
 

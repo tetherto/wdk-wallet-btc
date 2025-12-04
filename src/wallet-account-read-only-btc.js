@@ -22,8 +22,11 @@ import * as ecc from '@bitcoinerlab/secp256k1'
 
 import { address as btcAddress, crypto, networks, Transaction } from 'bitcoinjs-lib'
 
-import ElectrumClient from './transports/client/base-client.js'
+// eslint-disable-next-line no-unused-vars
+import BaseClient from './transports/client/base-client.js'
 import ElectrumTcp from './transports/tcp.js'
+import ElectrumTls from './transports/tls.js'
+import ElectrumSsl from './transports/ssl.js'
 
 /** @typedef {import('@bitcoinerlab/coinselect').OutputWithValue} OutputWithValue */
 /** @typedef {import('bitcoinjs-lib').Network} Network */
@@ -43,7 +46,10 @@ import ElectrumTcp from './transports/tcp.js'
 
 /**
  * @typedef {Object} BtcWalletConfig
- * @property {ElectrumClient} [client] - Electrum client instance (default: ElectrumTcp to electrum.blockstream.info:50001).
+ * @property {BaseClient} [client] - Electrum client instance. If provided, host/port/protocol are ignored.
+ * @property {string} [host] - The electrum server's hostname (default: "electrum.blockstream.info"). Ignored if client is provided.
+ * @property {number} [port] - The electrum server's port (default: 50001). Ignored if client is provided.
+ * @property {"tcp" | "tls" | "ssl"} [protocol] - The transport protocol to use (default: "tcp"). Ignored if client is provided.
  * @property {"bitcoin" | "regtest" | "testnet"} [network] - The name of the network to use (default: "bitcoin").
  * @property {44 | 84} [bip] - The BIP address type used for key and address derivation.
  *   - 44: [BIP-44 (P2PKH / legacy)](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)
@@ -107,9 +113,9 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * An electrum client to interact with the bitcoin node.
      *
      * @protected
-     * @type {ElectrumClient}
+     * @type {BaseClient}
      */
-    this._electrumClient = config.client ?? new ElectrumTcp(50_001, 'electrum.blockstream.info')
+    this._electrumClient = config.client ?? this._createClient(config)
 
     const prefix = Object.keys(BIP_BY_ADDRESS_PREFIX).find(p => address.startsWith(p))
     const bip = BIP_BY_ADDRESS_PREFIX[prefix] || 44
@@ -296,6 +302,32 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
   /** @private */
   _toBigInt (v) { return typeof v === 'bigint' ? v : BigInt(Math.round(Number(v))) }
+
+  /**
+   * Creates a default Electrum client based on legacy config options.
+   *
+   * @private
+   * @param {Object} config - The configuration object.
+   * @param {string} [config.host] - The electrum server's hostname.
+   * @param {number} [config.port] - The electrum server's port.
+   * @param {"tcp" | "tls" | "ssl"} [config.protocol] - The transport protocol.
+   * @returns {BaseClient} The created client.
+   */
+  _createClient (config) {
+    const port = config.port || 50_001
+    const host = config.host || 'electrum.blockstream.info'
+    const protocol = config.protocol || 'tcp'
+
+    switch (protocol) {
+      case 'tls':
+        return new ElectrumTls(port, host)
+      case 'ssl':
+        return new ElectrumSsl(port, host)
+      case 'tcp':
+      default:
+        return new ElectrumTcp(port, host)
+    }
+  }
 
   /**
    * Builds and returns a fee-aware funding plan for sending a transaction.

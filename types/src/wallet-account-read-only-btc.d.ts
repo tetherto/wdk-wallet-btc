@@ -24,9 +24,9 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * An electrum client to interact with the bitcoin node.
      *
      * @protected
-     * @type {ElectrumClient}
+     * @type {BaseClient}
      */
-    protected _electrumClient: ElectrumClient;
+    protected _electrumClient: BaseClient;
     /**
      * The dust limit in satoshis based on the BIP type.
      *
@@ -70,6 +70,17 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     protected _getScriptHash(): Promise<string>;
     /** @private */
     private _toBigInt;
+    /**
+     * Creates a default Electrum client based on legacy config options.
+     *
+     * @private
+     * @param {Object} config - The configuration object.
+     * @param {string} [config.host] - The electrum server's hostname.
+     * @param {number} [config.port] - The electrum server's port.
+     * @param {"tcp" | "tls" | "ssl"} [config.protocol] - The transport protocol.
+     * @returns {BaseClient} The created client.
+     */
+    private _createClient;
     /**
      * Builds and returns a fee-aware funding plan for sending a transaction.
      *
@@ -121,9 +132,21 @@ export type BtcTransaction = {
 };
 export type BtcWalletConfig = {
     /**
-     * - Electrum client instance (default: ElectrumTcp to electrum.blockstream.info:50001).
+     * - Electrum client instance. If provided, host/port/protocol are ignored.
      */
-    client?: ElectrumClient;
+    client?: BaseClient;
+    /**
+     * - The electrum server's hostname (default: "electrum.blockstream.info"). Ignored if client is provided.
+     */
+    host?: string;
+    /**
+     * - The electrum server's port (default: 50001). Ignored if client is provided.
+     */
+    port?: number;
+    /**
+     * - The transport protocol to use (default: "tcp"). Ignored if client is provided.
+     */
+    protocol?: "tcp" | "tls" | "ssl";
     /**
      * - The name of the network to use (default: "bitcoin").
      */
@@ -151,4 +174,4 @@ export type BtcMaxSpendableResult = {
     changeValue: bigint;
 };
 import { WalletAccountReadOnly } from '@tetherto/wdk-wallet';
-import ElectrumClient from './transports/client/base-client.js';
+import BaseClient from './transports/client/base-client.js';

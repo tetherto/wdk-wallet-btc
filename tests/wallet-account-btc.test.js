@@ -6,7 +6,7 @@ import { HOST, PORT, ELECTRUM_PORT, ZMQ_PORT, DATA_DIR } from './config.js'
 
 import { BitcoinCli, Waiter } from './helpers/index.js'
 
-import { WalletAccountBtc, WalletAccountReadOnlyBtc, ElectrumTcp } from '../index.js'
+import { WalletAccountBtc, WalletAccountReadOnlyBtc } from '../index.js'
 
 const SEED_PHRASE = 'cook voyage document eight skate token alien guide drink uncle term abuse'
 
@@ -47,14 +47,13 @@ export const FEES = {
   84: 141n
 }
 
-const createConfig = (bip) => ({
-  client: new ElectrumTcp(ELECTRUM_PORT, HOST),
-  network: 'regtest',
-  bip
-})
-
 describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
-  const CONFIGURATION = createConfig(bip)
+  const CONFIGURATION = {
+    host: HOST,
+    port: ELECTRUM_PORT,
+    network: 'regtest',
+    bip
+  }
 
   const bitcoin = new BitcoinCli({
     host: HOST,
@@ -87,7 +86,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
 
   describe('constructor', () => {
     test('should successfully initialize an account for the given seed phrase and path', () => {
-      const account = new WalletAccountBtc(SEED_PHRASE, "0'/0/0", createConfig(bip))
+      const account = new WalletAccountBtc(SEED_PHRASE, "0'/0/0", CONFIGURATION)
 
       expect(account.index).toBe(ACCOUNTS[bip].index)
 
@@ -102,7 +101,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     })
 
     test('should successfully initialize an account for the given seed and path', () => {
-      const account = new WalletAccountBtc(SEED, "0'/0/0", createConfig(bip))
+      const account = new WalletAccountBtc(SEED, "0'/0/0", CONFIGURATION)
 
       expect(account.index).toBe(ACCOUNTS[bip].index)
 
@@ -117,17 +116,17 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     })
 
     test('should throw if the seed phrase is invalid', () => {
-      expect(() => new WalletAccountBtc(INVALID_SEED_PHRASE, "0'/0/0", createConfig(bip)))
+      expect(() => new WalletAccountBtc(INVALID_SEED_PHRASE, "0'/0/0", CONFIGURATION))
         .toThrow('The seed phrase is invalid.')
     })
 
     test('should throw if the path is invalid', () => {
-      expect(() => new WalletAccountBtc(SEED_PHRASE, "a'/b/c", createConfig(bip)))
+      expect(() => new WalletAccountBtc(SEED_PHRASE, "a'/b/c", CONFIGURATION))
         .toThrow(/Expected BIP32Path/)
     })
 
     test('should throw for unsupported bip specifications', () => {
-      expect(() => new WalletAccountBtc(SEED_PHRASE, "0'/0/0", { client: new ElectrumTcp(ELECTRUM_PORT, HOST), bip: 1 }))
+      expect(() => new WalletAccountBtc(SEED_PHRASE, "0'/0/0", { bip: 1 }))
         .toThrow(/Invalid bip specification/)
     })
   })
@@ -261,7 +260,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     test('should create a change output when leftover > dust limit', async () => {
       const TRANSACTION = { to: recipient, value: 500_000 }
 
-      const account = new WalletAccountBtc(SEED_PHRASE, "0'/0/1", createConfig(bip))
+      const account = new WalletAccountBtc(SEED_PHRASE, "0'/0/1", CONFIGURATION)
       const address = await account.getAddress()
       bitcoin.sendToAddress(address, 0.02)
       await waiter.mine()
@@ -283,7 +282,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     })
 
     test('should collapse dust change into fee when leftover <= dust limit', async () => {
-      const account = new WalletAccountBtc(SEED_PHRASE, "0'/0/5", createConfig(bip))
+      const account = new WalletAccountBtc(SEED_PHRASE, "0'/0/5", CONFIGURATION)
       const address = await account.getAddress()
       bitcoin.sendToAddress(address, 0.001)
       await waiter.mine()
@@ -324,7 +323,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     })
 
     test('should throw if there an no utxos available', async () => {
-      const account = new WalletAccountBtc(SEED_PHRASE, "0'/0/2", createConfig(bip))
+      const account = new WalletAccountBtc(SEED_PHRASE, "0'/0/2", CONFIGURATION)
 
       await expect(account.sendTransaction({ to: recipient, value: 1_000 }))
         .rejects.toThrow('No unspent outputs available')
@@ -344,7 +343,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     test('should return the correct transaction receipt', async () => {
       const TRANSACTION = { to: recipient, value: 1_000 }
 
-      const account = new WalletAccountBtc(SEED_PHRASE, "0'/0/4", createConfig(bip))
+      const account = new WalletAccountBtc(SEED_PHRASE, "0'/0/4", CONFIGURATION)
       const address = await account.getAddress()
       bitcoin.sendToAddress(address, 0.01)
       await waiter.mine()
@@ -441,7 +440,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     }
 
     beforeAll(async () => {
-      account = new WalletAccountBtc(SEED_PHRASE, "0'/0/10", createConfig(bip))
+      account = new WalletAccountBtc(SEED_PHRASE, "0'/0/10", CONFIGURATION)
 
       for (let i = 0; i < 5; i++) {
         const transfer = i % 2 === 0
