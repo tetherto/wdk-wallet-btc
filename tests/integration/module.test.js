@@ -30,8 +30,8 @@ const ACCOUNT_0 = {
   index: 2,
   path: "0'/0/2",
   address: {
-    44: 'n41zFXeySRjqhTHLwxQmkQmqVfrrKA83kh',
-    84: 'bcrt1qezl9pqylaprcgcpppt0nh0zyurp370dzlkq5rn'
+    44: 'mkpULF63ogDJnCvHXpiV64VkjLFXSrs7n5',
+    84: 'bcrt1q8y0z8q7k4w3cjuwswszpsg2s6r3gur7rsv9w30'
   }
 }
 
@@ -39,8 +39,8 @@ const ACCOUNT_1 = {
   index: 3,
   path: "0'/0/3",
   address: {
-    44: 'mzRWmMrUQN74udmSbvdufDJ84j11hQe7Xt',
-    84: 'bcrt1qvp8uzs364v08j3njmm5mkh2ajm5x5ms0tg8j4x'
+    44: 'mqgYPCauaQ6s13kGRii3Vp9AHh1vn5Lwxt',
+    84: 'bcrt1qep74g0r6mu2euv92jt788urfdneaqetl08wwqv'
   }
 }
 
@@ -68,7 +68,7 @@ describe.each([44, 84])('@wdk/wallet-btc (BIP %i)', (bip) => {
 
   let wallet
 
-  beforeAll(async ()   => {
+  beforeAll(async () => {
     wallet = new WalletManagerBtc(SEED_PHRASE, CONFIGURATION)
 
     bitcoin.sendToAddress(ACCOUNT_0.address[bip], 1)
@@ -162,15 +162,15 @@ describe.each([44, 84])('@wdk/wallet-btc (BIP %i)', (bip) => {
 
     expect(tx1.direction).toBe('outgoing')
     expect(tx1.recipient).toBe(address1)
-    expect(tx1.value).toBe(1000)
+    expect(tx1.value).toBe(1000n)
 
     expect(tx2.direction).toBe('incoming')
     expect(tx2.address).toBe(address0)
-    expect(tx2.value).toBe(800)
+    expect(tx2.value).toBe(800n)
 
     expect(tx3.direction).toBe('outgoing')
     expect(tx3.recipient).toBe(address1)
-    expect(tx3.value).toBe(2000)
+    expect(tx3.value).toBe(2000n)
   })
 
   test('should get a max spendable amount that is actually spendable', async () => {
