@@ -13,11 +13,12 @@
 // limitations under the License.
 'use strict'
 
-import MempoolClient from '@mempool/electrum-client'
-import ElectrumClient from './electrum-client.js'
+import MempoolElectrumClient from '@mempool/electrum-client'
+
+import BaseClient from './base-client.js'
 
 /**
- * @typedef {Object} MempoolElectrumConfig
+ * @typedef {Object} MempoolClientConfig
  * @property {number} [timeout=15000] - Connection timeout in milliseconds.
  * @property {number} [maxRetry=2] - Maximum reconnection attempts.
  * @property {number} [retryPeriod=1000] - Delay between reconnection attempts in milliseconds.
@@ -28,16 +29,16 @@ import ElectrumClient from './electrum-client.js'
 /**
  * Electrum client using @mempool/electrum-client.
  *
- * @extends ElectrumClient
+ * @extends BaseClient
  */
-export default class MempoolElectrumClient extends ElectrumClient {
+export default class MempoolClient extends BaseClient {
   /**
    * Creates a new Mempool Electrum client.
    *
    * @param {number} port - The Electrum server port.
    * @param {string} host - The Electrum server hostname.
    * @param {'tcp' | 'ssl' | 'tls'} protocol - The transport protocol.
-   * @param {MempoolElectrumConfig} [config={}] - Configuration options.
+   * @param {MempoolClientConfig} [config={}] - Configuration options.
    */
   constructor (port, host, protocol, config = {}) {
     const { timeout = 15_000 } = config
@@ -53,9 +54,9 @@ export default class MempoolElectrumClient extends ElectrumClient {
 
     /**
      * @private
-     * @type {MempoolClient}
+     * @type {MempoolElectrumClient}
      */
-    this._client = new MempoolClient(port, host, protocol)
+    this._client = new MempoolElectrumClient(port, host, protocol)
 
     /**
      * @private

@@ -13,7 +13,7 @@
 // limitations under the License.
 'use strict'
 
-import ElectrumClient from './electrum-client.js'
+import ElectrumClient from './client/base-client.js'
 
 const WebSocket = globalThis.WebSocket ?? (await import('ws')).default
 

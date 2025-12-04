@@ -13,9 +13,9 @@
 // limitations under the License.
 'use strict'
 
-import MempoolElectrumClient from './mempool-electrum-client.js'
+import MempoolElectrumClient from './client/mempool-electrum-client.js'
 
-/** @typedef {import('./mempool-electrum-client.js').MempoolElectrumConfig} MempoolElectrumConfig */
+/** @typedef {import('./client/mempool-electrum-client.js').MempoolElectrumConfig} MempoolElectrumConfig */
 
 /**
  * Electrum client using TCP sockets.

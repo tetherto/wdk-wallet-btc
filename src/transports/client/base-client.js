@@ -15,6 +15,8 @@
 
 import { NotImplementedError } from '@tetherto/wdk-wallet'
 
+import IElectrumClient from './electrum-client.js'
+
 /**
  * Abstract base class for Electrum clients.
  *
@@ -22,14 +24,17 @@ import { NotImplementedError } from '@tetherto/wdk-wallet'
  * on the first RPC call.
  *
  * @abstract
+ * @extends IElectrumClient
  */
-export default class ElectrumClient {
+export default class BaseClient extends IElectrumClient {
   /**
-   * Creates a new ElectrumClient instance.
+   * Creates a new BaseClient instance.
    *
    * @param {number} [timeout=15000] - Connection timeout in milliseconds.
    */
   constructor (timeout = 15_000) {
+    super()
+
     /**
      * @protected
      * @type {number}
@@ -113,16 +118,6 @@ export default class ElectrumClient {
   }
 
   /**
-   * Recreates the underlying socket and reinitializes the session.
-   *
-   * @abstract
-   * @returns {Promise<void>}
-   */
-  reconnect () {
-    throw new NotImplementedError('reconnect()')
-  }
-
-  /**
    * Closes the connection.
    *
    * @returns {void}
@@ -130,65 +125,5 @@ export default class ElectrumClient {
   close () {
     this._close()
     this._ready = null
-  }
-
-  /**
-   * Returns the balance for a script hash.
-   *
-   * @param {string} scripthash - The script hash.
-   * @returns {Promise<{ confirmed: number }>} Confirmed balance in satoshis.
-   */
-  getBalance (scripthash) {
-    throw new NotImplementedError('getBalance(scripthash)')
-  }
-
-  /**
-   * Returns unspent transaction outputs for a script hash.
-   *
-   * @param {string} scripthash - The script hash.
-   * @returns {Promise<Array<{ tx_hash: string, tx_pos: number, value: number }>>} List of UTXOs.
-   */
-  listUnspent (scripthash) {
-    throw new NotImplementedError('listUnspent(scripthash)')
-  }
-
-  /**
-   * Returns transaction history for a script hash.
-   *
-   * @param {string} scripthash - The script hash.
-   * @returns {Promise<Array<{ tx_hash: string, height: number }>>} List of transactions.
-   */
-  getHistory (scripthash) {
-    throw new NotImplementedError('getHistory(scripthash)')
-  }
-
-  /**
-   * Returns a raw transaction.
-   *
-   * @param {string} txHash - The transaction hash.
-   * @returns {Promise<string>} Hex-encoded raw transaction.
-   */
-  getTransaction (txHash) {
-    throw new NotImplementedError('getTransaction(txHash)')
-  }
-
-  /**
-   * Broadcasts a raw transaction to the network.
-   *
-   * @param {string} rawTx - The raw transaction hex.
-   * @returns {Promise<string>} Transaction hash if successful.
-   */
-  broadcast (rawTx) {
-    throw new NotImplementedError('broadcast(rawTx)')
-  }
-
-  /**
-   * Returns the estimated fee rate.
-   *
-   * @param {number} blocks - The confirmation target in blocks.
-   * @returns {Promise<number>} Fee rate in BTC/kB.
-   */
-  estimateFee (blocks) {
-    throw new NotImplementedError('estimateFee(blocks)')
   }
 }

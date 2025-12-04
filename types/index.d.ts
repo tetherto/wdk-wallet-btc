@@ -1,6 +1,11 @@
 export { default } from "./src/wallet-manager-btc.js";
 export { default as WalletAccountReadOnlyBtc } from "./src/wallet-account-read-only-btc.js";
 export { default as WalletAccountBtc } from "./src/wallet-account-btc.js";
+export { default as BaseClient } from "./src/transports/client/base-client.js";
+export { default as ElectrumTcp } from "./src/transports/tcp.js";
+export { default as ElectrumSsl } from "./src/transports/ssl.js";
+export { default as ElectrumTls } from "./src/transports/tls.js";
+export { default as ElectrumWs } from "./src/transports/ws.js";
 export type BtcTransactionReceipt = import("bitcoinjs-lib").Transaction;
 export type FeeRates = import("@tetherto/wdk-wallet").FeeRates;
 export type KeyPair = import("@tetherto/wdk-wallet").KeyPair;

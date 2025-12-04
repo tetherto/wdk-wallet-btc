@@ -22,7 +22,7 @@ import * as ecc from '@bitcoinerlab/secp256k1'
 
 import { address as btcAddress, crypto, networks, Transaction } from 'bitcoinjs-lib'
 
-import ElectrumClient from './transports/electrum-client.js'
+import ElectrumClient from './transports/client/base-client.js'
 import ElectrumTcp from './transports/tcp.js'
 
 /** @typedef {import('@bitcoinerlab/coinselect').OutputWithValue} OutputWithValue */

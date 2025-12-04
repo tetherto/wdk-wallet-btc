@@ -30,7 +30,7 @@ export { default as WalletAccountReadOnlyBtc } from './src/wallet-account-read-o
 
 export { default as WalletAccountBtc } from './src/wallet-account-btc.js'
 
-export { default as ElectrumClient } from './src/transports/electrum-client.js'
+export { default as BaseClient } from './src/transports/client/base-client.js'
 
 export { default as ElectrumTcp } from './src/transports/tcp.js'
 

@@ -121,21 +121,13 @@ export type BtcTransaction = {
 };
 export type BtcWalletConfig = {
     /**
-     * - The electrum server's hostname (default: "electrum.blockstream.info").
+     * - Electrum client instance (default: ElectrumTcp to electrum.blockstream.info:50001).
      */
-    host?: string;
+    client?: ElectrumClient;
     /**
-     * - The electrum server's port (default: 50001).
-     */
-    port?: number;
-    /**
-     * The name of the network to use (default: "bitcoin").
+     * - The name of the network to use (default: "bitcoin").
      */
     network?: "bitcoin" | "regtest" | "testnet";
-    /**
-     * - The transport protocol to use (default: "tcp").
-     */
-    protocol?: "tcp" | "tls" | "ssl";
     /**
      * - The BIP address type used for key and address derivation.
      * - 44: [BIP-44 (P2PKH / legacy)](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)
@@ -159,4 +151,4 @@ export type BtcMaxSpendableResult = {
     changeValue: bigint;
 };
 import { WalletAccountReadOnly } from '@tetherto/wdk-wallet';
-import ElectrumClient from './electrum-client.js';
+import ElectrumClient from './transports/client/base-client.js';
