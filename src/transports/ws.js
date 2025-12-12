@@ -74,10 +74,10 @@ export default class ElectrumWs extends ElectrumClient {
         resolve()
       }
 
-this._ws.onerror = (event) => {
-  const message = event.message || event.error?.message || 'WebSocket connection failed'
-  reject(new Error(message))
-}
+      this._ws.onerror = (event) => {
+        const message = event.message || event.error?.message || 'WebSocket connection failed'
+        reject(new Error(message))
+      }
 
       this._ws.onclose = () => {
         // eslint-disable-next-line no-unused-vars
