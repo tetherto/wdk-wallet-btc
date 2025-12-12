@@ -24,9 +24,9 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * An electrum client to interact with the bitcoin node.
      *
      * @protected
-     * @type {ElectrumClient}
+     * @type {BaseClient}
      */
-    protected _electrumClient: ElectrumClient;
+    protected _electrumClient: BaseClient;
     /**
      * The dust limit in satoshis based on the BIP type.
      *
@@ -35,12 +35,32 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      */
     private _dustLimit;
     /**
+     * Returns the account's bitcoin balance.
+     *
+     * @returns {Promise<bigint>} The bitcoin balance (in satoshis).
+     */
+    getBalance(): Promise<bigint>;
+    /**
+     * Returns the account balance for a specific token.
+     *
+     * @param {string} tokenAddress - The smart contract address of the token.
+     * @returns {Promise<bigint>} The token balance (in base unit).
+     */
+    getTokenBalance(tokenAddress: string): Promise<bigint>;
+    /**
      * Quotes the costs of a send transaction operation.
      *
      * @param {BtcTransaction} tx - The transaction.
      * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transaction's quotes.
      */
     quoteSendTransaction({ to, value, feeRate, confirmationTarget }: BtcTransaction): Promise<Omit<TransactionResult, "hash">>;
+    /**
+     * Quotes the costs of a transfer operation.
+     *
+     * @param {TransferOptions} options - The transfer's options.
+     * @returns {Promise<Omit<TransferResult, 'hash'>>} The transfer's quotes.
+     */
+    quoteTransfer(options: TransferOptions): Promise<Omit<TransferResult, "hash">>;
     /**
      * Returns a transaction's receipt.
      *
@@ -70,6 +90,17 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     protected _getScriptHash(): Promise<string>;
     /** @private */
     private _toBigInt;
+    /**
+     * Creates a default Electrum client based on legacy config options.
+     *
+     * @private
+     * @param {Object} config - The configuration object.
+     * @param {string} [config.host] - The electrum server's hostname.
+     * @param {number} [config.port] - The electrum server's port.
+     * @param {"tcp" | "tls" | "ssl"} [config.protocol] - The transport protocol.
+     * @returns {BaseClient} The created client.
+     */
+    private _createClient;
     /**
      * Builds and returns a fee-aware funding plan for sending a transaction.
      *
@@ -121,21 +152,25 @@ export type BtcTransaction = {
 };
 export type BtcWalletConfig = {
     /**
-     * - The electrum server's hostname (default: "electrum.blockstream.info").
+     * - Electrum client instance. If provided, host/port/protocol are ignored.
+     */
+    client?: BaseClient;
+    /**
+     * - The electrum server's hostname (default: "electrum.blockstream.info"). Ignored if client is provided.
      */
     host?: string;
     /**
-     * - The electrum server's port (default: 50001).
+     * - The electrum server's port (default: 50001). Ignored if client is provided.
      */
     port?: number;
     /**
-     * The name of the network to use (default: "bitcoin").
-     */
-    network?: "bitcoin" | "regtest" | "testnet";
-    /**
-     * - The transport protocol to use (default: "tcp").
+     * - The transport protocol to use (default: "tcp"). Ignored if client is provided.
      */
     protocol?: "tcp" | "tls" | "ssl";
+    /**
+     * - The name of the network to use (default: "bitcoin").
+     */
+    network?: "bitcoin" | "regtest" | "testnet";
     /**
      * - The BIP address type used for key and address derivation.
      * - 44: [BIP-44 (P2PKH / legacy)](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)
@@ -159,4 +194,4 @@ export type BtcMaxSpendableResult = {
     changeValue: bigint;
 };
 import { WalletAccountReadOnly } from '@tetherto/wdk-wallet';
-import ElectrumClient from './electrum-client.js';
+import BaseClient from './transports/client/base-client.js';
