@@ -1,5 +1,5 @@
 /**
- * @typedef {Object} MempoolClientConfig
+ * @typedef {Object} MempoolElectrumConfig
  * @property {number} [timeout=15000] - Connection timeout in milliseconds.
  * @property {number} [maxRetry=2] - Maximum reconnection attempts.
  * @property {number} [retryPeriod=1000] - Delay between reconnection attempts in milliseconds.
@@ -18,9 +18,9 @@ export default class MempoolClient extends BaseClient {
      * @param {number} port - The Electrum server port.
      * @param {string} host - The Electrum server hostname.
      * @param {'tcp' | 'ssl' | 'tls'} protocol - The transport protocol.
-     * @param {MempoolClientConfig} [config={}] - Configuration options.
+     * @param {MempoolElectrumConfig} [config={}] - Configuration options.
      */
-    constructor(port: number, host: string, protocol: "tcp" | "ssl" | "tls", config?: MempoolClientConfig);
+    constructor(port: number, host: string, protocol: "tcp" | "ssl" | "tls", config?: MempoolElectrumConfig);
     /**
      * @private
      * @type {MempoolElectrumClient}
@@ -43,7 +43,7 @@ export default class MempoolClient extends BaseClient {
     broadcast(rawTx: any): any;
     estimateFee(blocks: any): any;
 }
-export type MempoolClientConfig = {
+export type MempoolElectrumConfig = {
     /**
      * - Connection timeout in milliseconds.
      */

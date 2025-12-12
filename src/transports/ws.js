@@ -15,7 +15,17 @@
 
 import ElectrumClient from './client/base-client.js'
 
-const WebSocket = globalThis.WebSocket ?? (await import('ws')).default
+const isNode =
+  typeof process !== 'undefined' &&
+  !!(process.versions && process.versions.node)
+
+const WS_SPEC = 'ws'
+const WebSocket =
+  globalThis.WebSocket ??
+  (isNode ? (await import(/* @vite-ignore */ WS_SPEC)).default : undefined)
+if (!WebSocket) {
+  throw new Error('No WebSocket implementation available in this environment.')
+}
 
 /**
  * @typedef {Object} ElectrumWsConfig

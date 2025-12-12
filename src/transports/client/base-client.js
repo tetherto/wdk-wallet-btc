@@ -83,8 +83,11 @@ export default class BaseClient extends IElectrumClient {
     const connectPromise = this._connect()
 
     const timeoutPromise = new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('Electrum client connection timed out.')), this._timeout)
-      timer.unref()
+      const timer = setTimeout(
+        () => reject(new Error('Electrum client connection timed out.')),
+        this._timeout
+      )
+      if (typeof timer?.unref === 'function') timer.unref()
     })
 
     this._ready = Promise.race([connectPromise, timeoutPromise]).catch(error => {
