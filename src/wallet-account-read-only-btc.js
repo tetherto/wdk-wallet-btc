@@ -226,7 +226,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
   async getMaxSpendable () {
     const fromAddress = await this.getAddress()
     const feeRateRaw = await this._electrumClient.estimateFee(1)
-    const feeRate = Math.max(Number(feeRateRaw) * 100_000, 1)
+    const feeRate = Math.max(Math.round(Number(feeRateRaw) * 100_000), 1)
 
     const scriptHash = await this._getScriptHash()
     const unspent = await this._electrumClient.listUnspent(scriptHash)
