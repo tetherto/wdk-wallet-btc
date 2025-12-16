@@ -22,11 +22,13 @@ import * as ecc from '@bitcoinerlab/secp256k1'
 
 import { address as btcAddress, crypto, networks, Transaction } from 'bitcoinjs-lib'
 
-// eslint-disable-next-line no-unused-vars
-import BaseClient from './transports/client/base-client.js'
 import ElectrumTcp from './transports/tcp.js'
 import ElectrumTls from './transports/tls.js'
 import ElectrumSsl from './transports/ssl.js'
+
+/** @typedef {import('./transports/mempool-electrum-client.js').MempoolElectrumConfig} MempoolElectrumConfig */
+/** @typedef {import('./transports/mempool-electrum-client.js').default} MempoolElectrumClient */
+/** @typedef {import('./transports/electrum-client.js').default} ElectrumClient */
 
 /** @typedef {import('@bitcoinerlab/coinselect').OutputWithValue} OutputWithValue */
 /** @typedef {import('bitcoinjs-lib').Network} Network */
@@ -46,7 +48,7 @@ import ElectrumSsl from './transports/ssl.js'
 
 /**
  * @typedef {Object} BtcWalletConfig
- * @property {BaseClient} [client] - Electrum client instance. If provided, host/port/protocol are ignored.
+ * @property {MempoolElectrumClient} [client] - Electrum client instance. If provided, host/port/protocol are ignored.
  * @property {string} [host] - The electrum server's hostname (default: "electrum.blockstream.info"). Ignored if client is provided.
  * @property {number} [port] - The electrum server's port (default: 50001). Ignored if client is provided.
  * @property {"tcp" | "tls" | "ssl"} [protocol] - The transport protocol to use (default: "tcp"). Ignored if client is provided.
@@ -109,13 +111,15 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      */
     this._network = networks[this._config.network] || networks.bitcoin
 
+    const { host, port, protocol } = config
+
     /**
      * An electrum client to interact with the bitcoin node.
      *
      * @protected
-     * @type {BaseClient}
+     * @type {ElectrumClient}
      */
-    this._electrumClient = config.client ?? this._createClient(config)
+    this._electrumClient = config.client ?? this._createClient({ host, port, protocol })
 
     const prefix = Object.keys(BIP_BY_ADDRESS_PREFIX).find(p => address.startsWith(p))
     const bip = BIP_BY_ADDRESS_PREFIX[prefix] || 44
@@ -304,28 +308,29 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
   _toBigInt (v) { return typeof v === 'bigint' ? v : BigInt(Math.round(Number(v))) }
 
   /**
-   * Creates a default Electrum client based on legacy config options.
+   * Creates a default Electrum client based on config options.
    *
    * @private
-   * @param {Object} config - The configuration object.
-   * @param {string} [config.host] - The electrum server's hostname.
-   * @param {number} [config.port] - The electrum server's port.
-   * @param {"tcp" | "tls" | "ssl"} [config.protocol] - The transport protocol.
-   * @returns {BaseClient} The created client.
+   * @param {MempoolElectrumConfig} config - The configuration object.
+   * @returns {MempoolElectrumClient} The created client.
    */
   _createClient (config) {
-    const port = config.port || 50_001
-    const host = config.host || 'electrum.blockstream.info'
     const protocol = config.protocol || 'tcp'
+
+    const transportConfig = {
+      ...config,
+      host: config.host || 'electrum.blockstream.info',
+      port: config.port || 50_001
+    }
 
     switch (protocol) {
       case 'tls':
-        return new ElectrumTls(port, host)
+        return new ElectrumTls(transportConfig)
       case 'ssl':
-        return new ElectrumSsl(port, host)
+        return new ElectrumSsl(transportConfig)
       case 'tcp':
       default:
-        return new ElectrumTcp(port, host)
+        return new ElectrumTcp(transportConfig)
     }
   }
 

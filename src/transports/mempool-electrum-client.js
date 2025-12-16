@@ -13,50 +13,52 @@
 // limitations under the License.
 'use strict'
 
-import MempoolElectrumClient from '@mempool/electrum-client'
+import MempoolClient from '@mempool/electrum-client'
 
-import BaseClient from './base-client.js'
+import ElectrumClient from './electrum-client.js'
 
 /**
  * @typedef {Object} MempoolElectrumConfig
- * @property {number} [timeout=15000] - Connection timeout in milliseconds.
- * @property {number} [maxRetry=2] - Maximum reconnection attempts.
- * @property {number} [retryPeriod=1000] - Delay between reconnection attempts in milliseconds.
- * @property {number} [pingPeriod=120000] - Delay between keep-alive pings in milliseconds.
+ * @property {string} host - The Electrum server hostname.
+ * @property {number} port - The Electrum server port.
+ * @property {'tcp' | 'ssl' | 'tls'} [protocol] - The transport protocol (default: 'tcp').
+ * @property {number} [timeout] - Connection timeout in milliseconds (default: 15000).
+ * @property {number} [maxRetry] - Maximum reconnection attempts (default: 2).
+ * @property {number} [retryPeriod] - Delay between reconnection attempts in milliseconds (default: 1000).
+ * @property {number} [pingPeriod] - Delay between keep-alive pings in milliseconds (default: 120000).
  * @property {(err: Error | null) => void} [callback] - Called when all retries are exhausted.
  */
 
 /**
  * Electrum client using @mempool/electrum-client.
  *
- * @extends BaseClient
+ * @extends ElectrumClient
  */
-export default class MempoolClient extends BaseClient {
+export default class MempoolElectrumClient extends ElectrumClient {
   /**
    * Creates a new Mempool Electrum client.
    *
-   * @param {number} port - The Electrum server port.
-   * @param {string} host - The Electrum server hostname.
-   * @param {'tcp' | 'ssl' | 'tls'} protocol - The transport protocol.
-   * @param {MempoolElectrumConfig} [config={}] - Configuration options.
+   * @param {MempoolElectrumConfig} config - Configuration options.
    */
-  constructor (port, host, protocol, config = {}) {
-    const { timeout = 15_000 } = config
-
-    super(timeout)
-
+  constructor (config) {
     const {
+      host,
+      port,
+      protocol = 'tcp',
       maxRetry = 2,
       retryPeriod = 1_000,
       pingPeriod = 120_000,
-      callback = null
+      callback = null,
+      ...baseConfig
     } = config
+
+    super(baseConfig)
 
     /**
      * @private
-     * @type {MempoolElectrumClient}
+     * @type {MempoolClient}
      */
-    this._client = new MempoolElectrumClient(port, host, protocol)
+    this._client = new MempoolClient(port, host, protocol)
 
     /**
      * @private
@@ -74,17 +76,16 @@ export default class MempoolClient extends BaseClient {
     this._persistencePolicy = { maxRetry, retryPeriod, pingPeriod, callback }
   }
 
-  /** @protected */
-  async _connect () {
+  async connect () {
     await this._client.initElectrum(this._electrumConfig, this._persistencePolicy)
   }
 
   /** @protected */
-  _close () {
+  async _close () {
     this._client.close()
   }
 
-  reconnect () {
+  async reconnect () {
     this._client.initSocket()
 
     const initElectrum = this._client.initElectrum(this._electrumConfig, this._persistencePolicy)
@@ -96,28 +97,28 @@ export default class MempoolClient extends BaseClient {
 
     return this._ready
   }
-
-  getBalance (scripthash) {
+  
+  async getBalance (scripthash) {
     return this._client.blockchainScripthash_getBalance(scripthash)
   }
 
-  listUnspent (scripthash) {
+  async listUnspent (scripthash) {
     return this._client.blockchainScripthash_listunspent(scripthash)
   }
 
-  getHistory (scripthash) {
+  async getHistory (scripthash) {
     return this._client.blockchainScripthash_getHistory(scripthash)
   }
 
-  getTransaction (txHash) {
+  async getTransaction (txHash) {
     return this._client.blockchainTransaction_get(txHash)
   }
 
-  broadcast (rawTx) {
+  async broadcast (rawTx) {
     return this._client.blockchainTransaction_broadcast(rawTx)
   }
 
-  estimateFee (blocks) {
+  async estimateFee (blocks) {
     return this._client.blockchainEstimatefee(blocks)
   }
 }

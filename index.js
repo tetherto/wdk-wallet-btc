@@ -23,6 +23,14 @@
 
 /** @typedef {import('./src/wallet-account-read-only-btc.js').BtcTransaction} BtcTransaction */
 /** @typedef {import('./src/wallet-account-read-only-btc.js').BtcWalletConfig} BtcWalletConfig */
+/** @typedef {import('./src/wallet-account-read-only-btc.js').BtcMaxSpendableResult} BtcMaxSpendableResult */
+/** @typedef {import('./src/wallet-account-btc.js').BtcTransfer} BtcTransfer */
+
+/** @typedef {import('./src/transports/electrum-client.js').ElectrumClientConfig} ElectrumClientConfig */
+/** @typedef {import('./src/transports/electrum-client.js').ElectrumBalance} ElectrumBalance */
+/** @typedef {import('./src/transports/electrum-client.js').ElectrumUtxo} ElectrumUtxo */
+/** @typedef {import('./src/transports/electrum-client.js').ElectrumHistoryItem} ElectrumHistoryItem */
+/** @typedef {import('./src/transports/mempool-electrum-client.js').MempoolElectrumConfig} MempoolElectrumConfig */
 
 export { default } from './src/wallet-manager-btc.js'
 
@@ -30,14 +38,4 @@ export { default as WalletAccountReadOnlyBtc } from './src/wallet-account-read-o
 
 export { default as WalletAccountBtc } from './src/wallet-account-btc.js'
 
-export { default as IElectrumClient } from './src/transports/client/electrum-client.js'
-
-export { default as BaseClient } from './src/transports/client/base-client.js'
-
-export { default as ElectrumTcp } from './src/transports/tcp.js'
-
-export { default as ElectrumSsl } from './src/transports/ssl.js'
-
-export { default as ElectrumTls } from './src/transports/tls.js'
-
-export { default as ElectrumWs } from './src/transports/ws.js'
+export { IElectrumClient, ElectrumClient, MempoolElectrumClient, ElectrumTcp, ElectrumSsl, ElectrumTls, ElectrumWs } from './src/transports/index.js'

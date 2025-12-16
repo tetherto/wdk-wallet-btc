@@ -1,4 +1,4 @@
-/** @typedef {import('./client/mempool-electrum-client.js').MempoolElectrumConfig} MempoolElectrumConfig */
+/** @typedef {import('./mempool-electrum-client.js').MempoolElectrumConfig} MempoolElectrumConfig */
 /**
  * Electrum client using SSL sockets.
  *
@@ -8,11 +8,9 @@ export default class ElectrumSsl extends MempoolElectrumClient {
     /**
      * Creates a new SSL Electrum client.
      *
-     * @param {number} port - The Electrum server port.
-     * @param {string} host - The Electrum server hostname.
-     * @param {MempoolElectrumConfig} [config={}] - Configuration options.
+     * @param {Omit<MempoolElectrumConfig, 'protocol'>} config - Configuration options.
      */
-    constructor(port: number, host: string, config?: MempoolElectrumConfig);
+    constructor(config: Omit<MempoolElectrumConfig, "protocol">);
 }
-export type MempoolElectrumConfig = import("./client/mempool-electrum-client.js").MempoolElectrumConfig;
-import MempoolElectrumClient from './client/mempool-electrum-client.js';
+export type MempoolElectrumConfig = import("./mempool-electrum-client.js").MempoolElectrumConfig;
+import MempoolElectrumClient from './mempool-electrum-client.js';

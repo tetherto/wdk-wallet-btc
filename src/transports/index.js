@@ -13,22 +13,16 @@
 // limitations under the License.
 'use strict'
 
-import MempoolElectrumClient from './mempool-electrum-client.js'
-
+/** @typedef {import('./electrum-client.js').ElectrumClientConfig} ElectrumClientConfig */
+/** @typedef {import('./electrum-client.js').ElectrumBalance} ElectrumBalance */
+/** @typedef {import('./electrum-client.js').ElectrumUtxo} ElectrumUtxo */
+/** @typedef {import('./electrum-client.js').ElectrumHistoryItem} ElectrumHistoryItem */
 /** @typedef {import('./mempool-electrum-client.js').MempoolElectrumConfig} MempoolElectrumConfig */
 
-/**
- * Electrum client using TLS sockets.
- *
- * @extends MempoolElectrumClient
- */
-export default class ElectrumTls extends MempoolElectrumClient {
-  /**
-   * Creates a new TLS Electrum client.
-   *
-   * @param {Omit<MempoolElectrumConfig, 'protocol'>} config - Configuration options.
-   */
-  constructor (config) {
-    super({ ...config, protocol: 'tls' })
-  }
-}
+export { IElectrumClient, default as ElectrumClient } from './electrum-client.js'
+export { default as MempoolElectrumClient } from './mempool-electrum-client.js'
+
+export { default as ElectrumTcp } from './tcp.js'
+export { default as ElectrumTls } from './tls.js'
+export { default as ElectrumSsl } from './ssl.js'
+export { default as ElectrumWs } from './ws.js'

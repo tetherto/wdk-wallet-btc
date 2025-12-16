@@ -1,8 +1,4 @@
 /**
- * @typedef {Object} ElectrumWsConfig
- * @property {number} [timeout=15000] - Connection timeout in milliseconds.
- */
-/**
  * Electrum client using WebSocket transport.
  *
  * Compatible with browser environments where TCP sockets are not available.
@@ -14,10 +10,9 @@ export default class ElectrumWs extends ElectrumClient {
     /**
      * Creates a new WebSocket Electrum client.
      *
-     * @param {string} url - The WebSocket URL (e.g., 'wss://electrum.example.com:50004').
-     * @param {ElectrumWsConfig} [config={}] - Configuration options.
+     * @param {ElectrumWsConfig} config - Configuration options.
      */
-    constructor(url: string, config?: ElectrumWsConfig);
+    constructor(config: ElectrumWsConfig);
     /** @private */
     private _url;
     /** @private */
@@ -26,8 +21,7 @@ export default class ElectrumWs extends ElectrumClient {
     private _requestId;
     /** @private */
     private _pending;
-    /** @protected */
-    protected _connect(): Promise<any>;
+    connect(): Promise<any>;
     /** @private */
     private _handleMessage;
     /** @private */
@@ -43,8 +37,12 @@ export default class ElectrumWs extends ElectrumClient {
 }
 export type ElectrumWsConfig = {
     /**
-     * - Connection timeout in milliseconds.
+     * - The WebSocket URL (e.g., 'wss://electrum.example.com:50004').
+     */
+    url: string;
+    /**
+     * - Connection timeout in milliseconds (default: 15_000).
      */
     timeout?: number;
 };
-import ElectrumClient from './client/base-client.js';
+import ElectrumClient from './electrum-client.js';

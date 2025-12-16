@@ -13,7 +13,13 @@
 // limitations under the License.
 'use strict'
 
-import ElectrumClient from './client/base-client.js'
+import ElectrumClient from './electrum-client.js'
+
+/**
+ * @typedef {Object} ElectrumWsConfig
+ * @property {string} url - The WebSocket URL (e.g., 'wss://electrum.example.com:50004').
+ * @property {number} [timeout] - Connection timeout in milliseconds (default: 15_000).
+ */
 
 const isNode =
   typeof process !== 'undefined' &&
@@ -28,11 +34,6 @@ if (!WebSocket) {
 }
 
 /**
- * @typedef {Object} ElectrumWsConfig
- * @property {number} [timeout=15000] - Connection timeout in milliseconds.
- */
-
-/**
  * Electrum client using WebSocket transport.
  *
  * Compatible with browser environments where TCP sockets are not available.
@@ -44,13 +45,12 @@ export default class ElectrumWs extends ElectrumClient {
   /**
    * Creates a new WebSocket Electrum client.
    *
-   * @param {string} url - The WebSocket URL (e.g., 'wss://electrum.example.com:50004').
-   * @param {ElectrumWsConfig} [config={}] - Configuration options.
+   * @param {ElectrumWsConfig} config - Configuration options.
    */
-  constructor (url, config = {}) {
-    const { timeout = 15_000 } = config
+  constructor (config) {
+    const { url, ...baseConfig } = config
 
-    super(timeout)
+    super(baseConfig)
 
     /** @private */
     this._url = url
@@ -65,8 +65,7 @@ export default class ElectrumWs extends ElectrumClient {
     this._pending = new Map()
   }
 
-  /** @protected */
-  async _connect () {
+  async connect () {
     return new Promise((resolve, reject) => {
       this._ws = new WebSocket(this._url)
 
@@ -139,7 +138,7 @@ export default class ElectrumWs extends ElectrumClient {
   }
 
   /** @private */
-  _request (method, params) {
+  async _request (method, params) {
     if (!this._ws || this._ws.readyState !== WebSocket.OPEN) {
       throw new Error('WebSocket is not connected')
     }
@@ -160,7 +159,7 @@ export default class ElectrumWs extends ElectrumClient {
   }
 
   /** @protected */
-  _close () {
+  async _close () {
     if (this._ws) {
       this._ws.close()
       this._ws = null
@@ -168,33 +167,33 @@ export default class ElectrumWs extends ElectrumClient {
     this._pending.clear()
   }
 
-  reconnect () {
-    this._close()
+  async reconnect () {
+    await this._close()
     this._ready = null
     return this._ensure()
   }
 
-  getBalance (scripthash) {
+  async getBalance (scripthash) {
     return this._request('blockchain.scripthash.get_balance', [scripthash])
   }
 
-  listUnspent (scripthash) {
+  async listUnspent (scripthash) {
     return this._request('blockchain.scripthash.listunspent', [scripthash])
   }
 
-  getHistory (scripthash) {
+  async getHistory (scripthash) {
     return this._request('blockchain.scripthash.get_history', [scripthash])
   }
 
-  getTransaction (txHash) {
+  async getTransaction (txHash) {
     return this._request('blockchain.transaction.get', [txHash, false])
   }
 
-  broadcast (rawTx) {
+  async broadcast (rawTx) {
     return this._request('blockchain.transaction.broadcast', [rawTx])
   }
 
-  estimateFee (blocks) {
+  async estimateFee (blocks) {
     return this._request('blockchain.estimatefee', [blocks])
   }
 }
