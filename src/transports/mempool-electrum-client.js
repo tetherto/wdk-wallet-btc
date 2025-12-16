@@ -97,7 +97,7 @@ export default class MempoolElectrumClient extends ElectrumClient {
 
     return this._ready
   }
-  
+
   async getBalance (scripthash) {
     return this._client.blockchainScripthash_getBalance(scripthash)
   }
