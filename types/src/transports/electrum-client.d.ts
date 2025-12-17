@@ -2,11 +2,20 @@
  * @typedef {Object} ElectrumClientConfig
  * @property {number} [timeout] - Connection timeout in milliseconds (default: 15_000).
  */
+export type ElectrumClientConfig = {
+    timeout?: number;
+};
+
 /**
  * @typedef {Object} ElectrumBalance
  * @property {number} confirmed - Confirmed balance in satoshis.
  * @property {number} [unconfirmed] - Unconfirmed balance in satoshis.
  */
+export type ElectrumBalance = {
+    confirmed: number;
+    unconfirmed?: number;
+};
+
 /**
  * @typedef {Object} ElectrumUtxo
  * @property {string} tx_hash - The transaction hash containing this UTXO.
@@ -14,11 +23,23 @@
  * @property {number} value - The UTXO value in satoshis.
  * @property {number} [height] - The block height (0 if unconfirmed).
  */
+export type ElectrumUtxo = {
+    tx_hash: string;
+    tx_pos: number;
+    value: number;
+    height?: number;
+};
+
 /**
  * @typedef {Object} ElectrumHistoryItem
  * @property {string} tx_hash - The transaction hash.
  * @property {number} height - The block height (0 or negative if unconfirmed).
  */
+export type ElectrumHistoryItem = {
+    tx_hash: string;
+    height: number;
+};
+
 /** @interface */
 export class IElectrumClient {
     /**
@@ -27,18 +48,21 @@ export class IElectrumClient {
      * @returns {Promise<void>}
      */
     close(): Promise<void>;
+
     /**
      * Recreates the underlying socket and reinitializes the session.
      *
      * @returns {Promise<void>}
      */
     reconnect(): Promise<void>;
+
     /**
      * Establishes the connection to the Electrum server.
      *
      * @returns {Promise<void>}
      */
     connect(): Promise<void>;
+
     /**
      * Returns the balance for a script hash.
      *
@@ -47,6 +71,7 @@ export class IElectrumClient {
      * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-get-balance
      */
     getBalance(scripthash: string): Promise<ElectrumBalance>;
+
     /**
      * Returns unspent transaction outputs for a script hash.
      *
@@ -55,6 +80,7 @@ export class IElectrumClient {
      * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-listunspent
      */
     listUnspent(scripthash: string): Promise<ElectrumUtxo[]>;
+
     /**
      * Returns transaction history for a script hash.
      *
@@ -63,6 +89,7 @@ export class IElectrumClient {
      * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-get-history
      */
     getHistory(scripthash: string): Promise<ElectrumHistoryItem[]>;
+
     /**
      * Returns a raw transaction.
      *
@@ -71,6 +98,7 @@ export class IElectrumClient {
      * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-transaction-get
      */
     getTransaction(txHash: string): Promise<string>;
+
     /**
      * Broadcasts a raw transaction to the network.
      *
@@ -79,6 +107,7 @@ export class IElectrumClient {
      * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-transaction-broadcast
      */
     broadcast(rawTx: string): Promise<string>;
+
     /**
      * Returns the estimated fee rate.
      *
@@ -88,6 +117,7 @@ export class IElectrumClient {
      */
     estimateFee(blocks: number): Promise<number>;
 }
+
 /**
  * Abstract base class for Electrum clients.
  *
@@ -104,6 +134,7 @@ export default class ElectrumClient implements IElectrumClient {
      * @param {ElectrumClientConfig} [config] - Configuration options.
      */
     constructor(config?: ElectrumClientConfig);
+
     /**
      * Connection timeout in milliseconds.
      *
@@ -111,6 +142,7 @@ export default class ElectrumClient implements IElectrumClient {
      * @type {number}
      */
     protected _timeout: number;
+
     /**
      * Promise that resolves when the connection is established, or null if not yet initiated.
      *
@@ -118,13 +150,7 @@ export default class ElectrumClient implements IElectrumClient {
      * @type {Promise<void> | null}
      */
     protected _ready: Promise<void> | null;
-    /**
-     * Ensures the electrum connection is initialized.
-     *
-     * @private
-     * @returns {Promise<void>}
-     */
-    private _ensure;
+
     /**
      * Closes the underlying connection.
      *
@@ -133,12 +159,14 @@ export default class ElectrumClient implements IElectrumClient {
      * @returns {Promise<void>}
      */
     protected _close(): Promise<void>;
+
     /**
      * Closes the connection.
      *
      * @returns {Promise<void>}
      */
     close(): Promise<void>;
+
     /**
      * Recreates the underlying socket and reinitializes the session.
      *
@@ -146,6 +174,7 @@ export default class ElectrumClient implements IElectrumClient {
      * @returns {Promise<void>}
      */
     reconnect(): Promise<void>;
+
     /**
      * Establishes the connection to the Electrum server.
      *
@@ -153,6 +182,7 @@ export default class ElectrumClient implements IElectrumClient {
      * @returns {Promise<void>}
      */
     connect(): Promise<void>;
+
     /**
      * Returns the balance for a script hash.
      *
@@ -162,6 +192,7 @@ export default class ElectrumClient implements IElectrumClient {
      * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-get-balance
      */
     getBalance(scripthash: string): Promise<ElectrumBalance>;
+
     /**
      * Returns unspent transaction outputs for a script hash.
      *
@@ -171,6 +202,7 @@ export default class ElectrumClient implements IElectrumClient {
      * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-listunspent
      */
     listUnspent(scripthash: string): Promise<ElectrumUtxo[]>;
+
     /**
      * Returns transaction history for a script hash.
      *
@@ -180,6 +212,7 @@ export default class ElectrumClient implements IElectrumClient {
      * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-get-history
      */
     getHistory(scripthash: string): Promise<ElectrumHistoryItem[]>;
+
     /**
      * Returns a raw transaction.
      *
@@ -189,6 +222,7 @@ export default class ElectrumClient implements IElectrumClient {
      * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-transaction-get
      */
     getTransaction(txHash: string): Promise<string>;
+
     /**
      * Broadcasts a raw transaction to the network.
      *
@@ -198,6 +232,7 @@ export default class ElectrumClient implements IElectrumClient {
      * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-transaction-broadcast
      */
     broadcast(rawTx: string): Promise<string>;
+
     /**
      * Returns the estimated fee rate.
      *
@@ -208,47 +243,3 @@ export default class ElectrumClient implements IElectrumClient {
      */
     estimateFee(blocks: number): Promise<number>;
 }
-export type ElectrumClientConfig = {
-    /**
-     * - Connection timeout in milliseconds (default: 15_000).
-     */
-    timeout?: number;
-};
-export type ElectrumBalance = {
-    /**
-     * - Confirmed balance in satoshis.
-     */
-    confirmed: number;
-    /**
-     * - Unconfirmed balance in satoshis.
-     */
-    unconfirmed?: number;
-};
-export type ElectrumUtxo = {
-    /**
-     * - The transaction hash containing this UTXO.
-     */
-    tx_hash: string;
-    /**
-     * - The output index within the transaction.
-     */
-    tx_pos: number;
-    /**
-     * - The UTXO value in satoshis.
-     */
-    value: number;
-    /**
-     * - The block height (0 if unconfirmed).
-     */
-    height?: number;
-};
-export type ElectrumHistoryItem = {
-    /**
-     * - The transaction hash.
-     */
-    tx_hash: string;
-    /**
-     * - The block height (0 or negative if unconfirmed).
-     */
-    height: number;
-};

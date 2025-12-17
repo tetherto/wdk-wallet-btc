@@ -1,3 +1,7 @@
+import WalletManager, { FeeRates } from '@tetherto/wdk-wallet';
+import WalletAccountBtc from './wallet-account-btc.js';
+import { BtcWalletConfig } from './wallet-account-read-only-btc.js';
+
 export default class WalletManagerBtc extends WalletManager {
     /**
      * Creates a new wallet manager for the bitcoin blockchain.
@@ -6,6 +10,7 @@ export default class WalletManagerBtc extends WalletManager {
      * @param {BtcWalletConfig} [config] - The configuration object.
      */
     constructor(seed: string | Uint8Array, config?: BtcWalletConfig);
+
     /**
      * Returns the wallet account at a specific index (defaults to [BIP-84](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki); set config.bip=44 for [BIP-44](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)).
      *
@@ -18,6 +23,7 @@ export default class WalletManagerBtc extends WalletManager {
      * @returns {Promise<WalletAccountBtc>} The account.
      */
     getAccount(index?: number): Promise<WalletAccountBtc>;
+
     /**
      * Returns the wallet account at a specific derivation path.
      *
@@ -30,8 +36,11 @@ export default class WalletManagerBtc extends WalletManager {
      * @returns {Promise<WalletAccountBtc>} The account.
      */
     getAccountByPath(path: string): Promise<WalletAccountBtc>;
+
+    /**
+     * Returns the current fee rates.
+     *
+     * @returns {Promise<FeeRates>} The fee rates (in satoshis).
+     */
+    getFeeRates(): Promise<FeeRates>;
 }
-export type FeeRates = import("@tetherto/wdk-wallet").FeeRates;
-export type BtcWalletConfig = import("./wallet-account-btc.js").BtcWalletConfig;
-import WalletManager from '@tetherto/wdk-wallet';
-import WalletAccountBtc from './wallet-account-btc.js';

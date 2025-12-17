@@ -1,4 +1,5 @@
-/** @typedef {import('./mempool-electrum-client.js').MempoolElectrumConfig} MempoolElectrumConfig */
+import MempoolElectrumClient, { MempoolElectrumConfig } from './mempool-electrum-client.js';
+
 /**
  * Electrum client using TCP sockets.
  *
@@ -10,7 +11,5 @@ export default class ElectrumTcp extends MempoolElectrumClient {
      *
      * @param {Omit<MempoolElectrumConfig, 'protocol'>} config - Configuration options.
      */
-    constructor(config: Omit<MempoolElectrumConfig, "protocol">);
+    constructor(config: Omit<MempoolElectrumConfig, 'protocol'>);
 }
-export type MempoolElectrumConfig = import("./mempool-electrum-client.js").MempoolElectrumConfig;
-import MempoolElectrumClient from './mempool-electrum-client.js';

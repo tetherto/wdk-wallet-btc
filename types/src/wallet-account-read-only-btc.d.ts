@@ -1,3 +1,59 @@
+import { WalletAccountReadOnly, TransactionResult, TransferOptions, TransferResult } from '@tetherto/wdk-wallet';
+import { Transaction, Network } from 'bitcoinjs-lib';
+import { MempoolElectrumConfig } from './transports/mempool-electrum-client.js';
+import MempoolElectrumClient from './transports/mempool-electrum-client.js';
+import ElectrumClient from './transports/electrum-client.js';
+import { OutputWithValue } from '@bitcoinerlab/coinselect';
+
+export type BtcTransactionReceipt = Transaction;
+
+/**
+ * @typedef {Object} BtcTransaction
+ * @property {string} to - The transaction's recipient.
+ * @property {number | bigint} value - The amount of bitcoins to send to the recipient (in satoshis).
+ * @property {number} [confirmationTarget] - Optional confirmation target in blocks (default: 1).
+ * @property {number | bigint} [feeRate] - Optional fee rate in satoshis per virtual byte. If provided, this value overrides the fee rate estimated from the blockchain (default: undefined).
+ * */
+export type BtcTransaction = {
+    to: string;
+    value: number | bigint;
+    confirmationTarget?: number;
+    feeRate?: number | bigint;
+};
+
+/**
+ * @typedef {Object} BtcWalletConfig
+ * @property {MempoolElectrumClient} [client] - Electrum client instance. If provided, host/port/protocol are ignored.
+ * @property {string} [host] - The electrum server's hostname (default: "electrum.blockstream.info"). Ignored if client is provided.
+ * @property {number} [port] - The electrum server's port (default: 50001). Ignored if client is provided.
+ * @property {"tcp" | "tls" | "ssl"} [protocol] - The transport protocol to use (default: "tcp"). Ignored if client is provided.
+ * @property {"bitcoin" | "regtest" | "testnet"} [network] - The name of the network to use (default: "bitcoin").
+ * @property {44 | 84} [bip] - The BIP address type used for key and address derivation.
+ *   - 44: [BIP-44 (P2PKH / legacy)](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)
+ *   - 84: [BIP-84 (P2WPKH / native SegWit)](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki)
+ *   - Default: 84 (P2WPKH).
+ * */
+export type BtcWalletConfig = {
+    client?: MempoolElectrumClient;
+    host?: string;
+    port?: number;
+    protocol?: 'tcp' | 'tls' | 'ssl';
+    network?: 'bitcoin' | 'regtest' | 'testnet';
+    bip?: 44 | 84;
+};
+
+/**
+ * @typedef {Object} BtcMaxSpendableResult
+ * @property {bigint} amount - The maximum spendable amount in satoshis.
+ * @property {bigint} fee - The estimated network fee in satoshis.
+ * @property {bigint} changeValue - The estimated change value in satoshis.
+ */
+export type BtcMaxSpendableResult = {
+    amount: bigint;
+    fee: bigint;
+    changeValue: bigint;
+};
+
 export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     /**
      * Creates a new bitcoin read-only wallet account.
@@ -5,14 +61,16 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @param {string} address - The account's address.
      * @param {Omit<BtcWalletConfig, 'bip'>} [config] - The configuration object.
      */
-    constructor(address: string, config?: Omit<BtcWalletConfig, "bip">);
+    constructor(address: string, config?: Omit<BtcWalletConfig, 'bip'>);
+
     /**
      * The read-only wallet account configuration.
      *
      * @protected
      * @type {Omit<BtcWalletConfig, 'bip'>}
      */
-    protected _config: Omit<BtcWalletConfig, "bip">;
+    protected _config: Omit<BtcWalletConfig, 'bip'>;
+
     /**
      * The network.
      *
@@ -20,6 +78,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @type {Network}
      */
     protected _network: Network;
+
     /**
      * An electrum client to interact with the bitcoin node.
      *
@@ -27,20 +86,38 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @type {ElectrumClient}
      */
     protected _electrumClient: ElectrumClient;
+
     /**
-     * The dust limit in satoshis based on the BIP type.
+     * Returns the account's bitcoin balance.
      *
-     * @private
-     * @type {number}
+     * @returns {Promise<bigint>} The bitcoin balance (in satoshis).
      */
-    private _dustLimit;
+    getBalance(): Promise<bigint>;
+
+    /**
+     * Returns the account balance for a specific token.
+     *
+     * @param {string} tokenAddress - The smart contract address of the token.
+     * @returns {Promise<bigint>} The token balance (in base unit).
+     */
+    getTokenBalance(tokenAddress: string): Promise<bigint>;
+
     /**
      * Quotes the costs of a send transaction operation.
      *
      * @param {BtcTransaction} tx - The transaction.
      * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transaction's quotes.
      */
-    quoteSendTransaction({ to, value, feeRate, confirmationTarget }: BtcTransaction): Promise<Omit<TransactionResult, "hash">>;
+    quoteSendTransaction(tx: BtcTransaction): Promise<Omit<TransactionResult, 'hash'>>;
+
+    /**
+     * Quotes the costs of a transfer operation.
+     *
+     * @param {TransferOptions} options - The transfer's options.
+     * @returns {Promise<Omit<TransferResult, 'hash'>>} The transfer's quotes.
+     */
+    quoteTransfer(options: TransferOptions): Promise<Omit<TransferResult, 'hash'>>;
+
     /**
      * Returns a transaction's receipt.
      *
@@ -48,6 +125,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @returns {Promise<BtcTransactionReceipt | null>} – The receipt, or null if the transaction has not been included in a block yet.
      */
     getTransactionReceipt(hash: string): Promise<BtcTransactionReceipt | null>;
+
     /**
      * Returns the maximum spendable amount (in satoshis) that can be sent in
      * a single transaction, after subtracting estimated transaction fees.
@@ -60,6 +138,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @returns {Promise<BtcMaxSpendableResult>} The maximum spendable result.
      */
     getMaxSpendable(): Promise<BtcMaxSpendableResult>;
+
     /**
      * Computes the sha-256 hash of the output script for this wallet's address, reverses the byte order,
      * and returns it as a hex string.
@@ -68,16 +147,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @returns {Promise<string>} The reversed sha-256 script hash as a hex-encoded string.
      */
     protected _getScriptHash(): Promise<string>;
-    /** @private */
-    private _toBigInt;
-    /**
-     * Creates a default Electrum client based on config options.
-     *
-     * @private
-     * @param {MempoolElectrumConfig} config - The configuration object.
-     * @returns {MempoolElectrumClient} The created client.
-     */
-    private _createClient;
+
     /**
      * Builds and returns a fee-aware funding plan for sending a transaction.
      *
@@ -92,85 +162,10 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @param {number | bigint} tx.feeRate - The fee rate (in sats/vB).
      * @returns {Promise<{ utxos: OutputWithValue[], fee: number, changeValue: number }>} - The funding plan.
      */
-    protected _planSpend({ fromAddress, toAddress, amount, feeRate }: {
+    protected _planSpend(tx: {
         fromAddress: string;
         toAddress: string;
         amount: number | bigint;
         feeRate: number | bigint;
-    }): Promise<{
-        utxos: OutputWithValue[];
-        fee: number;
-        changeValue: number;
-    }>;
+    }): Promise<{ utxos: OutputWithValue[]; fee: number; changeValue: number }>;
 }
-export type MempoolElectrumConfig = import("./transports/mempool-electrum-client.js").MempoolElectrumConfig;
-export type MempoolElectrumClient = import("./transports/mempool-electrum-client.js").default;
-export type ElectrumClient = import("./transports/electrum-client.js").default;
-export type OutputWithValue = import("@bitcoinerlab/coinselect").OutputWithValue;
-export type Network = import("bitcoinjs-lib").Network;
-export type BtcTransactionReceipt = import("bitcoinjs-lib").Transaction;
-export type TransactionResult = import("@tetherto/wdk-wallet").TransactionResult;
-export type TransferOptions = import("@tetherto/wdk-wallet").TransferOptions;
-export type TransferResult = import("@tetherto/wdk-wallet").TransferResult;
-export type BtcTransaction = {
-    /**
-     * - The transaction's recipient.
-     */
-    to: string;
-    /**
-     * - The amount of bitcoins to send to the recipient (in satoshis).
-     */
-    value: number | bigint;
-    /**
-     * - Optional confirmation target in blocks (default: 1).
-     */
-    confirmationTarget?: number;
-    /**
-     * - Optional fee rate in satoshis per virtual byte. If provided, this value overrides the fee rate estimated from the blockchain (default: undefined).
-     */
-    feeRate?: number | bigint;
-};
-export type BtcWalletConfig = {
-    /**
-     * - Electrum client instance. If provided, host/port/protocol are ignored.
-     */
-    client?: MempoolElectrumClient;
-    /**
-     * - The electrum server's hostname (default: "electrum.blockstream.info"). Ignored if client is provided.
-     */
-    host?: string;
-    /**
-     * - The electrum server's port (default: 50001). Ignored if client is provided.
-     */
-    port?: number;
-    /**
-     * - The transport protocol to use (default: "tcp"). Ignored if client is provided.
-     */
-    protocol?: "tcp" | "tls" | "ssl";
-    /**
-     * - The name of the network to use (default: "bitcoin").
-     */
-    network?: "bitcoin" | "regtest" | "testnet";
-    /**
-     * - The BIP address type used for key and address derivation.
-     * - 44: [BIP-44 (P2PKH / legacy)](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)
-     * - 84: [BIP-84 (P2WPKH / native SegWit)](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki)
-     * - Default: 84 (P2WPKH).
-     */
-    bip?: 44 | 84;
-};
-export type BtcMaxSpendableResult = {
-    /**
-     * - The maximum spendable amount in satoshis.
-     */
-    amount: bigint;
-    /**
-     * - The estimated network fee in satoshis.
-     */
-    fee: bigint;
-    /**
-     * - The estimated change value in satoshis.
-     */
-    changeValue: bigint;
-};
-import { WalletAccountReadOnly } from '@tetherto/wdk-wallet';

@@ -1,19 +1,20 @@
-export { default } from "./src/wallet-manager-btc.js";
-export { default as WalletAccountReadOnlyBtc } from "./src/wallet-account-read-only-btc.js";
-export { default as WalletAccountBtc } from "./src/wallet-account-btc.js";
-export type BtcTransactionReceipt = import("bitcoinjs-lib").Transaction;
-export type FeeRates = import("@tetherto/wdk-wallet").FeeRates;
-export type KeyPair = import("@tetherto/wdk-wallet").KeyPair;
-export type TransactionResult = import("@tetherto/wdk-wallet").TransactionResult;
-export type TransferOptions = import("@tetherto/wdk-wallet").TransferOptions;
-export type TransferResult = import("@tetherto/wdk-wallet").TransferResult;
-export type BtcTransaction = import("./src/wallet-account-read-only-btc.js").BtcTransaction;
-export type BtcWalletConfig = import("./src/wallet-account-read-only-btc.js").BtcWalletConfig;
-export type BtcMaxSpendableResult = import("./src/wallet-account-read-only-btc.js").BtcMaxSpendableResult;
-export type BtcTransfer = import("./src/wallet-account-btc.js").BtcTransfer;
-export type ElectrumClientConfig = import("./src/transports/electrum-client.js").ElectrumClientConfig;
-export type ElectrumBalance = import("./src/transports/electrum-client.js").ElectrumBalance;
-export type ElectrumUtxo = import("./src/transports/electrum-client.js").ElectrumUtxo;
-export type ElectrumHistoryItem = import("./src/transports/electrum-client.js").ElectrumHistoryItem;
-export type MempoolElectrumConfig = import("./src/transports/mempool-electrum-client.js").MempoolElectrumConfig;
-export { IElectrumClient, ElectrumClient, MempoolElectrumClient, ElectrumTcp, ElectrumSsl, ElectrumTls, ElectrumWs } from "./src/transports/index.js";
+import { Transaction } from 'bitcoinjs-lib';
+import { FeeRates, KeyPair, TransactionResult, TransferOptions, TransferResult } from '@tetherto/wdk-wallet';
+
+export type BtcTransactionReceipt = Transaction;
+
+export type { FeeRates, KeyPair, TransactionResult, TransferOptions, TransferResult };
+
+export type { BtcTransaction, BtcWalletConfig, BtcMaxSpendableResult } from './src/wallet-account-read-only-btc.js';
+export type { BtcTransfer } from './src/wallet-account-btc.js';
+
+export type { ElectrumClientConfig, ElectrumBalance, ElectrumUtxo, ElectrumHistoryItem } from './src/transports/electrum-client.js';
+export type { MempoolElectrumConfig } from './src/transports/mempool-electrum-client.js';
+
+export { default } from './src/wallet-manager-btc.js';
+
+export { default as WalletAccountReadOnlyBtc } from './src/wallet-account-read-only-btc.js';
+
+export { default as WalletAccountBtc } from './src/wallet-account-btc.js';
+
+export { IElectrumClient, ElectrumClient, MempoolElectrumClient, ElectrumTcp, ElectrumSsl, ElectrumTls, ElectrumWs } from './src/transports/index.js';
