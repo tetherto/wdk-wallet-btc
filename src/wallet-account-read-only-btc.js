@@ -213,7 +213,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
   }
 
   /**
-   * Returns an estimate the maximum spendable amount (in satoshis) that can be sent in
+   * Returns an estimation of the maximum spendable amount (in satoshis) that can be sent in
    * a single transaction, after subtracting estimated transaction fees.
    *
    * The estimated maximum spendable amount can differ from the wallet's total balance.
