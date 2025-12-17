@@ -84,11 +84,13 @@ describe.each([44, 84])('@wdk/wallet-btc (BIP %i)', (bip) => {
       value: 1_000n
     }
 
-    const { fee: quoteFee } = await account0.quoteSendTransaction(TRANSACTION)
+    await account0.quoteSendTransaction(TRANSACTION)
 
     const { hash, fee: sendFee } = await account0.sendTransaction(TRANSACTION)
 
-    expect(sendFee).toBe(quoteFee)
+    const actualFee = await bitcoin.getTransactionFeeSats(hash)
+
+    expect(Number(sendFee)).toBe(actualFee)
 
     const transaction = parseRawTransaction(bitcoin.getRawTransaction(hash), TRANSACTION.to)
     expect(transaction.txid).toBe(hash)
