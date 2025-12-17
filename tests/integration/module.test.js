@@ -206,9 +206,9 @@ describe.each([44, 84])('@wdk/wallet-btc (BIP %i)', (bip) => {
     const MESSAGE = 'Hello, world!'
 
     for (const account of [account0, account1]) {
-      expect(() => account.keyPair.privateKey).toThrow()
+      expect(account.keyPair.privateKey).toEqual(null)
       await expect(account.sendTransaction({ to: await account.getAddress(), value: 1_000n })).rejects.toThrow()
-      await expect(account.sign(MESSAGE)).rejects.toThrow("Cannot read properties of undefined (reading 'privateKey')")
+      await expect(account.sign(MESSAGE)).rejects.toThrow("private key should be a Buffer")
     }
-  })
+  })  
 })
