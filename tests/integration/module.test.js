@@ -6,8 +6,6 @@ import { BitcoinCli, Waiter } from '../helpers/index.js'
 
 import WalletManagerBtc from '../../index.js'
 
-const abs = x => x < 0n ? -x : x
-
 function parseRawTransaction (rawTransaction, recipientAddress) {
   const getAddress = (vout) => vout.scriptPubKey.address || vout.scriptPubKey.addresses?.[0]
   
@@ -122,8 +120,7 @@ describe.each([44, 84])('@wdk/wallet-btc (BIP %i)', (bip) => {
 
     const actualFee = fees[bip]
 
-    expect(abs(initialBalance0 - finalBalance0 - TRANSACTION.value - actualFee)).toBeLessThanOrEqual(1n)
-
+    expect(finalBalance0).toBe(initialBalance0 - TRANSACTION.value - actualFee)
     expect(finalBalance1).toBe(initialBalance1 + TRANSACTION.value)
   })
 
