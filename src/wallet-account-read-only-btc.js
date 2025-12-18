@@ -213,15 +213,15 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
   }
 
   /**
-   * Returns the maximum spendable amount (in satoshis) that can be sent in
+   * Returns an estimation of the maximum spendable amount (in satoshis) that can be sent in
    * a single transaction, after subtracting estimated transaction fees.
    *
-   * The maximum spendable amount can differ from the wallet's total balance.
+   * The estimated maximum spendable amount can differ from the wallet's total balance.
    * A transaction can only include up to MAX_UTXO_INPUTS (default: 200) unspents.
    * Wallets holding more than this limit cannot spend their full balance in a
-   * single transaction.
+   * single transaction. There will likely be some satoshis left over as change.
    *
-   * @returns {Promise<BtcMaxSpendableResult>} The maximum spendable result.
+   * @returns {Promise<BtcMaxSpendableResult>} The estimated maximum spendable result.
    */
   async getMaxSpendable () {
     const fromAddress = await this.getAddress()

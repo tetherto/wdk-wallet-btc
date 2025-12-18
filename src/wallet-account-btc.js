@@ -169,7 +169,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    */
   get keyPair () {
     return {
-      privateKey: this._account ? new Uint8Array(this._account.privateKey) : null,
+      privateKey: this._account.privateKey ? new Uint8Array(this._account.privateKey) : null,
       publicKey: new Uint8Array(this._account.publicKey)
     }
   }
@@ -410,9 +410,11 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     sodium_memzero(this._masterNode.privateKey)
     sodium_memzero(this._masterNode.chainCode)
 
-    this._account = undefined
-
     this._masterNode = undefined
+
+    Object.defineProperty(this._account, 'privateKey', {
+      get: () => null
+    })
 
     this._electrumClient.close()
   }
