@@ -186,6 +186,44 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
   }
 
   /**
+   * Quotes the costs of a send transaction operation with a memo (OP_RETURN output).
+   * Requires the recipient address to be a Taproot (P2TR) address.
+   *
+   * @param {Object} options - Transaction options.
+   * @param {string} options.to - The recipient's Taproot Bitcoin address (must start with bc1p, tb1p, or bcrt1p).
+   * @param {number | bigint} options.value - The amount to send (in satoshis).
+   * @param {string} options.memo - The memo string to embed in OP_RETURN (max 75 bytes UTF-8).
+   * @param {number | bigint} [options.feeRate] - Optional fee rate (in sats/vB). If not provided, estimated from network.
+   * @param {number} [options.confirmationTarget] - Optional confirmation target in blocks (default: 1).
+   * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transaction's quotes.
+   */
+  async quoteSendTransactionWithMemo ({ to, value, memo, feeRate, confirmationTarget = 1 }) {
+    // Validate that recipient address is a Taproot address
+    const toLower = to.toLowerCase()
+    const isTaproot = toLower.startsWith('bc1p') || toLower.startsWith('tb1p') || toLower.startsWith('bcrt1p')
+    if (!isTaproot) {
+      throw new Error('Recipient address must be a Taproot (P2TR) address. Taproot addresses start with bc1p (mainnet), tb1p (testnet), or bcrt1p (regtest).')
+    }
+
+    const address = await this.getAddress()
+
+    if (!feeRate) {
+      const feeEstimate = await this._electrumClient.blockchainEstimatefee(confirmationTarget)
+      feeRate = this._toBigInt(Math.max(feeEstimate * 100_000, 1))
+    }
+
+    const { fee } = await this._planSpendWithMemo({
+      fromAddress: address,
+      toAddress: to,
+      amount: value,
+      memo,
+      feeRate
+    })
+
+    return { fee: BigInt(fee) }
+  }
+
+  /**
    * Quotes the costs of a transfer operation.
    *
    * @param {TransferOptions} options - The transfer's options.
@@ -398,5 +436,106 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     }
 
     return { utxos, fee, changeValue }
+  }
+
+  /**
+   * Builds and returns a fee-aware funding plan for sending a transaction with a memo (OP_RETURN output).
+   * Similar to _planSpend but accounts for the additional OP_RETURN output in fee calculation.
+   *
+   * @protected
+   * @param {Object} tx - The transaction.
+   * @param {string} tx.fromAddress - The sender's address.
+   * @param {string} tx.toAddress - The recipient's Taproot address.
+   * @param {number | bigint} tx.amount - The amount to send (in satoshis).
+   * @param {string} tx.memo - The memo string to embed in OP_RETURN.
+   * @param {number | bigint} tx.feeRate - The fee rate (in sats/vB).
+   * @returns {Promise<{ utxos: OutputWithValue[], fee: number, changeValue: number }>} - The funding plan.
+   */
+  async _planSpendWithMemo ({ fromAddress, toAddress, amount, memo, feeRate }) {
+    amount = this._toBigInt(amount)
+    feeRate = this._toBigInt(feeRate)
+    if (feeRate < 1n) feeRate = 1n
+
+    if (amount <= this._dustLimit) {
+      throw new Error(`The amount must be bigger than the dust limit (= ${this._dustLimit}).`)
+    }
+
+    // Validate memo size (OP_RETURN can hold max 75 bytes)
+    const memoBuffer = Buffer.from(memo, 'utf8')
+    if (memoBuffer.length > 75) {
+      throw new Error('Memo cannot exceed 75 bytes when UTF-8 encoded.')
+    }
+
+    const network = this._network
+
+    const fromAddressScriptHex = btcAddress.toOutputScript(fromAddress, network).toString('hex')
+    const fromAddressOutput = new Output({ descriptor: `addr(${fromAddress})`, network })
+    const toAddressOutput = new Output({ descriptor: `addr(${toAddress})`, network })
+
+    const scriptHash = await this._getScriptHash()
+
+    const unspent = await this._electrumClient.blockchainScripthash_listunspent(scriptHash)
+
+    if (!unspent || unspent.length === 0) {
+      throw new Error('No unspent outputs available.')
+    }
+
+    const utxosForCoinSelect = unspent.map(u => ({
+      output: fromAddressOutput,
+      value: u.value,
+      __ref: u
+    }))
+
+    // Calculate OP_RETURN output size: OP_RETURN (1 byte) + push opcode (1 byte) + data length
+    // OP_RETURN outputs are ~43 bytes (1 + 1 + up to 75 bytes, but typically smaller)
+    // For fee estimation, we use the actual memo size + 2 bytes overhead
+    const opReturnOutputSize = 1 + 1 + memoBuffer.length // OP_RETURN + push opcode + data
+
+    // First, get base fee estimate without OP_RETURN
+    const result = coinselect({
+      utxos: utxosForCoinSelect,
+      remainder: fromAddressOutput,
+      targets: [{ output: toAddressOutput, value: Number(amount) }],
+      feeRate: Number(feeRate)
+    })
+
+    if (!result) {
+      throw new Error('Insufficient balance to send the transaction.')
+    }
+
+    if (result.utxos.length > MAX_UTXO_INPUTS) {
+      throw new Error('Exceeded maximum allowed inputs for transaction.')
+    }
+
+    // Add additional fee for OP_RETURN output
+    // OP_RETURN outputs add to the transaction size, so we need to account for this
+    const baseFee = this._toBigInt(Math.max(result.fee ?? 0, MIN_TX_FEE_SATS))
+    const opReturnFee = this._toBigInt(opReturnOutputSize) * feeRate
+    const totalFee = baseFee + opReturnFee
+
+    const utxos = result.utxos.map(({ __ref }) => ({
+      ...__ref,
+      vout: {
+        value: this._toBigInt(__ref.value),
+        scriptPubKey: { hex: fromAddressScriptHex }
+      }
+    }))
+
+    const total = utxos.reduce((s, u) => s + this._toBigInt(u.value), 0n)
+    const changeValue = total - totalFee - amount
+
+    if (changeValue < 0n) {
+      throw new Error('Insufficient balance after fees (including OP_RETURN output).')
+    }
+
+    if (changeValue <= this._dustLimit) {
+      return {
+        utxos,
+        fee: totalFee + changeValue,
+        changeValue: 0n
+      }
+    }
+
+    return { utxos, fee: totalFee, changeValue }
   }
 }

@@ -7,12 +7,12 @@ export default class WalletManagerBtc extends WalletManager {
      */
     constructor(seed: string | Uint8Array, config?: BtcWalletConfig);
     /**
-     * Returns the wallet account at a specific index (defaults to [BIP-84](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki) P2WPKH; set config.bip=44 for [BIP-44](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki) P2PKH or config.bip=86 with config.script_type="P2TR" for [BIP-86](https://github.com/bitcoin/bips/blob/master/bip-0086.mediawiki) Taproot).
+     * Returns the wallet account at a specific index (defaults to [BIP-84](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki); set config.bip=44 for [BIP-44](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki) or config.bip=86 for [BIP-86](https://github.com/bitcoin/bips/blob/master/bip-0086.mediawiki)).
      *
      * @example
      * // Returns the account with derivation path
-     * // For mainnet (bitcoin): m/84'/0'/0'/0/1 (P2WPKH) or m/86'/0'/0'/0/1 (P2TR)
-     * // For testnet or regtest: m/84'/1'/0'/0/1 (P2WPKH) or m/86'/1'/0'/0/1 (P2TR)
+     * // For mainnet (bitcoin): m/84'/0'/0'/0/1
+     * // For testnet or regtest: m/84'/1'/0'/0/1
      * const account = await wallet.getAccount(1);
      * @param {number} [index] - The index of the account to get (default: 0).
      * @returns {Promise<WalletAccountBtc>} The account.
@@ -23,8 +23,8 @@ export default class WalletManagerBtc extends WalletManager {
      *
      * @example
      * // Returns the account with derivation path:
-     * // For mainnet (bitcoin): m/84'/0'/0'/0/1 (P2WPKH) or m/86'/0'/0'/0/1 (P2TR)
-     * // For testnet or regtest: m/84'/1'/0'/0/1 (P2WPKH) or m/86'/1'/0'/0/1 (P2TR)
+     * // For mainnet (bitcoin): m/84'/0'/0'/0/1
+     * // For testnet or regtest: m/84'/1'/0'/0/1
      * const account = await wallet.getAccountByPath("0'/0/1");
      * @param {string} path - The derivation path (e.g. "0'/0/0").
      * @returns {Promise<WalletAccountBtc>} The account.

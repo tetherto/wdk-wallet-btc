@@ -309,6 +309,113 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
   }
 
   /**
+   * Sends a transaction with a memo (OP_RETURN output).
+   * Requires the recipient address to be a Taproot (P2TR) address.
+   *
+   * @param {Object} options - Transaction options.
+   * @param {string} options.to - The recipient's Taproot Bitcoin address (must start with bc1p, tb1p, or bcrt1p).
+   * @param {number | bigint} options.value - The amount to send (in satoshis).
+   * @param {string} options.memo - The memo string to embed in OP_RETURN (max 75 bytes UTF-8).
+   * @param {number | bigint} [options.feeRate] - Optional fee rate (in sats/vB). If not provided, estimated from network.
+   * @param {number} [options.confirmationTarget] - Optional confirmation target in blocks (default: 1).
+   * @returns {Promise<TransactionResult>} The transaction result.
+   */
+  async sendTransactionWithMemo ({ to, value, memo, feeRate, confirmationTarget = 1 }) {
+    // Validate that recipient address is a Taproot address
+    const toLower = to.toLowerCase()
+    const isTaproot = toLower.startsWith('bc1p') || toLower.startsWith('tb1p') || toLower.startsWith('bcrt1p')
+    if (!isTaproot) {
+      throw new Error('Recipient address must be a Taproot (P2TR) address. Taproot addresses start with bc1p (mainnet), tb1p (testnet), or bcrt1p (regtest).')
+    }
+
+    const address = await this.getAddress()
+
+    if (!feeRate) {
+      const feeEstimate = await this._electrumClient.blockchainEstimatefee(confirmationTarget)
+      feeRate = this._toBigInt(Math.max(feeEstimate * 100_000, 1))
+    }
+
+    const { utxos, fee, changeValue } = await this._planSpendWithMemo({
+      fromAddress: address,
+      toAddress: to,
+      amount: value,
+      memo,
+      feeRate
+    })
+
+    // Create OP_RETURN script from memo
+    const opReturnScript = this.createOpReturnScript(memo)
+
+    // Build transaction with OP_RETURN output
+    const tx = await this._getRawTransaction({
+      utxos,
+      to,
+      value,
+      fee,
+      feeRate,
+      changeValue,
+      additionalOutputs: [{ script: opReturnScript, value: 0 }]
+    })
+
+    await this._electrumClient.blockchainTransaction_broadcast(tx.hex)
+
+    return { hash: tx.txid, fee: tx.fee }
+  }
+
+  /**
+   * Quotes a transaction with memo (OP_RETURN output) and returns the raw hexadecimal string.
+   * Requires the recipient address to be a Taproot (P2TR) address.
+   * Similar to quoteSendTransactionWithMemo but returns the transaction hex instead of just the fee.
+   *
+   * @param {Object} options - Transaction options.
+   * @param {string} options.to - The recipient's Taproot Bitcoin address (must start with bc1p, tb1p, or bcrt1p).
+   * @param {number | bigint} options.value - The amount to send (in satoshis).
+   * @param {string} options.memo - The memo string to embed in OP_RETURN (max 75 bytes UTF-8).
+   * @param {number | bigint} [options.feeRate] - Optional fee rate (in sats/vB). If not provided, estimated from network.
+   * @param {number} [options.confirmationTarget] - Optional confirmation target in blocks (default: 1).
+   * @returns {Promise<string>} The raw hexadecimal string of the transaction.
+   */
+  async quoteSendTransactionWithMemoTX ({ to, value, memo, feeRate, confirmationTarget = 1 }) {
+    // Validate that recipient address is a Taproot address
+    const toLower = to.toLowerCase()
+    const isTaproot = toLower.startsWith('bc1p') || toLower.startsWith('tb1p') || toLower.startsWith('bcrt1p')
+    if (!isTaproot) {
+      throw new Error('Recipient address must be a Taproot (P2TR) address. Taproot addresses start with bc1p (mainnet), tb1p (testnet), or bcrt1p (regtest).')
+    }
+
+    const address = await this.getAddress()
+
+    if (!feeRate) {
+      const feeEstimate = await this._electrumClient.blockchainEstimatefee(confirmationTarget)
+      feeRate = this._toBigInt(Math.max(feeEstimate * 100_000, 1))
+    }
+
+    const { utxos, fee, changeValue } = await this._planSpendWithMemo({
+      fromAddress: address,
+      toAddress: to,
+      amount: value,
+      memo,
+      feeRate
+    })
+
+    // Create OP_RETURN script from memo
+    const opReturnScript = this.createOpReturnScript(memo)
+
+    // Build transaction with OP_RETURN output (but don't broadcast)
+    const tx = await this._getRawTransaction({
+      utxos,
+      to,
+      value,
+      fee,
+      feeRate,
+      changeValue,
+      additionalOutputs: [{ script: opReturnScript, value: 0 }]
+    })
+
+    return tx.hex
+  }
+
+  /**
    * Transfers a token to another address.
    *
    * @param {TransferOptions} options - The transfer's options.
