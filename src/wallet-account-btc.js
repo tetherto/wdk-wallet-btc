@@ -16,6 +16,7 @@
 import { hmac } from '@noble/hashes/hmac'
 import { sha512 } from '@noble/hashes/sha512'
 import { address as btcAddress, crypto, initEccLib, networks, payments, Psbt, Transaction } from 'bitcoinjs-lib'
+import { tapTweakHash, tweakKey } from 'bitcoinjs-lib/src/payments/bip341.js'
 import { BIP32Factory } from 'bip32'
 import pLimit from 'p-limit'
 import { LRUCache } from 'lru-cache'
@@ -199,8 +200,23 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     // For BIP-86 single-key Taproot, store the internal public key (32-byte x-coordinate)
     // The publicKey from BIP32 is compressed (33 bytes), so we extract the 32-byte x-coordinate
     if (scriptType === 'P2TR') {
+      if (!account || !account.publicKey) {
+        throw new Error('Invalid account for P2TR initialization. Account or public key is missing.')
+      }
+      if (!Buffer.isBuffer(account.publicKey) && !(account.publicKey instanceof Uint8Array)) {
+        throw new Error('Invalid account public key type for P2TR initialization. Expected Buffer or Uint8Array.')
+      }
+      if (account.publicKey.length !== 33) {
+        throw new Error(`Invalid account public key length for P2TR initialization. Expected 33 bytes, got ${account.publicKey.length}.`)
+      }
       /** @private */
-      this._internalPubkey = account.publicKey.slice(1)
+      this._internalPubkey = Buffer.from(account.publicKey.slice(1))
+      if (!this._internalPubkey || this._internalPubkey.length !== 32) {
+        throw new Error('Failed to extract internal public key for P2TR. Expected 32-byte x-coordinate.')
+      }
+    } else {
+      /** @private */
+      this._internalPubkey = undefined
     }
   }
 
@@ -711,6 +727,17 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     }
 
     const buildAndSign = async (rcptVal, chgVal) => {
+      if (!this._masterNode || !this._account) {
+        throw new Error('Wallet account has been disposed or not properly initialized. Cannot build transaction.')
+      }
+
+      // Validate P2TR-specific initialization
+      if (this._scriptType === 'P2TR') {
+        if (!this._internalPubkey || !Buffer.isBuffer(this._internalPubkey) || this._internalPubkey.length !== 32) {
+          throw new Error('P2TR wallet not properly initialized. Internal public key is missing or invalid. Expected 32-byte Buffer.')
+        }
+      }
+
       const psbt = new Psbt({ network: this._network })
 
       for (const utxo of utxos) {
@@ -809,38 +836,81 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
           internalPubkey: this._internalPubkey,
           network: this._network
         })
-        // Calculate tapTweak hash (BIP-341): HashTapTweak(internal_pubkey || merkle_root)
-        // For BIP-86 key path spends, merkle_root is 0x00 (single byte, not 32 bytes)
-        // TapTweak uses tagged hash (BIP-340): SHA256(SHA256(tag) || SHA256(tag) || msg)
-        const tapTweakTag = Buffer.from('TapTweak', 'utf8')
-        const tagHash = crypto.sha256(tapTweakTag) // SHA256(tag)
-        const tapTweakMsg = Buffer.concat([
-          tagHash, // First SHA256(tag)
-          tagHash, // Second SHA256(tag) (repeated per BIP-340 spec)
-          Buffer.from(this._internalPubkey), // 32-byte internal pubkey
-          Buffer.from([0x00]) // 0x00 for single-key spends (BIP-86)
-        ])
-        const tapTweakHash = crypto.sha256(tapTweakMsg) // Final tagged hash
-        // Tweak the private key: tweaked_privkey = internal_privkey + tapTweakHash
-        // Ensure private key is a Buffer (not BigInt)
-        const internalPrivKey = Buffer.from(this._account.privateKey)
-        const tweakedPrivKey = Buffer.from(ecc.privateAdd(internalPrivKey, tapTweakHash))
-        if (!tweakedPrivKey) {
+        // Extract the tweaked output public key from the output script
+        // This is the actual public key that corresponds to the address and must match what's in the UTXO
+        const tweakedOutputPubkey = output.slice(2, 34) // Skip OP_1 (0x51) and get 32-byte x-only pubkey
+        
+        // Use bitcoinjs-lib's tapTweakHash function to calculate the tapTweak hash
+        // For BIP-86 key path spends, merkle_root (h) is undefined (single-key spends)
+        const tapTweakHashValue = tapTweakHash(Buffer.from(this._internalPubkey), undefined)
+        
+        // Verify the tapTweak calculation using bitcoinjs-lib's tweakKey function
+        // This should match what payments.p2tr() does internally
+        const verifiedTweakedResult = tweakKey(Buffer.from(this._internalPubkey), undefined)
+        if (!verifiedTweakedResult || !verifiedTweakedResult.x || verifiedTweakedResult.x.length !== 32) {
+          throw new Error('Failed to verify tapTweak calculation using bitcoinjs-lib tweakKey')
+        }
+        const verifiedTweakedPubkeyBuf = verifiedTweakedResult.x
+        
+        // Ensure our tapTweak calculation matches what bitcoinjs-lib expects
+        if (!verifiedTweakedPubkeyBuf.equals(tweakedOutputPubkey)) {
+          throw new Error(`tapTweak calculation mismatch: calculated=${verifiedTweakedPubkeyBuf.toString('hex')}, expected=${tweakedOutputPubkey.toString('hex')}. This indicates an issue with the tapTweak hash calculation.`)
+        }
+        
+        // For Taproot key path spends, we need to tweak the private key correctly.
+        // The tweaked output key Q = P + H(P||0x00)*G where P is the internal pubkey.
+        // If the internal pubkey P has odd y-coordinate, we use -P instead, which means
+        // we need to negate the internal private key before tweaking.
+        // Then, if the resulting tweaked point Q has odd y-coordinate, we negate the tweaked private key.
+        
+        // Get the internal private key and check if internal pubkey has odd y-coordinate
+        let internalPrivKey = Buffer.from(this._account.privateKey)
+        const internalPubKeyFull = Buffer.from(this._account.publicKey) // 33-byte compressed public key
+        const internalPubKeyHasOddY = (internalPubKeyFull[0] & 1) === 1 // Check if y-coordinate is odd
+        
+        // If internal pubkey has odd y-coordinate, negate the internal private key
+        // This ensures we're working with the point that has even y-coordinate
+        const secp256k1Order = BigInt('0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141')
+        if (internalPubKeyHasOddY) {
+          const internalPrivKeyBigInt = BigInt('0x' + internalPrivKey.toString('hex'))
+          const negatedBigInt = (secp256k1Order - internalPrivKeyBigInt) % secp256k1Order
+          const negatedHex = negatedBigInt.toString(16).padStart(64, '0')
+          internalPrivKey = Buffer.from(negatedHex, 'hex')
+        }
+        
+        // Calculate tweaked private key: tweaked_privkey = internal_privkey + tapTweakHash
+        const tweakedPrivKeyDirect = Buffer.from(ecc.privateAdd(internalPrivKey, tapTweakHashValue))
+        if (!tweakedPrivKeyDirect) {
           throw new Error('Failed to tweak private key')
         }
-        // Extract the x-coordinate from the output script (last 32 bytes of P2TR output)
-        const tweakedOutputPubkey = output.slice(2, 34) // Skip OP_1 (0x51) and 32-byte pubkey
+        
+        // The parity from tweakKey tells us if the tweaked point has odd y-coordinate
+        // If parity=1 (odd y), we need to negate the tweaked private key
+        // tweaked_privkey = n - tweaked_privkey_direct mod n
+        let tweakedPrivKey
+        if (verifiedTweakedResult.parity === 1) {
+          // Negate: n - k mod n
+          const tweakedPrivKeyBigInt = BigInt('0x' + tweakedPrivKeyDirect.toString('hex'))
+          const negatedBigInt = (secp256k1Order - tweakedPrivKeyBigInt) % secp256k1Order
+          const negatedHex = negatedBigInt.toString(16).padStart(64, '0')
+          tweakedPrivKey = Buffer.from(negatedHex, 'hex')
+        } else {
+          tweakedPrivKey = tweakedPrivKeyDirect
+        }
+        
+        // Use manual signing with Taproot signer
+        // signInputHD doesn't support Taproot in bitcoinjs-lib v6.1.7, so we use signInput with a custom signer
         const taprootSigner = {
-          publicKey: tweakedOutputPubkey, // Tweaked output public key (32-byte x-coordinate)
+          publicKey: tweakedOutputPubkey, // Tweaked output public key (32-byte x-coordinate) from output script
           network: this._network,
           signSchnorr: (hash) => {
             // Sign with Schnorr signature using the tweaked private key
+            // The tweaked private key accounts for parity: if tweaked point has odd y, we use negated key
             return ecc.signSchnorr(hash, tweakedPrivKey)
           }
         }
         utxos.forEach((_, index) => {
           // Use signInput for Taproot - it will detect Taproot inputs and use signSchnorr
-          // signTaprootInput may not exist in bitcoinjs-lib v6.1.7, so use signInput instead
           psbt.signInput(index, taprootSigner)
         })
       } else {

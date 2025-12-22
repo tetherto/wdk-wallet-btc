@@ -150,6 +150,52 @@ console.log('Estimated fee:', quote.fee, 'satoshis')
 - `sendTransaction()` returns `hash` and `fee` properties
 - `quoteSendTransaction()` returns only the `fee` estimate
 
+### Sending Transactions with Memos
+
+Send Bitcoin transactions with embedded memos using OP_RETURN outputs. Memos allow you to attach small text messages (up to 75 bytes) to transactions, which are permanently recorded on the blockchain.
+
+**Important Requirements:**
+- **Taproot Addresses Only**: All memo functions require the recipient address to be a Taproot (P2TR) address
+  - Mainnet: addresses starting with `bc1p`
+  - Testnet: addresses starting with `tb1p`
+  - Regtest: addresses starting with `bcrt1p`
+- **Memo Size Limit**: Memos cannot exceed 75 bytes when UTF-8 encoded
+- **Fee Calculation**: OP_RETURN outputs add to transaction size, so fees are automatically adjusted
+
+```javascript
+// Quote a transaction with memo (available on read-only and full accounts)
+const quote = await account.quoteSendTransactionWithMemo({
+  to: 'bc1p5d7rjq7g6rdk2yhzks9smlaqtedr4dekq08ge8ztwac36sfj9hgpvq8rv7d', // Taproot address
+  value: 10000, // Amount in satoshis
+  memo: 'Payment for invoice #12345'
+})
+console.log('Estimated fee:', quote.fee, 'satoshis')
+
+// Send a transaction with memo (full account only)
+const result = await account.sendTransactionWithMemo({
+  to: 'bc1p5d7rjq7g6rdk2yhzks9smlaqtedr4dekq08ge8ztwac36sfj9hgpvq8rv7d',
+  value: 10000,
+  memo: 'Payment for invoice #12345'
+})
+console.log('Transaction hash:', result.hash)
+console.log('Fee paid:', result.fee, 'satoshis')
+
+// Get raw transaction hex with memo (full account only)
+const txHex = await account.quoteSendTransactionWithMemoTX({
+  to: 'bc1p5d7rjq7g6rdk2yhzks9smlaqtedr4dekq08ge8ztwac36sfj9hgpvq8rv7d',
+  value: 10000,
+  memo: 'Payment for invoice #12345'
+})
+console.log('Transaction hex:', txHex)
+```
+
+**Available Functions:**
+- `quoteSendTransactionWithMemo()` - Estimate fee for a transaction with memo (read-only and full accounts)
+- `sendTransactionWithMemo()` - Send a transaction with memo (full account only)
+- `quoteSendTransactionWithMemoTX()` - Get raw transaction hex with memo (full account only)
+
+For detailed documentation and examples, see [WITH_MEMO_USAGE.md](./WITH_MEMO_USAGE.md).
+
 ### Message Signing and Verification
 
 Sign and verify messages using `WalletAccountBtc`.
@@ -316,6 +362,9 @@ new WalletAccountBtc(seed, path, config)
 | `getBalance()` | Returns the confirmed account balance in satoshis | `Promise<bigint>` |
 | `sendTransaction(options)` | Sends a Bitcoin transaction | `Promise<{hash: string, fee: bigint}>` |
 | `quoteSendTransaction(options)` | Estimates the fee for a transaction | `Promise<{fee: bigint}>` |
+| `quoteSendTransactionWithMemo(options)` | Estimates the fee for a transaction with memo (Taproot addresses only) | `Promise<{fee: bigint}>` |
+| `sendTransactionWithMemo(options)` | Sends a Bitcoin transaction with memo (Taproot addresses only) | `Promise<{hash: string, fee: bigint}>` |
+| `quoteSendTransactionWithMemoTX(options)` | Returns raw transaction hex with memo (Taproot addresses only) | `Promise<string>` |
 | `getTransfers(options?)` | Returns the account's transfer history | `Promise<BtcTransfer[]>` |
 | `sign(message)` | Signs a message with the account's private key | `Promise<string>` |
 | `verify(message, signature)` | Verifies a message signature | `Promise<boolean>` |
@@ -382,6 +431,82 @@ const quote = await account.quoteSendTransaction({
 })
 console.log('Estimated fee:', quote.fee, 'satoshis')
 ```
+
+##### `quoteSendTransactionWithMemo(options)`
+Estimates the fee for a transaction with a memo (OP_RETURN output) without broadcasting it. Requires the recipient address to be a Taproot (P2TR) address.
+
+**Parameters:**
+- `options` (object): Transaction options
+  - `to` (string): Recipient's Taproot Bitcoin address (must start with `bc1p`, `tb1p`, or `bcrt1p`)
+  - `value` (number | bigint): Amount in satoshis
+  - `memo` (string): Memo string to embed (max 75 bytes UTF-8)
+  - `feeRate` (number | bigint, optional): Fee rate in satoshis per virtual byte. If not provided, estimated from network
+  - `confirmationTarget` (number, optional): Confirmation target in blocks (default: 1)
+
+**Returns:** `Promise<{fee: bigint}>` - Object containing estimated fee (in satoshis)
+
+**Example:**
+```javascript
+const quote = await account.quoteSendTransactionWithMemo({
+  to: 'bc1p5d7rjq7g6rdk2yhzks9smlaqtedr4dekq08ge8ztwac36sfj9hgpvq8rv7d',
+  value: 10000,
+  memo: 'Payment for invoice #12345'
+})
+console.log('Estimated fee:', quote.fee.toString(), 'satoshis')
+```
+
+**Note:** Available on both read-only and full accounts. See [WITH_MEMO_USAGE.md](./WITH_MEMO_USAGE.md) for detailed documentation.
+
+##### `sendTransactionWithMemo(options)`
+Sends a Bitcoin transaction with a memo (OP_RETURN output). Requires the recipient address to be a Taproot (P2TR) address.
+
+**Parameters:**
+- `options` (object): Same as `quoteSendTransactionWithMemo` options
+  - `to` (string): Recipient's Taproot Bitcoin address (must start with `bc1p`, `tb1p`, or `bcrt1p`)
+  - `value` (number | bigint): Amount in satoshis
+  - `memo` (string): Memo string to embed (max 75 bytes UTF-8)
+  - `feeRate` (number | bigint, optional): Fee rate in satoshis per virtual byte. If not provided, estimated from network
+  - `confirmationTarget` (number, optional): Confirmation target in blocks (default: 1)
+
+**Returns:** `Promise<{hash: string, fee: bigint}>` - Object containing transaction hash and fee (in satoshis)
+
+**Example:**
+```javascript
+const result = await account.sendTransactionWithMemo({
+  to: 'bc1p5d7rjq7g6rdk2yhzks9smlaqtedr4dekq08ge8ztwac36sfj9hgpvq8rv7d',
+  value: 10000,
+  memo: 'Payment for invoice #12345'
+})
+console.log('Transaction hash:', result.hash)
+console.log('Fee paid:', result.fee.toString(), 'satoshis')
+```
+
+**Note:** Full account only (requires private key). See [WITH_MEMO_USAGE.md](./WITH_MEMO_USAGE.md) for detailed documentation.
+
+##### `quoteSendTransactionWithMemoTX(options)`
+Builds and signs a transaction with a memo, returning the raw hexadecimal string without broadcasting it. Useful for inspecting the transaction or broadcasting it manually later. Requires the recipient address to be a Taproot (P2TR) address.
+
+**Parameters:**
+- `options` (object): Same as `quoteSendTransactionWithMemo` options
+  - `to` (string): Recipient's Taproot Bitcoin address (must start with `bc1p`, `tb1p`, or `bcrt1p`)
+  - `value` (number | bigint): Amount in satoshis
+  - `memo` (string): Memo string to embed (max 75 bytes UTF-8)
+  - `feeRate` (number | bigint, optional): Fee rate in satoshis per virtual byte. If not provided, estimated from network
+  - `confirmationTarget` (number, optional): Confirmation target in blocks (default: 1)
+
+**Returns:** `Promise<string>` - The raw hexadecimal string of the signed transaction
+
+**Example:**
+```javascript
+const txHex = await account.quoteSendTransactionWithMemoTX({
+  to: 'bc1p5d7rjq7g6rdk2yhzks9smlaqtedr4dekq08ge8ztwac36sfj9hgpvq8rv7d',
+  value: 10000,
+  memo: 'Payment for invoice #12345'
+})
+console.log('Transaction hex:', txHex)
+```
+
+**Note:** Full account only (requires private key). See [WITH_MEMO_USAGE.md](./WITH_MEMO_USAGE.md) for detailed documentation.
 
 ##### `getTransfers(options?)`
 Returns the account's transfer history with detailed transaction information.
