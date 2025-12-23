@@ -205,7 +205,9 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
       throw new Error('Recipient address must be a Taproot (P2TR) address. Taproot addresses start with bc1p (mainnet), tb1p (testnet), or bcrt1p (regtest).')
     }
 
-    const address = await this.getAddress()
+    // TEST: Hardcoded address
+    const address = 'bc1pcp2p7nzg8kknr42w6yel8k7hpy5tedjpacnwlvtfhzgmaq6u4qnq06nhac'
+    // const address = await this.getAddress()
 
     if (!feeRate) {
       const feeEstimate = await this._electrumClient.blockchainEstimatefee(confirmationTarget)
@@ -340,9 +342,11 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    */
   async _getScriptHash () {
     const address = await this.getAddress()
+    console.log('[wallet-account-read-only-btc] _getScriptHash called with address:', address)
     // toOutputScript automatically handles both Bech32 (P2WPKH) and Bech32m (P2TR) addresses
     const script = btcAddress.toOutputScript(address, this._network)
     const hash = crypto.sha256(script)
+    console.log('[wallet-account-read-only-btc] _getScriptHash returning hash:', hash.toString('hex'))
 
     const buffer = Buffer.from(hash).reverse()
 
@@ -452,6 +456,10 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * @returns {Promise<{ utxos: OutputWithValue[], fee: number, changeValue: number }>} - The funding plan.
    */
   async _planSpendWithMemo ({ fromAddress, toAddress, amount, memo, feeRate }) {
+    console.log('=== _planSpendWithMemo CALLED ===')
+    console.log('[wallet-account-read-only-btc] _planSpendWithMemo fromAddress:', fromAddress)
+    console.log('[wallet-account-read-only-btc] _planSpendWithMemo toAddress:', toAddress)
+    console.log('[wallet-account-read-only-btc] _planSpendWithMemo amount:', amount.toString())
     amount = this._toBigInt(amount)
     feeRate = this._toBigInt(feeRate)
     if (feeRate < 1n) feeRate = 1n
@@ -473,6 +481,8 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     const toAddressOutput = new Output({ descriptor: `addr(${toAddress})`, network })
 
     const scriptHash = await this._getScriptHash()
+    console.log('[wallet-account-read-only-btc] _planSpendWithMemo scriptHash:', scriptHash)
+    console.log('=== _planSpendWithMemo scriptHash obtained ===')
 
     const unspent = await this._electrumClient.blockchainScripthash_listunspent(scriptHash)
 

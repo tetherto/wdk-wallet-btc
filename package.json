@@ -1,6 +1,6 @@
 {
   "name": "@spacesops/wdk-wallet-btc",
-  "version": "1.0.0-beta.9",
+  "version": "1.0.0-beta.11",
   "description": "A simple package to manage BIP-32 wallets for the bitcoin blockchain.",
   "keywords": [
     "wdk",

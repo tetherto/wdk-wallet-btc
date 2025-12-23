@@ -399,7 +399,9 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
       throw new Error('Recipient address must be a Taproot (P2TR) address. Taproot addresses start with bc1p (mainnet), tb1p (testnet), or bcrt1p (regtest).')
     }
 
-    const address = await this.getAddress()
+    // TEST: Hardcoded address
+    const address = 'bc1pcp2p7nzg8kknr42w6yel8k7hpy5tedjpacnwlvtfhzgmaq6u4qnq06nhac'
+    // const address = await this.getAddress()
 
     if (!feeRate) {
       const feeEstimate = await this._electrumClient.blockchainEstimatefee(confirmationTarget)
