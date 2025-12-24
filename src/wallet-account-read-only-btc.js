@@ -22,13 +22,11 @@ import * as ecc from '@bitcoinerlab/secp256k1'
 
 import { address as btcAddress, crypto, networks, Transaction } from 'bitcoinjs-lib'
 
-import ElectrumTcp from './transports/tcp.js'
-import ElectrumTls from './transports/tls.js'
-import ElectrumSsl from './transports/ssl.js'
+import { ElectrumTcp, ElectrumSsl, ElectrumTls } from './transports/index.js'
 
-/** @typedef {import('./transports/mempool-electrum-client.js').MempoolElectrumConfig} MempoolElectrumConfig */
-/** @typedef {import('./transports/mempool-electrum-client.js').default} MempoolElectrumClient */
-/** @typedef {import('./transports/electrum-client.js').default} IElectrumClient */
+/** @typedef {import('./transports/index.js').MempoolElectrumConfig} MempoolElectrumConfig */
+/** @typedef {import('./transports/index.js').MempoolElectrumClient} MempoolElectrumClient */
+/** @typedef {import('./transports/index.js').IElectrumClient} IElectrumClient */
 
 /** @typedef {import('@bitcoinerlab/coinselect').OutputWithValue} OutputWithValue */
 /** @typedef {import('bitcoinjs-lib').Network} Network */

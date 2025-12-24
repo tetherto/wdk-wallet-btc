@@ -130,9 +130,9 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
         changeValue: number;
     }>;
 }
-export type MempoolElectrumConfig = import("./transports/mempool-electrum-client.js").MempoolElectrumConfig;
-export type MempoolElectrumClient = import("./transports/mempool-electrum-client.js").default;
-export type IElectrumClient = import("./transports/electrum-client.js").default;
+export type MempoolElectrumConfig = import("./transports/index.js").MempoolElectrumConfig;
+export type MempoolElectrumClient = import("./transports/index.js").MempoolElectrumClient;
+export type IElectrumClient = import("./transports/index.js").IElectrumClient;
 export type OutputWithValue = import("@bitcoinerlab/coinselect").OutputWithValue;
 export type Network = import("bitcoinjs-lib").Network;
 export type BtcTransactionReceipt = import("bitcoinjs-lib").Transaction;

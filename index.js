@@ -26,11 +26,11 @@
 /** @typedef {import('./src/wallet-account-read-only-btc.js').BtcMaxSpendableResult} BtcMaxSpendableResult */
 /** @typedef {import('./src/wallet-account-btc.js').BtcTransfer} BtcTransfer */
 
-/** @typedef {import('./src/transports/electrum-client.js').ElectrumClientConfig} ElectrumClientConfig */
-/** @typedef {import('./src/transports/electrum-client.js').ElectrumBalance} ElectrumBalance */
-/** @typedef {import('./src/transports/electrum-client.js').ElectrumUtxo} ElectrumUtxo */
-/** @typedef {import('./src/transports/electrum-client.js').ElectrumHistoryItem} ElectrumHistoryItem */
-/** @typedef {import('./src/transports/mempool-electrum-client.js').MempoolElectrumConfig} MempoolElectrumConfig */
+/** @typedef {import('./src/transports/index.js').ElectrumClientConfig} ElectrumClientConfig */
+/** @typedef {import('./src/transports/index.js').ElectrumBalance} ElectrumBalance */
+/** @typedef {import('./src/transports/index.js').ElectrumUtxo} ElectrumUtxo */
+/** @typedef {import('./src/transports/index.js').ElectrumHistoryItem} ElectrumHistoryItem */
+/** @typedef {import('./src/transports/index.js').MempoolElectrumConfig} MempoolElectrumConfig */
 
 export { default } from './src/wallet-manager-btc.js'
 

@@ -11,9 +11,9 @@ export type BtcTransaction = import("./src/wallet-account-read-only-btc.js").Btc
 export type BtcWalletConfig = import("./src/wallet-account-read-only-btc.js").BtcWalletConfig;
 export type BtcMaxSpendableResult = import("./src/wallet-account-read-only-btc.js").BtcMaxSpendableResult;
 export type BtcTransfer = import("./src/wallet-account-btc.js").BtcTransfer;
-export type ElectrumClientConfig = import("./src/transports/electrum-client.js").ElectrumClientConfig;
-export type ElectrumBalance = import("./src/transports/electrum-client.js").ElectrumBalance;
-export type ElectrumUtxo = import("./src/transports/electrum-client.js").ElectrumUtxo;
-export type ElectrumHistoryItem = import("./src/transports/electrum-client.js").ElectrumHistoryItem;
-export type MempoolElectrumConfig = import("./src/transports/mempool-electrum-client.js").MempoolElectrumConfig;
+export type ElectrumClientConfig = import("./src/transports/index.js").ElectrumClientConfig;
+export type ElectrumBalance = import("./src/transports/index.js").ElectrumBalance;
+export type ElectrumUtxo = import("./src/transports/index.js").ElectrumUtxo;
+export type ElectrumHistoryItem = import("./src/transports/index.js").ElectrumHistoryItem;
+export type MempoolElectrumConfig = import("./src/transports/index.js").MempoolElectrumConfig;
 export { IElectrumClient, MempoolElectrumClient, ElectrumTcp, ElectrumSsl, ElectrumTls, ElectrumWs } from "./src/transports/index.js";
