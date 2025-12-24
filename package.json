@@ -1,6 +1,6 @@
 {
-  "name": "@tetherto/wdk-wallet-btc",
-  "version": "1.0.0-beta.4",
+  "name": "@spacesops/wdk-wallet-btc",
+  "version": "1.0.0-beta.14",
   "description": "A simple package to manage BIP-32 wallets for the bitcoin blockchain.",
   "keywords": [
     "wdk",
@@ -12,7 +12,7 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git://github.com/tetherto/wdk-wallet-btc.git"
+    "url": "git://github.com/spacesops/wdk-wallet-btc.git"
   },
   "main": "index.js",
   "type": "module",

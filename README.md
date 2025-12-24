@@ -2,7 +2,7 @@
 
 **Note**: This package is currently in beta. Please test thoroughly in development environments before using in production.
 
-A simple and secure package to manage BIP-84 (SegWit) wallets for the Bitcoin blockchain. This package provides a clean API for creating, managing, and interacting with Bitcoin wallets using BIP-39 seed phrases and Bitcoin-specific derivation paths.
+A simple and secure package to manage Bitcoin wallets supporting BIP-84 (P2WPKH/SegWit) and BIP-86 (P2TR/Taproot) address types. This package provides a clean API for creating, managing, and interacting with Bitcoin wallets using BIP-39 seed phrases and Bitcoin-specific derivation paths.
 
 ## 🔍 About WDK
 
@@ -12,7 +12,8 @@ For detailed documentation about the complete WDK ecosystem, visit [docs.wallet.
 
 ## 🌟 Features
 
-- **Bitcoin Derivation Paths**: Support for BIP-84 standard derivation paths for Bitcoin (m/84'/0')
+- **Bitcoin Derivation Paths**: Support for BIP-44 (P2PKH), BIP-84 (P2WPKH/SegWit), and BIP-86 (P2TR/Taproot) derivation paths
+- **Taproot Support**: Full support for Taproot (P2TR) addresses with Schnorr signatures (BIP-340)
 - **Multi-Account Management**: Create and manage multiple accounts from a single seed phrase
 - **Transaction Management**: Create, sign, and broadcast Bitcoin transactions
 - **UTXO Management**: Track and manage unspent transaction outputs using Electrum servers
@@ -85,7 +86,7 @@ console.log('Custom account address:', customAddress)
 // All accounts inherit the provider configuration from the wallet manager
 ```
 
-**Note**: This implementation generates Native SegWit (bech32) addresses only. Legacy and P2SH-wrapped SegWit address types are not supported. All accounts use BIP-84 derivation paths (m/84'/0'/account'/0/index).
+**Note**: This implementation supports Native SegWit (P2WPKH/bech32) and Taproot (P2TR/bech32m) addresses. Legacy (P2PKH) and P2SH-wrapped SegWit address types are not supported. Accounts use BIP-84 derivation paths (m/84'/0'/account'/0/index) for P2WPKH or BIP-86 derivation paths (m/86'/0'/account'/0/index) for P2TR, depending on the `script_type` configuration.
 
 ### Checking Balances
 
@@ -140,6 +141,14 @@ const quote = await account.quoteSendTransaction({
   value: 50000n
 })
 console.log('Estimated fee:', quote.fee, 'satoshis')
+
+// Get raw transaction hex without broadcasting (full account only)
+const txHex = await account.quoteSendTransactionTX({
+  to: 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh',
+  value: 50000n
+})
+console.log('Transaction hex:', txHex)
+// You can inspect the transaction or broadcast it manually later
 ```
 
 **Important Notes:**
@@ -148,6 +157,53 @@ console.log('Estimated fee:', quote.fee, 'satoshis')
 - Transaction amounts and fees are always in **satoshis** (1 BTC = 100,000,000 satoshis)
 - `sendTransaction()` returns `hash` and `fee` properties
 - `quoteSendTransaction()` returns only the `fee` estimate
+- `quoteSendTransactionTX()` returns the raw transaction hex string (full account only, useful for inspection or manual broadcasting)
+
+### Sending Transactions with Memos
+
+Send Bitcoin transactions with embedded memos using OP_RETURN outputs. Memos allow you to attach small text messages (up to 75 bytes) to transactions, which are permanently recorded on the blockchain.
+
+**Important Requirements:**
+- **Taproot Addresses Only**: All memo functions require the recipient address to be a Taproot (P2TR) address
+  - Mainnet: addresses starting with `bc1p`
+  - Testnet: addresses starting with `tb1p`
+  - Regtest: addresses starting with `bcrt1p`
+- **Memo Size Limit**: Memos cannot exceed 75 bytes when UTF-8 encoded
+- **Fee Calculation**: OP_RETURN outputs add to transaction size, so fees are automatically adjusted
+
+```javascript
+// Quote a transaction with memo (available on read-only and full accounts)
+const quote = await account.quoteSendTransactionWithMemo({
+  to: 'bc1p5d7rjq7g6rdk2yhzks9smlaqtedr4dekq08ge8ztwac36sfj9hgpvq8rv7d', // Taproot address
+  value: 10000, // Amount in satoshis
+  memo: 'Payment for invoice #12345'
+})
+console.log('Estimated fee:', quote.fee, 'satoshis')
+
+// Send a transaction with memo (full account only)
+const result = await account.sendTransactionWithMemo({
+  to: 'bc1p5d7rjq7g6rdk2yhzks9smlaqtedr4dekq08ge8ztwac36sfj9hgpvq8rv7d',
+  value: 10000,
+  memo: 'Payment for invoice #12345'
+})
+console.log('Transaction hash:', result.hash)
+console.log('Fee paid:', result.fee, 'satoshis')
+
+// Get raw transaction hex with memo (full account only)
+const txHex = await account.quoteSendTransactionWithMemoTX({
+  to: 'bc1p5d7rjq7g6rdk2yhzks9smlaqtedr4dekq08ge8ztwac36sfj9hgpvq8rv7d',
+  value: 10000,
+  memo: 'Payment for invoice #12345'
+})
+console.log('Transaction hex:', txHex)
+```
+
+**Available Functions:**
+- `quoteSendTransactionWithMemo()` - Estimate fee for a transaction with memo (read-only and full accounts)
+- `sendTransactionWithMemo()` - Send a transaction with memo (full account only)
+- `quoteSendTransactionWithMemoTX()` - Get raw transaction hex with memo (full account only)
+
+For detailed documentation and examples, see [WITH_MEMO_USAGE.md](./WITH_MEMO_USAGE.md).
 
 ### Message Signing and Verification
 
@@ -235,12 +291,12 @@ const wallet = new WalletManagerBtc(seedPhrase, {
 | Method | Description | Returns |
 |--------|-------------|---------|
 | `getAccount(index)` | Returns a wallet account at the specified index | `Promise<WalletAccountBtc>` |
-| `getAccountByPath(path)` | Returns a wallet account at the specified BIP-84 derivation path | `Promise<WalletAccountBtc>` |
+| `getAccountByPath(path)` | Returns a wallet account at the specified derivation path (BIP-44, BIP-84, or BIP-86) | `Promise<WalletAccountBtc>` |
 | `getFeeRates()` | Returns current fee rates for transactions | `Promise<{normal: number, fast: number}>` |
 | `dispose()` | Disposes all wallet accounts, clearing private keys from memory | `void` |
 
 ##### `getAccount(index)`
-Returns a wallet account at the specified index using BIP-84 derivation.
+Returns a wallet account at the specified index. Defaults to BIP-84 (P2WPKH) derivation. Set `config.bip=86` with `config.script_type="P2TR"` for Taproot (BIP-86) derivation.
 
 **Parameters:**
 - `index` (number, optional): The index of the account to get (default: 0)
@@ -253,7 +309,7 @@ const account = await wallet.getAccount(0)
 ```
 
 ##### `getAccountByPath(path)`
-Returns a wallet account at the specified BIP-84 derivation path.
+Returns a wallet account at the specified derivation path. Supports BIP-44 (P2PKH), BIP-84 (P2WPKH), and BIP-86 (P2TR) paths based on configuration.
 
 **Parameters:**
 - `path` (string): The derivation path (e.g., "0'/0/0")
@@ -301,7 +357,7 @@ new WalletAccountBtc(seed, path, config)
 
 **Parameters:**
 - `seed` (string | Uint8Array): BIP-39 mnemonic seed phrase or seed bytes
-- `path` (string): BIP-84 derivation path (e.g., "0'/0/0")
+- `path` (string): Derivation path suffix (e.g., "0'/0/0"). Full path depends on BIP type (BIP-44, BIP-84, or BIP-86)
 - `config` (object, optional): Configuration object
   - `host` (string, optional): Electrum server hostname (default: "electrum.blockstream.info")
   - `port` (number, optional): Electrum server port (default: 50001)
@@ -311,10 +367,14 @@ new WalletAccountBtc(seed, path, config)
 
 | Method | Description | Returns |
 |--------|-------------|---------|
-| `getAddress()` | Returns the account's Native SegWit address | `Promise<string>` |
+| `getAddress()` | Returns the account's address (P2WPKH or P2TR based on script_type) | `Promise<string>` |
 | `getBalance()` | Returns the confirmed account balance in satoshis | `Promise<bigint>` |
 | `sendTransaction(options)` | Sends a Bitcoin transaction | `Promise<{hash: string, fee: bigint}>` |
 | `quoteSendTransaction(options)` | Estimates the fee for a transaction | `Promise<{fee: bigint}>` |
+| `quoteSendTransactionTX(options)` | Returns raw transaction hex without broadcasting (full account only) | `Promise<string>` |
+| `quoteSendTransactionWithMemo(options)` | Estimates the fee for a transaction with memo (Taproot addresses only) | `Promise<{fee: bigint}>` |
+| `sendTransactionWithMemo(options)` | Sends a Bitcoin transaction with memo (Taproot addresses only) | `Promise<{hash: string, fee: bigint}>` |
+| `quoteSendTransactionWithMemoTX(options)` | Returns raw transaction hex with memo (Taproot addresses only) | `Promise<string>` |
 | `getTransfers(options?)` | Returns the account's transfer history | `Promise<BtcTransfer[]>` |
 | `sign(message)` | Signs a message with the account's private key | `Promise<string>` |
 | `verify(message, signature)` | Verifies a message signature | `Promise<boolean>` |
@@ -322,7 +382,7 @@ new WalletAccountBtc(seed, path, config)
 | `dispose()` | Disposes the wallet account, clearing private keys from memory | `void` |
 
 ##### `getAddress()`
-Returns the account's Native SegWit (bech32) address.
+Returns the account's address. For P2WPKH (BIP-84), returns a Bech32 address (starts with bc1q). For P2TR (BIP-86), returns a Bech32m address (starts with bc1p).
 
 **Returns:** `Promise<string>` - The Bitcoin address
 
@@ -381,6 +441,112 @@ const quote = await account.quoteSendTransaction({
 })
 console.log('Estimated fee:', quote.fee, 'satoshis')
 ```
+
+##### `quoteSendTransactionTX(options)`
+Builds and signs a transaction, returning the raw hexadecimal string without broadcasting it. Useful for inspecting the transaction or broadcasting it manually later. Works with both P2WPKH (Native SegWit) and P2TR (Taproot) addresses.
+
+**Parameters:**
+- `options` (object): Transaction options
+  - `to` (string): Recipient's Bitcoin address (P2WPKH or P2TR)
+  - `value` (number | bigint): Amount in satoshis
+  - `feeRate` (number | bigint, optional): Fee rate in satoshis per virtual byte. If not provided, estimated from network
+  - `confirmationTarget` (number, optional): Confirmation target in blocks (default: 1)
+
+**Returns:** `Promise<string>` - The raw hexadecimal string of the signed transaction
+
+**Example:**
+```javascript
+const txHex = await account.quoteSendTransactionTX({
+  to: 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh',
+  value: 50000
+})
+console.log('Transaction hex:', txHex)
+
+// You can inspect the transaction or broadcast it manually
+// For example, using bitcoin-cli:
+// bitcoin-cli sendrawtransaction <txHex>
+
+// Or broadcast using Electrum client:
+// await account._electrumClient.blockchainTransaction_broadcast(txHex)
+```
+
+**Note:** Full account only (requires private key). Similar to `sendTransaction()` but returns the transaction hex instead of broadcasting it.
+
+##### `quoteSendTransactionWithMemo(options)`
+Estimates the fee for a transaction with a memo (OP_RETURN output) without broadcasting it. Requires the recipient address to be a Taproot (P2TR) address.
+
+**Parameters:**
+- `options` (object): Transaction options
+  - `to` (string): Recipient's Taproot Bitcoin address (must start with `bc1p`, `tb1p`, or `bcrt1p`)
+  - `value` (number | bigint): Amount in satoshis
+  - `memo` (string): Memo string to embed (max 75 bytes UTF-8)
+  - `feeRate` (number | bigint, optional): Fee rate in satoshis per virtual byte. If not provided, estimated from network
+  - `confirmationTarget` (number, optional): Confirmation target in blocks (default: 1)
+
+**Returns:** `Promise<{fee: bigint}>` - Object containing estimated fee (in satoshis)
+
+**Example:**
+```javascript
+const quote = await account.quoteSendTransactionWithMemo({
+  to: 'bc1p5d7rjq7g6rdk2yhzks9smlaqtedr4dekq08ge8ztwac36sfj9hgpvq8rv7d',
+  value: 10000,
+  memo: 'Payment for invoice #12345'
+})
+console.log('Estimated fee:', quote.fee.toString(), 'satoshis')
+```
+
+**Note:** Available on both read-only and full accounts. See [WITH_MEMO_USAGE.md](./WITH_MEMO_USAGE.md) for detailed documentation.
+
+##### `sendTransactionWithMemo(options)`
+Sends a Bitcoin transaction with a memo (OP_RETURN output). Requires the recipient address to be a Taproot (P2TR) address.
+
+**Parameters:**
+- `options` (object): Same as `quoteSendTransactionWithMemo` options
+  - `to` (string): Recipient's Taproot Bitcoin address (must start with `bc1p`, `tb1p`, or `bcrt1p`)
+  - `value` (number | bigint): Amount in satoshis
+  - `memo` (string): Memo string to embed (max 75 bytes UTF-8)
+  - `feeRate` (number | bigint, optional): Fee rate in satoshis per virtual byte. If not provided, estimated from network
+  - `confirmationTarget` (number, optional): Confirmation target in blocks (default: 1)
+
+**Returns:** `Promise<{hash: string, fee: bigint}>` - Object containing transaction hash and fee (in satoshis)
+
+**Example:**
+```javascript
+const result = await account.sendTransactionWithMemo({
+  to: 'bc1p5d7rjq7g6rdk2yhzks9smlaqtedr4dekq08ge8ztwac36sfj9hgpvq8rv7d',
+  value: 10000,
+  memo: 'Payment for invoice #12345'
+})
+console.log('Transaction hash:', result.hash)
+console.log('Fee paid:', result.fee.toString(), 'satoshis')
+```
+
+**Note:** Full account only (requires private key). See [WITH_MEMO_USAGE.md](./WITH_MEMO_USAGE.md) for detailed documentation.
+
+##### `quoteSendTransactionWithMemoTX(options)`
+Builds and signs a transaction with a memo, returning the raw hexadecimal string without broadcasting it. Useful for inspecting the transaction or broadcasting it manually later. Requires the recipient address to be a Taproot (P2TR) address.
+
+**Parameters:**
+- `options` (object): Same as `quoteSendTransactionWithMemo` options
+  - `to` (string): Recipient's Taproot Bitcoin address (must start with `bc1p`, `tb1p`, or `bcrt1p`)
+  - `value` (number | bigint): Amount in satoshis
+  - `memo` (string): Memo string to embed (max 75 bytes UTF-8)
+  - `feeRate` (number | bigint, optional): Fee rate in satoshis per virtual byte. If not provided, estimated from network
+  - `confirmationTarget` (number, optional): Confirmation target in blocks (default: 1)
+
+**Returns:** `Promise<string>` - The raw hexadecimal string of the signed transaction
+
+**Example:**
+```javascript
+const txHex = await account.quoteSendTransactionWithMemoTX({
+  to: 'bc1p5d7rjq7g6rdk2yhzks9smlaqtedr4dekq08ge8ztwac36sfj9hgpvq8rv7d',
+  value: 10000,
+  memo: 'Payment for invoice #12345'
+})
+console.log('Transaction hex:', txHex)
+```
+
+**Note:** Full account only (requires private key). See [WITH_MEMO_USAGE.md](./WITH_MEMO_USAGE.md) for detailed documentation.
 
 ##### `getTransfers(options?)`
 Returns the account's transfer history with detailed transaction information.
@@ -497,14 +663,20 @@ This package works with Bitcoin networks:
 
 ### Supported Address Types
 
-This implementation supports **Native SegWit (P2WPKH) addresses only**:
+This implementation supports **Native SegWit (P2WPKH) and Taproot (P2TR) addresses**:
 
-- **Native SegWit (P2WPKH)**: Addresses starting with 'bc1' (mainnet) or 'tb1' (testnet)
+- **Native SegWit (P2WPKH)**: Addresses starting with 'bc1q' (mainnet) or 'tb1q' (testnet)
   - Uses BIP-84 derivation paths (`m/84'/0'/account'/0/index`)
+  - Uses ECDSA signatures for transactions
   - Lower transaction fees compared to legacy formats
   - Full SegWit benefits including transaction malleability protection
+- **Taproot (P2TR)**: Addresses starting with 'bc1p' (mainnet) or 'tb1p' (testnet)
+  - Uses BIP-86 derivation paths (`m/86'/0'/account'/0/index`)
+  - Uses Schnorr signatures (BIP-340) for transactions
+  - Set `config.bip=86` and `config.script_type="P2TR"` to enable
+  - Even lower transaction fees and enhanced privacy
 
-**Note**: Legacy (P2PKH) and wrapped SegWit (P2SH-P2WPKH) address types are not supported by this implementation. All generated addresses use the Native SegWit format for optimal fee efficiency and modern Bitcoin standards.
+**Note**: Legacy (P2PKH) and wrapped SegWit (P2SH-P2WPKH) address types are not supported by this implementation. All generated addresses use modern Bitcoin standards for optimal fee efficiency.
 
 ## 🔒 Security Considerations
 
@@ -515,7 +687,7 @@ This implementation supports **Native SegWit (P2WPKH) addresses only**:
 - **Memory Cleanup**: Use the `dispose()` method to clear private keys from memory when done
 - **UTXO Management**: UTXO selection and change handling is managed automatically by the wallet
 - **Fee Management**: Fee rates are fetched from mempool.space API automatically
-- **Address Format**: Only Native SegWit (bech32) addresses are supported
+- **Address Format**: Native SegWit (P2WPKH/bech32) and Taproot (P2TR/bech32m) addresses are supported
 
 ## 🛠️ Development
 

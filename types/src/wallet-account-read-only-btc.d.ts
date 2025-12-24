@@ -42,6 +42,25 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      */
     quoteSendTransaction({ to, value, feeRate, confirmationTarget }: BtcTransaction): Promise<Omit<TransactionResult, "hash">>;
     /**
+     * Quotes the costs of a send transaction operation with a memo (OP_RETURN output).
+     * Requires the recipient address to be a Taproot (P2TR) address.
+     *
+     * @param {Object} options - Transaction options.
+     * @param {string} options.to - The recipient's Taproot Bitcoin address (must start with bc1p, tb1p, or bcrt1p).
+     * @param {number | bigint} options.value - The amount to send (in satoshis).
+     * @param {string} options.memo - The memo string to embed in OP_RETURN (max 75 bytes UTF-8).
+     * @param {number | bigint} [options.feeRate] - Optional fee rate (in sats/vB). If not provided, estimated from network.
+     * @param {number} [options.confirmationTarget] - Optional confirmation target in blocks (default: 1).
+     * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transaction's quotes.
+     */
+    quoteSendTransactionWithMemo({ to, value, memo, feeRate, confirmationTarget }: {
+        to: string;
+        value: number | bigint;
+        memo: string;
+        feeRate?: number | bigint;
+        confirmationTarget?: number;
+    }): Promise<Omit<TransactionResult, "hash">>;
+    /**
      * Returns a transaction's receipt.
      *
      * @param {string} hash - The transaction's hash.
@@ -63,6 +82,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     /**
      * Computes the sha-256 hash of the output script for this wallet's address, reverses the byte order,
      * and returns it as a hex string.
+     * Supports both P2WPKH (Bech32) and P2TR (Bech32m) address formats.
      *
      * @protected
      * @returns {Promise<string>} The reversed sha-256 script hash as a hex-encoded string.
@@ -88,6 +108,30 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
         fromAddress: string;
         toAddress: string;
         amount: number | bigint;
+        feeRate: number | bigint;
+    }): Promise<{
+        utxos: OutputWithValue[];
+        fee: number;
+        changeValue: number;
+    }>;
+    /**
+     * Builds and returns a fee-aware funding plan for sending a transaction with a memo (OP_RETURN output).
+     * Similar to _planSpend but accounts for the additional OP_RETURN output in fee calculation.
+     *
+     * @protected
+     * @param {Object} tx - The transaction.
+     * @param {string} tx.fromAddress - The sender's address.
+     * @param {string} tx.toAddress - The recipient's Taproot address.
+     * @param {number | bigint} tx.amount - The amount to send (in satoshis).
+     * @param {string} tx.memo - The memo string to embed in OP_RETURN.
+     * @param {number | bigint} tx.feeRate - The fee rate (in sats/vB).
+     * @returns {Promise<{ utxos: OutputWithValue[], fee: number, changeValue: number }>} - The funding plan.
+     */
+    protected _planSpendWithMemo({ fromAddress, toAddress, amount, memo, feeRate }: {
+        fromAddress: string;
+        toAddress: string;
+        amount: number | bigint;
+        memo: string;
         feeRate: number | bigint;
     }): Promise<{
         utxos: OutputWithValue[];
@@ -140,9 +184,17 @@ export type BtcWalletConfig = {
      * - The BIP address type used for key and address derivation.
      * - 44: [BIP-44 (P2PKH / legacy)](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)
      * - 84: [BIP-84 (P2WPKH / native SegWit)](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki)
+     * - 86: [BIP-86 (P2TR / Taproot)](https://github.com/bitcoin/bips/blob/master/bip-0086.mediawiki)
      * - Default: 84 (P2WPKH).
      */
-    bip?: 44 | 84;
+    bip?: 44 | 84 | 86;
+    /**
+     * - The script type of the wallet created by WalletManagerBtc.
+     * - "P2WPKH": Pay-to-Witness-Public-Key-Hash (native SegWit)
+     * - "P2TR": Pay-to-Taproot
+     * - Default: "P2WPKH".
+     */
+    script_type?: "P2WPKH" | "P2TR";
 };
 export type BtcMaxSpendableResult = {
     /**

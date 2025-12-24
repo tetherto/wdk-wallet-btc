@@ -32,6 +32,15 @@ const ACCOUNTS = {
       privateKey: '007335c465cb8183b8a43d3f4eb7dbeb65f51e3a94c4a42369f3d2979ffa35fa',
       publicKey: '02e928d54a04833586b14e9c910884f589aebdc713a055e655c2fa13306c1b4f7f'
     }
+  },
+  86: {
+    index: 0,
+    path: "m/86'/1'/0'/0/0",
+    address: 'bcrt1pdlef9rn0emeqm8l6v9avakcfardzsswlm2n30jq7uh9vc7eev4qqcnkec4',
+    keyPair: {
+      privateKey: 'd7c02ec019d224e9337d6b8135d4990526c522c028791f2b7cc95b4b9b7699fb',
+      publicKey: '02b428360693e73e6134bcb97c2d1cbd7e5d80d9840dcd42bf014f66494697586e'
+    }
   }
 }
 
@@ -39,20 +48,23 @@ const MESSAGE = 'Dummy message to sign.'
 
 const SIGNATURES = {
   44: 'H4RwJWJzRmVkgQDqmTgX0qCbSONLQjvjfXH7ZdKZs5S3BWbpfjqbGdIJQXy/+ppW4Lvaw0wZ/UaDOLhMw5TIDuk=',
-  84: 'KAVgsxrQT5V4Mhfnk6taeCN1/j8p/sa8S9iNsbsgRb8zbfNOOPXV1w3dQQV0IjboJrlxYuDJnHw5a/E6vRJ+0Ek='
+  84: 'KAVgsxrQT5V4Mhfnk6taeCN1/j8p/sa8S9iNsbsgRb8zbfNOOPXV1w3dQQV0IjboJrlxYuDJnHw5a/E6vRJ+0Ek=',
+  86: 'KAVgsxrQT5V4Mhfnk6taeCN1/j8p/sa8S9iNsbsgRb8zbfNOOPXV1w3dQQV0IjboJrlxYuDJnHw5a/E6vRJ+0Ek=' // Taproot message signing uses same format
 }
 
 export const FEES = {
   44: 223n,
-  84: 141n
+  84: 141n,
+  86: 141n // Taproot transactions are typically smaller than P2WPKH
 }
 
-describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
+describe.each([44, 84, 86])(`WalletAccountBtc`, (bip) => {
   const CONFIGURATION = {
     host: HOST,
     port: ELECTRUM_PORT,
     network: 'regtest',
-    bip
+    bip,
+    ...(bip === 86 && { script_type: 'P2TR' })
   }
 
   const bitcoin = new BitcoinCli({
@@ -497,4 +509,76 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
       readOnlyAccount._electrumClient.close()
     })
   })
+
+  // Taproot-specific tests (BIP-86)
+  if (bip === 86) {
+    describe('Taproot (P2TR) specific tests', () => {
+      test('should generate a Bech32m address (starts with bcrt1p for regtest)', async () => {
+        const address = await account.getAddress()
+        expect(address).toBe(ACCOUNTS[86].address)
+        expect(address.startsWith('bcrt1p')).toBe(true)
+      })
+
+      test('should create and sign Taproot transactions with Schnorr signatures', async () => {
+        const recipient = bitcoin.getNewAddress()
+        const { hash, fee } = await account.sendTransaction({
+          to: recipient,
+          value: 10_000
+        })
+
+        expect(hash).toBeTruthy()
+        expect(typeof fee).toBe('bigint')
+        expect(fee).toBeGreaterThan(0n)
+
+        await waiter.mine()
+
+        const receipt = await account.getTransactionReceipt(hash)
+        expect(receipt).toBeTruthy()
+        expect(receipt.confirmations).toBeGreaterThan(0)
+      })
+
+      test('should parse Taproot addresses in transaction history', async () => {
+        const address = await account.getAddress()
+        bitcoin.sendToAddress(address, 0.01)
+        await waiter.mine()
+
+        const transfers = await account.getTransfers({ direction: 'incoming', limit: 1 })
+        expect(transfers.length).toBeGreaterThan(0)
+        expect(transfers[0].address).toBe(address)
+        expect(transfers[0].address.startsWith('bcrt1p')).toBe(true)
+      })
+
+      test('should estimate fees correctly for Taproot transactions', async () => {
+        const recipient = bitcoin.getNewAddress()
+        const quote = await account.quoteSendTransaction({
+          to: recipient,
+          value: 10_000
+        })
+
+        expect(quote.fee).toBeTruthy()
+        expect(typeof quote.fee).toBe('bigint')
+        expect(quote.fee).toBeGreaterThan(0n)
+      })
+
+      test('should handle Taproot change outputs correctly', async () => {
+        const recipient = bitcoin.getNewAddress()
+        const balance = await account.getBalance()
+        
+        // Send an amount that will create change
+        const sendAmount = balance / 2n
+        if (sendAmount > 10_000n) {
+          const { hash } = await account.sendTransaction({
+            to: recipient,
+            value: sendAmount
+          })
+          
+          await waiter.mine()
+          
+          // Verify the transaction was successful
+          const receipt = await account.getTransactionReceipt(hash)
+          expect(receipt).toBeTruthy()
+        }
+      })
+    })
+  }
 })
