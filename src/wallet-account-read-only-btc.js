@@ -126,7 +126,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * The dust limit in satoshis based on the BIP type.
      *
      * @private
-     * @type {number}
+     * @type {bigint}
      */
     this._dustLimit = DUST_LIMIT[bip]
   }

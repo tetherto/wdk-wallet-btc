@@ -13,17 +13,37 @@ export default class ElectrumWs implements IElectrumClient {
      * @param {ElectrumWsConfig} config - Configuration options.
      */
     constructor(config: ElectrumWsConfig);
-    /** @private */
+    /**
+     * @private
+     * @type {string}
+     */
     private _url;
-    /** @private */
+    /**
+     * @private
+     * @type {WebSocket | null}
+     */
     private _ws;
-    /** @private */
+    /**
+     * @private
+     * @type {number}
+     */
     private _requestId;
-    /** @private */
+    /**
+     * @private
+     * @type {Map<number, { resolve: (value: any) => void, reject: (reason: Error) => void }>}
+     */
     private _pending;
-    /** @private */
+    /**
+     * @private
+     * @type {boolean}
+     */
     private _connected;
-    connect(): Promise<any>;
+    /**
+     * @private
+     * @type {Promise<void> | null}
+     */
+    private _connecting;
+    connect(): Promise<void>;
     /** @private */
     private _handleMessage;
     /** @private */
@@ -32,12 +52,12 @@ export default class ElectrumWs implements IElectrumClient {
     private _request;
     close(): Promise<void>;
     reconnect(): Promise<void>;
-    getBalance(scripthash: any): Promise<any>;
-    listUnspent(scripthash: any): Promise<any>;
-    getHistory(scripthash: any): Promise<any>;
-    getTransaction(txHash: any): Promise<any>;
-    broadcast(rawTx: any): Promise<any>;
-    estimateFee(blocks: any): Promise<any>;
+    getBalance(scripthash: string): Promise<import("./electrum-client.js").ElectrumBalance>;
+    listUnspent(scripthash: string): Promise<import("./electrum-client.js").ElectrumUtxo[]>;
+    getHistory(scripthash: string): Promise<import("./electrum-client.js").ElectrumHistoryItem[]>;
+    getTransaction(txHash: string): Promise<string>;
+    broadcast(rawTx: string): Promise<string>;
+    estimateFee(blocks: number): Promise<number>;
 }
 export type ElectrumWsConfig = {
     /**

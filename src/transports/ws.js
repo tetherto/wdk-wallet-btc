@@ -49,26 +49,48 @@ export default class ElectrumWs {
   constructor (config) {
     const { url } = config
 
-    /** @private */
+    /**
+     * @private
+     * @type {string}
+     */
     this._url = url
 
-    /** @private */
+    /**
+     * @private
+     * @type {WebSocket | null}
+     */
     this._ws = null
 
-    /** @private */
+    /**
+     * @private
+     * @type {number}
+     */
     this._requestId = 0
 
-    /** @private */
+    /**
+     * @private
+     * @type {Map<number, { resolve: (value: any) => void, reject: (reason: Error) => void }>}
+     */
     this._pending = new Map()
 
-    /** @private */
+    /**
+     * @private
+     * @type {boolean}
+     */
     this._connected = false
+
+    /**
+     * @private
+     * @type {Promise<void> | null}
+     */
+    this._connecting = null
   }
 
   async connect () {
     if (this._connected) return
+    if (this._connecting) return this._connecting
 
-    return new Promise((resolve, reject) => {
+    this._connecting = new Promise((resolve, reject) => {
       this._ws = new WebSocket(this._url)
 
       this._ws.onopen = () => {
@@ -93,7 +115,11 @@ export default class ElectrumWs {
       this._ws.onmessage = (event) => {
         this._handleMessage(event.data)
       }
+    }).finally(() => {
+      this._connecting = null
     })
+
+    return this._connecting
   }
 
   /** @private */
@@ -169,6 +195,7 @@ export default class ElectrumWs {
     }
     this._pending.clear()
     this._connected = false
+    this._connecting = null
   }
 
   async reconnect () {

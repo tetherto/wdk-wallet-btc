@@ -399,7 +399,10 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @returns {Promise<WalletAccountReadOnlyBtc>} The read-only account.
    */
   async toReadOnlyAccount () {
-    const btcReadOnlyAccount = new WalletAccountReadOnlyBtc(this._address, this._config)
+    const btcReadOnlyAccount = new WalletAccountReadOnlyBtc(this._address, {
+      ...this._config,
+      client: this._electrumClient
+    })
 
     return btcReadOnlyAccount
   }

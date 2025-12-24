@@ -41,6 +41,11 @@ export default class MempoolElectrumClient implements IElectrumClient {
      * @type {boolean}
      */
     private _connected;
+    /**
+     * @private
+     * @type {Promise<void> | null}
+     */
+    private _connecting;
     connect(): Promise<void>;
     close(): Promise<void>;
     reconnect(): Promise<void>;

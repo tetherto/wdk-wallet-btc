@@ -76,23 +76,41 @@ export default class MempoolElectrumClient {
      * @type {boolean}
      */
     this._connected = false
+
+    /**
+     * @private
+     * @type {Promise<void> | null}
+     */
+    this._connecting = null
   }
 
   async connect () {
     if (this._connected) return
-    await this._client.initElectrum(this._electrumConfig, this._persistencePolicy)
-    this._connected = true
+    if (this._connecting) return this._connecting
+
+    this._connecting = this._client
+      .initElectrum(this._electrumConfig, this._persistencePolicy)
+      .then(() => {
+        this._connected = true
+      })
+      .finally(() => {
+        this._connecting = null
+      })
+
+    return this._connecting
   }
 
   async close () {
     this._client.close()
     this._connected = false
+    this._connecting = null
   }
 
   async reconnect () {
+    this._connected = false
+    this._connecting = null
     this._client.initSocket()
-    await this._client.initElectrum(this._electrumConfig, this._persistencePolicy)
-    this._connected = true
+    await this.connect()
   }
 
   async getBalance (scripthash) {
