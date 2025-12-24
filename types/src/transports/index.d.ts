@@ -1,10 +1,11 @@
-export type { ElectrumClientConfig, ElectrumBalance, ElectrumUtxo, ElectrumHistoryItem } from './electrum-client.js';
-export type { MempoolElectrumConfig } from './mempool-electrum-client.js';
-
-export { IElectrumClient, default as ElectrumClient } from './electrum-client.js';
-export { default as MempoolElectrumClient } from './mempool-electrum-client.js';
-
-export { default as ElectrumTcp } from './tcp.js';
-export { default as ElectrumTls } from './tls.js';
-export { default as ElectrumSsl } from './ssl.js';
-export { default as ElectrumWs } from './ws.js';
+export { default as IElectrumClient } from "./electrum-client.js";
+export { default as MempoolElectrumClient } from "./mempool-electrum-client.js";
+export { default as ElectrumTcp } from "./tcp.js";
+export { default as ElectrumTls } from "./tls.js";
+export { default as ElectrumSsl } from "./ssl.js";
+export { default as ElectrumWs } from "./ws.js";
+export type ElectrumClientConfig = import("./electrum-client.js").ElectrumClientConfig;
+export type ElectrumBalance = import("./electrum-client.js").ElectrumBalance;
+export type ElectrumUtxo = import("./electrum-client.js").ElectrumUtxo;
+export type ElectrumHistoryItem = import("./electrum-client.js").ElectrumHistoryItem;
+export type MempoolElectrumConfig = import("./mempool-electrum-client.js").MempoolElectrumConfig;
