@@ -379,6 +379,46 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
   }
 
   /**
+   * Quotes a transaction and returns the raw hexadecimal string without broadcasting it.
+   * Works with both P2WPKH (Native SegWit) and P2TR (Taproot) addresses.
+   * Similar to sendTransaction but returns the transaction hex instead of broadcasting.
+   *
+   * @param {Object} options - Transaction options.
+   * @param {string} options.to - The recipient's Bitcoin address (P2WPKH or P2TR).
+   * @param {number | bigint} options.value - The amount to send (in satoshis).
+   * @param {number | bigint} [options.feeRate] - Optional fee rate (in sats/vB). If not provided, estimated from network.
+   * @param {number} [options.confirmationTarget] - Optional confirmation target in blocks (default: 1).
+   * @returns {Promise<string>} The raw hexadecimal string of the transaction.
+   */
+  async quoteSendTransactionTX ({ to, value, feeRate, confirmationTarget = 1 }) {
+    const address = await this.getAddress()
+
+    if (!feeRate) {
+      const feeEstimate = await this._electrumClient.blockchainEstimatefee(confirmationTarget)
+      feeRate = this._toBigInt(Math.max(feeEstimate * 100_000, 1))
+    }
+
+    const { utxos, fee, changeValue } = await this._planSpend({
+      fromAddress: address,
+      toAddress: to,
+      amount: value,
+      feeRate
+    })
+
+    // Build transaction WITHOUT memo (no additionalOutputs)
+    const tx = await this._getRawTransaction({
+      utxos,
+      to,
+      value,
+      fee,
+      feeRate,
+      changeValue
+    })
+
+    return tx.hex
+  }
+
+  /**
    * Quotes a transaction with memo (OP_RETURN output) and returns the raw hexadecimal string.
    * Requires the recipient address to be a Taproot (P2TR) address.
    * Similar to quoteSendTransactionWithMemo but returns the transaction hex instead of just the fee.

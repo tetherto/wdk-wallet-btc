@@ -141,6 +141,14 @@ const quote = await account.quoteSendTransaction({
   value: 50000n
 })
 console.log('Estimated fee:', quote.fee, 'satoshis')
+
+// Get raw transaction hex without broadcasting (full account only)
+const txHex = await account.quoteSendTransactionTX({
+  to: 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh',
+  value: 50000n
+})
+console.log('Transaction hex:', txHex)
+// You can inspect the transaction or broadcast it manually later
 ```
 
 **Important Notes:**
@@ -149,6 +157,7 @@ console.log('Estimated fee:', quote.fee, 'satoshis')
 - Transaction amounts and fees are always in **satoshis** (1 BTC = 100,000,000 satoshis)
 - `sendTransaction()` returns `hash` and `fee` properties
 - `quoteSendTransaction()` returns only the `fee` estimate
+- `quoteSendTransactionTX()` returns the raw transaction hex string (full account only, useful for inspection or manual broadcasting)
 
 ### Sending Transactions with Memos
 
@@ -362,6 +371,7 @@ new WalletAccountBtc(seed, path, config)
 | `getBalance()` | Returns the confirmed account balance in satoshis | `Promise<bigint>` |
 | `sendTransaction(options)` | Sends a Bitcoin transaction | `Promise<{hash: string, fee: bigint}>` |
 | `quoteSendTransaction(options)` | Estimates the fee for a transaction | `Promise<{fee: bigint}>` |
+| `quoteSendTransactionTX(options)` | Returns raw transaction hex without broadcasting (full account only) | `Promise<string>` |
 | `quoteSendTransactionWithMemo(options)` | Estimates the fee for a transaction with memo (Taproot addresses only) | `Promise<{fee: bigint}>` |
 | `sendTransactionWithMemo(options)` | Sends a Bitcoin transaction with memo (Taproot addresses only) | `Promise<{hash: string, fee: bigint}>` |
 | `quoteSendTransactionWithMemoTX(options)` | Returns raw transaction hex with memo (Taproot addresses only) | `Promise<string>` |
@@ -431,6 +441,36 @@ const quote = await account.quoteSendTransaction({
 })
 console.log('Estimated fee:', quote.fee, 'satoshis')
 ```
+
+##### `quoteSendTransactionTX(options)`
+Builds and signs a transaction, returning the raw hexadecimal string without broadcasting it. Useful for inspecting the transaction or broadcasting it manually later. Works with both P2WPKH (Native SegWit) and P2TR (Taproot) addresses.
+
+**Parameters:**
+- `options` (object): Transaction options
+  - `to` (string): Recipient's Bitcoin address (P2WPKH or P2TR)
+  - `value` (number | bigint): Amount in satoshis
+  - `feeRate` (number | bigint, optional): Fee rate in satoshis per virtual byte. If not provided, estimated from network
+  - `confirmationTarget` (number, optional): Confirmation target in blocks (default: 1)
+
+**Returns:** `Promise<string>` - The raw hexadecimal string of the signed transaction
+
+**Example:**
+```javascript
+const txHex = await account.quoteSendTransactionTX({
+  to: 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh',
+  value: 50000
+})
+console.log('Transaction hex:', txHex)
+
+// You can inspect the transaction or broadcast it manually
+// For example, using bitcoin-cli:
+// bitcoin-cli sendrawtransaction <txHex>
+
+// Or broadcast using Electrum client:
+// await account._electrumClient.blockchainTransaction_broadcast(txHex)
+```
+
+**Note:** Full account only (requires private key). Similar to `sendTransaction()` but returns the transaction hex instead of broadcasting it.
 
 ##### `quoteSendTransactionWithMemo(options)`
 Estimates the fee for a transaction with a memo (OP_RETURN output) without broadcasting it. Requires the recipient address to be a Taproot (P2TR) address.
