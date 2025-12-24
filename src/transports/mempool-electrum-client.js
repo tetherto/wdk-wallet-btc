@@ -15,26 +15,25 @@
 
 import MempoolClient from '@mempool/electrum-client'
 
-import ElectrumClient from './electrum-client.js'
-
 /**
  * @typedef {Object} MempoolElectrumConfig
  * @property {string} host - The Electrum server hostname.
  * @property {number} port - The Electrum server port.
  * @property {'tcp' | 'ssl' | 'tls'} [protocol] - The transport protocol (default: 'tcp').
- * @property {number} [timeout] - Connection timeout in milliseconds (default: 15000).
  * @property {number} [maxRetry] - Maximum reconnection attempts (default: 2).
  * @property {number} [retryPeriod] - Delay between reconnection attempts in milliseconds (default: 1000).
  * @property {number} [pingPeriod] - Delay between keep-alive pings in milliseconds (default: 120000).
  * @property {(err: Error | null) => void} [callback] - Called when all retries are exhausted.
  */
 
+/** @typedef {import('./electrum-client.js').default} IElectrumClient */
+
 /**
  * Electrum client using @mempool/electrum-client.
  *
- * @extends ElectrumClient
+ * @implements {IElectrumClient}
  */
-export default class MempoolElectrumClient extends ElectrumClient {
+export default class MempoolElectrumClient {
   /**
    * Creates a new Mempool Electrum client.
    *
@@ -48,11 +47,8 @@ export default class MempoolElectrumClient extends ElectrumClient {
       maxRetry = 2,
       retryPeriod = 1_000,
       pingPeriod = 120_000,
-      callback = null,
-      ...baseConfig
+      callback = null
     } = config
-
-    super(baseConfig)
 
     /**
      * @private
@@ -74,28 +70,29 @@ export default class MempoolElectrumClient extends ElectrumClient {
      * @type {{ maxRetry: number, retryPeriod: number, pingPeriod: number, callback: ((err: Error | null) => void) | null }}
      */
     this._persistencePolicy = { maxRetry, retryPeriod, pingPeriod, callback }
+
+    /**
+     * @private
+     * @type {boolean}
+     */
+    this._connected = false
   }
 
   async connect () {
+    if (this._connected) return
     await this._client.initElectrum(this._electrumConfig, this._persistencePolicy)
+    this._connected = true
   }
 
-  /** @protected */
-  async _close () {
+  async close () {
     this._client.close()
+    this._connected = false
   }
 
   async reconnect () {
     this._client.initSocket()
-
-    const initElectrum = this._client.initElectrum(this._electrumConfig, this._persistencePolicy)
-
-    this._ready = initElectrum.catch(error => {
-      this._ready = null
-      throw error
-    })
-
-    return this._ready
+    await this._client.initElectrum(this._electrumConfig, this._persistencePolicy)
+    this._connected = true
   }
 
   async getBalance (scripthash) {

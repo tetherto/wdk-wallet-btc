@@ -19,7 +19,7 @@
 /** @typedef {import('./electrum-client.js').ElectrumHistoryItem} ElectrumHistoryItem */
 /** @typedef {import('./mempool-electrum-client.js').MempoolElectrumConfig} MempoolElectrumConfig */
 
-export { IElectrumClient, default as ElectrumClient } from './electrum-client.js'
+export { default as IElectrumClient } from './electrum-client.js'
 export { default as MempoolElectrumClient } from './mempool-electrum-client.js'
 
 export { default as ElectrumTcp } from './tcp.js'

@@ -216,6 +216,8 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @returns {Promise<TransactionResult>} The transaction's result.
    */
   async sendTransaction ({ to, value, feeRate, confirmationTarget = 1 }) {
+    await this._ensureConnected()
+
     const address = await this.getAddress()
 
     if (!feeRate) {
@@ -257,6 +259,8 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @returns {Promise<BtcTransfer[]>} The bitcoin transfers.
    */
   async getTransfers (options = {}) {
+    await this._ensureConnected()
+
     const {
       direction = 'all',
       limit = 10,

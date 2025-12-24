@@ -28,7 +28,7 @@ import ElectrumSsl from './transports/ssl.js'
 
 /** @typedef {import('./transports/mempool-electrum-client.js').MempoolElectrumConfig} MempoolElectrumConfig */
 /** @typedef {import('./transports/mempool-electrum-client.js').default} MempoolElectrumClient */
-/** @typedef {import('./transports/electrum-client.js').default} ElectrumClient */
+/** @typedef {import('./transports/electrum-client.js').default} IElectrumClient */
 
 /** @typedef {import('@bitcoinerlab/coinselect').OutputWithValue} OutputWithValue */
 /** @typedef {import('bitcoinjs-lib').Network} Network */
@@ -48,7 +48,7 @@ import ElectrumSsl from './transports/ssl.js'
 
 /**
  * @typedef {Object} BtcWalletConfig
- * @property {MempoolElectrumClient} [client] - Electrum client instance. If provided, host/port/protocol are ignored.
+ * @property {IElectrumClient} [client] - Electrum client instance. If provided, host/port/protocol are ignored.
  * @property {string} [host] - The electrum server's hostname (default: "electrum.blockstream.info"). Ignored if client is provided.
  * @property {number} [port] - The electrum server's port (default: 50001). Ignored if client is provided.
  * @property {"tcp" | "tls" | "ssl"} [protocol] - The transport protocol to use (default: "tcp"). Ignored if client is provided.
@@ -117,7 +117,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * An electrum client to interact with the bitcoin node.
      *
      * @protected
-     * @type {ElectrumClient}
+     * @type {IElectrumClient}
      */
     this._electrumClient = config.client ?? this._createClient({ host, port, protocol })
 
@@ -139,6 +139,8 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * @returns {Promise<bigint>} The bitcoin balance (in satoshis).
    */
   async getBalance () {
+    await this._ensureConnected()
+
     const scriptHash = await this._getScriptHash()
 
     const { confirmed } = await this._electrumClient.getBalance(scriptHash)
@@ -163,6 +165,8 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transaction's quotes.
    */
   async quoteSendTransaction ({ to, value, feeRate, confirmationTarget = 1 }) {
+    await this._ensureConnected()
+
     const address = await this.getAddress()
 
     if (!feeRate) {
@@ -201,6 +205,8 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
       throw new Error("The 'getTransactionReceipt(hash)' method requires a valid transaction hash to fetch the receipt.")
     }
 
+    await this._ensureConnected()
+
     const scriptHash = await this._getScriptHash()
     const history = await this._electrumClient.getHistory(scriptHash)
     const item = Array.isArray(history) ? history.find(h => h?.tx_hash === hash) : null
@@ -228,6 +234,8 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * @returns {Promise<BtcMaxSpendableResult>} The maximum spendable result.
    */
   async getMaxSpendable () {
+    await this._ensureConnected()
+
     const fromAddress = await this.getAddress()
     const feeRateRaw = await this._electrumClient.estimateFee(1)
     const feeRate = Math.max(Math.round(Number(feeRateRaw) * 100_000), 1)
@@ -288,24 +296,14 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
   }
 
   /**
-   * Computes the sha-256 hash of the output script for this wallet's address, reverses the byte order,
-   * and returns it as a hex string.
+   * Ensures the electrum client is connected.
    *
    * @protected
-   * @returns {Promise<string>} The reversed sha-256 script hash as a hex-encoded string.
+   * @returns {Promise<void>}
    */
-  async _getScriptHash () {
-    const address = await this.getAddress()
-    const script = btcAddress.toOutputScript(address, this._network)
-    const hash = crypto.sha256(script)
-
-    const buffer = Buffer.from(hash).reverse()
-
-    return buffer.toString('hex')
+  async _ensureConnected () {
+    await this._electrumClient.connect()
   }
-
-  /** @private */
-  _toBigInt (v) { return typeof v === 'bigint' ? v : BigInt(Math.round(Number(v))) }
 
   /**
    * Creates a default Electrum client based on config options.
@@ -333,6 +331,26 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
         return new ElectrumTcp(transportConfig)
     }
   }
+
+  /**
+   * Computes the sha-256 hash of the output script for this wallet's address, reverses the byte order,
+   * and returns it as a hex string.
+   *
+   * @protected
+   * @returns {Promise<string>} The reversed sha-256 script hash as a hex-encoded string.
+   */
+  async _getScriptHash () {
+    const address = await this.getAddress()
+    const script = btcAddress.toOutputScript(address, this._network)
+    const hash = crypto.sha256(script)
+
+    const buffer = Buffer.from(hash).reverse()
+
+    return buffer.toString('hex')
+  }
+
+  /** @private */
+  _toBigInt (v) { return typeof v === 'bigint' ? v : BigInt(Math.round(Number(v))) }
 
   /**
    * Builds and returns a fee-aware funding plan for sending a transaction.

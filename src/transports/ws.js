@@ -13,13 +13,12 @@
 // limitations under the License.
 'use strict'
 
-import ElectrumClient from './electrum-client.js'
-
 /**
  * @typedef {Object} ElectrumWsConfig
  * @property {string} url - The WebSocket URL (e.g., 'wss://electrum.example.com:50004').
- * @property {number} [timeout] - Connection timeout in milliseconds (default: 15_000).
  */
+
+/** @typedef {import('./electrum-client.js').default} IElectrumClient */
 
 const isNode =
   typeof process !== 'undefined' &&
@@ -39,18 +38,16 @@ if (!WebSocket) {
  * Compatible with browser environments where TCP sockets are not available.
  * Requires an Electrum server that supports WebSocket connections.
  *
- * @extends ElectrumClient
+ * @implements {IElectrumClient}
  */
-export default class ElectrumWs extends ElectrumClient {
+export default class ElectrumWs {
   /**
    * Creates a new WebSocket Electrum client.
    *
    * @param {ElectrumWsConfig} config - Configuration options.
    */
   constructor (config) {
-    const { url, ...baseConfig } = config
-
-    super(baseConfig)
+    const { url } = config
 
     /** @private */
     this._url = url
@@ -63,13 +60,19 @@ export default class ElectrumWs extends ElectrumClient {
 
     /** @private */
     this._pending = new Map()
+
+    /** @private */
+    this._connected = false
   }
 
   async connect () {
+    if (this._connected) return
+
     return new Promise((resolve, reject) => {
       this._ws = new WebSocket(this._url)
 
       this._ws.onopen = () => {
+        this._connected = true
         resolve()
       }
 
@@ -79,6 +82,7 @@ export default class ElectrumWs extends ElectrumClient {
       }
 
       this._ws.onclose = () => {
+        this._connected = false
         // eslint-disable-next-line no-unused-vars
         for (const [_id, { reject }] of this._pending) {
           reject(new Error('WebSocket connection closed'))
@@ -158,19 +162,18 @@ export default class ElectrumWs extends ElectrumClient {
     })
   }
 
-  /** @protected */
-  async _close () {
+  async close () {
     if (this._ws) {
       this._ws.close()
       this._ws = null
     }
     this._pending.clear()
+    this._connected = false
   }
 
   async reconnect () {
-    await this._close()
-    this._ready = null
-    return this._ensure()
+    await this.close()
+    await this.connect()
   }
 
   async getBalance (scripthash) {
