@@ -16,6 +16,7 @@ import { hmac } from '@noble/hashes/hmac'
 import { sha512 } from '@noble/hashes/sha512'
 import { initEccLib, networks, Psbt } from 'bitcoinjs-lib'
 import { BIP32Factory } from 'bip32'
+import { NotImplementedError } from '@tetherto/wdk-wallet'
 
 import * as bip39 from 'bip39'
 import * as ecc from '@bitcoinerlab/secp256k1'
@@ -23,7 +24,14 @@ import * as ecc from '@bitcoinerlab/secp256k1'
 // eslint-disable-next-line camelcase
 import { sodium_memzero } from 'sodium-universal'
 
-import { hashMessage, buildPaymentScript, detectInputOwnership, ensureWitnessUtxoIfNeeded, normalizeConfig, getAddressFromPublicKey } from './utils.js'
+import {
+  hashMessage,
+  buildPaymentScript,
+  detectInputOwnership,
+  ensureWitnessUtxoIfNeeded,
+  normalizeConfig,
+  getAddressFromPublicKey
+} from './utils.js'
 
 const MASTER_SECRET = Buffer.from('Bitcoin seed', 'utf8')
 
@@ -45,7 +53,11 @@ function deriveMasterNode (seed) {
   const privateKey = masterKeyAndChainCodeBuffer.slice(0, 32)
   const chainCode = masterKeyAndChainCodeBuffer.slice(32)
 
-  const masterNode = bip32.fromPrivateKey(Buffer.from(privateKey), Buffer.from(chainCode), BITCOIN)
+  const masterNode = bip32.fromPrivateKey(
+    Buffer.from(privateKey),
+    Buffer.from(chainCode),
+    BITCOIN
+  )
 
   sodium_memzero(masterKeyAndChainCodeBuffer)
   sodium_memzero(privateKey)
@@ -58,48 +70,52 @@ function deriveMasterNode (seed) {
 /** @interface */
 export class ISignerBtc {
   get index () {
-    throw new Error('Not implemented')
+    throw new NotImplementedError('index')
   }
 
   get path () {
-    throw new Error('Not implemented')
+    throw new NotImplementedError('path')
   }
 
   get keyPair () {
-    throw new Error('Not implemented')
+    throw new NotImplementedError('keyPair')
   }
 
   get config () {
-    throw new Error('Not implemented')
+    throw new NotImplementedError('config')
   }
 
   get address () {
-    throw new Error('Not implemented')
+    throw new NotImplementedError('address')
   }
   // TODO check this we might need it to be async due to the hardware wallets
 
-  derive (relPath) {
-    throw new Error('Not implemented')
+  derive (relPath, config = {}) {
+    throw new NotImplementedError('derive(relPath, config)')
   }
 
   async getExtendedPublicKey () {
-    throw new Error('Not implemented')
+    throw new NotImplementedError('getExtendedPublicKey()')
   }
 
   async sign (message) {
-    throw new Error('Not implemented')
+    throw new NotImplementedError('sign(message)')
   }
 
   async verify (message, signature) {
-    throw new Error('Not implemented')
+    throw new NotImplementedError('verify(message, signature)')
   }
 
   async getWalletAddress () {
-    throw new Error('Not implemented')
+    throw new NotImplementedError('getWalletAddress()')
   }
 
   async signPsbt (psbt) {
-    throw new Error('Not implemented')
+    throw new NotImplementedError('signPsbt(psbt)')
+  }
+
+  dispose () {
+    throw new NotImplementedError('dispose()')
   }
 }
 
@@ -130,11 +146,11 @@ export default class SeedSignerBtc {
     this._account = undefined
     this._address = undefined
     /**
-       * The wallet account configuration.
-       *
-       * @protected
-       * @type {BtcWalletConfig}
-    */
+     * The wallet account configuration.
+     *
+     * @protected
+     * @type {BtcWalletConfig}
+     */
     config = normalizeConfig(config)
     this._config = config
     this._isRoot = true
@@ -144,7 +160,11 @@ export default class SeedSignerBtc {
       const fullPath = `m/${config.bip}'/${netdp}'/${opts.path}`
       const account = masterNode.derivePath(fullPath)
       const network = networks[config.network] || networks.bitcoin
-      const address = getAddressFromPublicKey(account.publicKey, network, config.bip)
+      const address = getAddressFromPublicKey(
+        account.publicKey,
+        network,
+        config.bip
+      )
 
       this._path = fullPath
 
@@ -195,7 +215,9 @@ export default class SeedSignerBtc {
    */
   get keyPair () {
     return {
-      privateKey: this._account ? new Uint8Array(this._account.privateKey) : null,
+      privateKey: this._account
+        ? new Uint8Array(this._account.privateKey)
+        : null,
       publicKey: new Uint8Array(this._account.publicKey)
     }
   }
@@ -211,10 +233,16 @@ export default class SeedSignerBtc {
   derive (relPath, config = {}) {
     const cfg = {
       ...this._config,
-      ...Object.fromEntries(Object.entries(config || {}).filter(([, v]) => v !== undefined))
+      ...Object.fromEntries(
+        Object.entries(config || {}).filter(([, v]) => v !== undefined)
+      )
     }
     // Recreate a fresh root from the same material; no manual field assignment needed
-    const cloned = bip32.fromPrivateKey(Buffer.from(this._masterNode.privateKey), Buffer.from(this._masterNode.chainCode), BITCOIN)
+    const cloned = bip32.fromPrivateKey(
+      Buffer.from(this._masterNode.privateKey),
+      Buffer.from(this._masterNode.chainCode),
+      BITCOIN
+    )
     const opts = {
       masterNode: cloned,
       path: relPath
@@ -224,7 +252,8 @@ export default class SeedSignerBtc {
   }
 
   async getExtendedPublicKey () {
-    const isTestnet = this._config.network === 'testnet' || this._config.network === 'regtest'
+    const isTestnet =
+      this._config.network === 'testnet' || this._config.network === 'regtest'
     const versions = isTestnet
       ? {
           44: { public: 0x043587cf, private: 0x04358394 }, // tpub/tprv
@@ -235,14 +264,19 @@ export default class SeedSignerBtc {
           84: { public: 0x04b24746, private: 0x04b2430c } // zpub/zprv
         }
 
-    const { public: publicVersion, private: privateVersion } = versions[this._bip]
+    const { public: publicVersion, private: privateVersion } =
+      versions[this._bip]
     const network = {
       wif: isTestnet ? 0xef : 0x80,
       bip32: { public: publicVersion, private: privateVersion }
     }
 
     const src = this._account.neutered()
-    const node = bip32.fromPublicKey(Buffer.from(src.publicKey), Buffer.from(src.chainCode), network)
+    const node = bip32.fromPublicKey(
+      Buffer.from(src.publicKey),
+      Buffer.from(src.chainCode),
+      network
+    )
     node.depth = src.depth
     node.index = src.index
     node.parentFingerprint = src.parentFingerprint
@@ -255,7 +289,8 @@ export default class SeedSignerBtc {
   }
 
   async signPsbt (psbt) {
-    const psbtInstance = typeof psbt === 'string' ? Psbt.fromBase64(psbt) : psbt
+    const psbtInstance =
+      typeof psbt === 'string' ? Psbt.fromBase64(psbt) : psbt
 
     const pubkey = this._account && this._account.publicKey
     if (!pubkey) return psbtInstance.toBase64()
@@ -264,22 +299,32 @@ export default class SeedSignerBtc {
     const myScript = buildPaymentScript(this._bip, pubkey, network)
 
     for (let i = 0; i < psbtInstance.inputCount; i++) {
-      const { input, prevOut, isOurs } = detectInputOwnership(psbtInstance, i, myScript)
+      const { input, prevOut, isOurs } = detectInputOwnership(
+        psbtInstance,
+        i,
+        myScript
+      )
 
       if (!isOurs) continue
 
       try {
         // Ensure bip32Derivation is present so we can use signInputHD
-        const hasDerivation = (input.bip32Derivation || []).some(d =>
-          d && d.pubkey && Buffer.isBuffer(d.pubkey) && d.pubkey.equals(pubkey)
+        const hasDerivation = (input.bip32Derivation || []).some(
+          (d) =>
+            d &&
+            d.pubkey &&
+            Buffer.isBuffer(d.pubkey) &&
+            d.pubkey.equals(pubkey)
         )
         if (!hasDerivation) {
           psbtInstance.updateInput(i, {
-            bip32Derivation: [{
-              masterFingerprint: this._masterNode.fingerprint,
-              path: this.path,
-              pubkey
-            }]
+            bip32Derivation: [
+              {
+                masterFingerprint: this._masterNode.fingerprint,
+                path: this.path,
+                pubkey
+              }
+            ]
           })
         }
 
