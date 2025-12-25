@@ -16,6 +16,7 @@ import { hmac } from '@noble/hashes/hmac'
 import { sha512 } from '@noble/hashes/sha512'
 import { initEccLib, networks, Psbt } from 'bitcoinjs-lib'
 import { BIP32Factory } from 'bip32'
+import { NotImplementedError } from '@tetherto/wdk-wallet'
 
 import * as bip39 from 'bip39'
 import * as ecc from '@bitcoinerlab/secp256k1'
@@ -69,48 +70,52 @@ function deriveMasterNode (seed) {
 /** @interface */
 export class ISignerBtc {
   get index () {
-    throw new Error('Not implemented')
+    throw new NotImplementedError('index')
   }
 
   get path () {
-    throw new Error('Not implemented')
+    throw new NotImplementedError('path')
   }
 
   get keyPair () {
-    throw new Error('Not implemented')
+    throw new NotImplementedError('keyPair')
   }
 
   get config () {
-    throw new Error('Not implemented')
+    throw new NotImplementedError('config')
   }
 
   get address () {
-    throw new Error('Not implemented')
+    throw new NotImplementedError('address')
   }
   // TODO check this we might need it to be async due to the hardware wallets
 
-  derive (relPath) {
-    throw new Error('Not implemented')
+  derive (relPath, config = {}) {
+    throw new NotImplementedError('derive(relPath, config)')
   }
 
   async getExtendedPublicKey () {
-    throw new Error('Not implemented')
+    throw new NotImplementedError('getExtendedPublicKey()')
   }
 
   async sign (message) {
-    throw new Error('Not implemented')
+    throw new NotImplementedError('sign(message)')
   }
 
   async verify (message, signature) {
-    throw new Error('Not implemented')
+    throw new NotImplementedError('verify(message, signature)')
   }
 
   async getWalletAddress () {
-    throw new Error('Not implemented')
+    throw new NotImplementedError('getWalletAddress()')
   }
 
   async signPsbt (psbt) {
-    throw new Error('Not implemented')
+    throw new NotImplementedError('signPsbt(psbt)')
+  }
+
+  dispose () {
+    throw new NotImplementedError('dispose()')
   }
 }
 
