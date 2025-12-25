@@ -16,6 +16,7 @@
 import { address as btcAddress, Psbt, Transaction } from 'bitcoinjs-lib'
 import pLimit from 'p-limit'
 import { LRUCache } from 'lru-cache'
+import * as bitcoinMessage from 'bitcoinjs-message'
 import PrivateKeySignerBtc from './signers/private-key-signer-btc.js'
 import WalletAccountReadOnlyBtc from './wallet-account-read-only-btc.js'
 
@@ -35,9 +36,9 @@ import WalletAccountReadOnlyBtc from './wallet-account-read-only-btc.js'
  * @property {string} address - The user's own address.
  * @property {number} vout - The index of the output in the transaction.
  * @property {number} height - The block height (if unconfirmed, 0).
- * @property {number} value - The value of the transfer (in satoshis).
+ * @property {bigint} value - The value of the transfer (in satoshis).
  * @property {"incoming" | "outgoing"} direction - The direction of the transfer.
- * @property {number} [fee] - The fee paid for the full transaction (in satoshis).
+ * @property {bigint} [fee] - The fee paid for the full transaction (in satoshis).
  * @property {string} [recipient] - The receiving address for outgoing transfers.
  */
 
@@ -122,7 +123,14 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @returns {Promise<boolean>} True if the signature is valid.
    */
   async verify (message, signature) {
-    return this._signer.verify(message, signature)
+    return bitcoinMessage
+      .verify(
+        message,
+        await this.getAddress(),
+        signature,
+        null,
+        true
+      )
   }
 
   /**
@@ -131,12 +139,13 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @param {BtcTransaction} tx - The transaction.
    * @returns {Promise<TransactionResult>} The transaction's result.
    */
-  async sendTransaction ({ to, value }) {
+  async sendTransaction ({ to, value, feeRate, confirmationTarget = 1 }) {
     const address = await this.getAddress()
 
-    const feeEstimate = await this._electrumClient.blockchainEstimatefee(1)
-
-    const feeRate = Math.max(Number(feeEstimate) * 100_000, 1)
+    if (!feeRate) {
+      const feeEstimate = await this._electrumClient.blockchainEstimatefee(confirmationTarget)
+      feeRate = this._toBigInt(Math.max(feeEstimate * 100_000, 1))
+    }
 
     const { utxos, fee, changeValue } = await this._planSpend({
       fromAddress: address,
@@ -149,7 +158,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
 
     await this._electrumClient.blockchainTransaction_broadcast(tx.hex)
 
-    return { hash: tx.txid, fee: BigInt(tx.fee) }
+    return { hash: tx.txid, fee: tx.fee }
   }
 
   /**
@@ -209,7 +218,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
       if (isCoinbasePrevUtxo) { prevUtxoCache.set(prevKey, null); return null }
       const prevTx = await fetchTransaction(prevTxId)
       const prevTxUtxo = prevTx.outs[input.index] || null
-      const prevUtxo = prevTxUtxo ? { script: prevTxUtxo.script, value: prevTxUtxo.value } : null
+      const prevUtxo = prevTxUtxo ? { script: prevTxUtxo.script, value: BigInt(prevTxUtxo.value) } : null
       prevUtxoCache.set(prevKey, prevUtxo)
       return prevUtxo
     }
@@ -228,25 +237,26 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
           return null
         }))
       )
-      let totalInputValue = 0
+
+      let totalInputValue = 0n
       let isOutgoingTx = false
       for (const prevUtxo of prevUtxos) {
-        if (!prevUtxo || typeof prevUtxo.value !== 'number') continue
+        if (!prevUtxo || typeof prevUtxo.value !== 'bigint') continue
         totalInputValue += prevUtxo.value
         const isOurPrevUtxo = prevUtxo.script && prevUtxo.script.equals(myScript)
         isOutgoingTx = isOutgoingTx || isOurPrevUtxo
       }
 
       const utxos = tx.outs
-      let totalUtxoValue = 0
-      for (const utxo of utxos) {
-        totalUtxoValue += utxo.value
-      }
-      const fee = totalInputValue > 0 ? (totalInputValue - totalUtxoValue) : null
+      let totalUtxoValue = 0n
+      for (const utxo of utxos) totalUtxoValue += BigInt(utxo.value)
+
+      const fee = totalInputValue > 0n ? totalInputValue - totalUtxoValue : null
 
       const rows = []
       for (let vout = 0; vout < utxos.length; vout++) {
         const utxo = utxos[vout]
+        const utxoValue = BigInt(utxo.value)
         const isSelfUtxo = utxo.script.equals(myScript)
         let directionType = null
         if (isSelfUtxo && !isOutgoingTx) directionType = 'incoming'
@@ -255,16 +265,18 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
         else continue
         if (directionType === 'change') continue
         if (direction !== 'all' && direction !== directionType) continue
+
         let recipient = null
         try {
           recipient = btcAddress.fromOutputScript(utxo.script, network)
         } catch (err) {
           console.warn('Failed to decode recipient address', utxo, err)
         }
+
         rows.push({
           txid: item.tx_hash,
           height: item.height,
-          value: utxo.value,
+          value: utxoValue,
           vout,
           direction: directionType,
           recipient,
@@ -325,12 +337,17 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
 
   /** @private */
   async _getRawTransaction ({ utxos, to, value, fee, feeRate, changeValue }) {
-    // Any BIP-specific decisions (e.g., legacy vs segwit signing) are handled by the signer.
-    const prevTxHexCache = new Map()
+    feeRate = this._toBigInt(feeRate)
+    if (feeRate < 1n) feeRate = 1n
+    value = this._toBigInt(value)
+    changeValue = this._toBigInt(changeValue)
+    fee = this._toBigInt(fee)
+
+    const legacyPrevTxCache = new Map()
     const getPrevTxHex = async (txid) => {
-      if (prevTxHexCache.has(txid)) return prevTxHexCache.get(txid)
+      if (legacyPrevTxCache.has(txid)) return legacyPrevTxCache.get(txid)
       const hex = await this._electrumClient.blockchainTransaction_get(txid, false)
-      prevTxHexCache.set(txid, hex)
+      legacyPrevTxCache.set(txid, hex)
       return hex
     }
 
@@ -351,10 +368,8 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
         })
       }
 
-      psbt.addOutput({ address: to, value: rcptVal })
-      if (chgVal > 0) {
-        psbt.addOutput({ address: await this.getAddress(), value: chgVal })
-      }
+      psbt.addOutput({ address: to, value: Number(rcptVal) })
+      if (chgVal > 0n) psbt.addOutput({ address: await this.getAddress(), value: Number(chgVal) })
 
       return psbt
     }
@@ -366,31 +381,32 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
       return signed.extractTransaction()
     }
 
-    let currentRecipientAmnt = Number(value)
+    let currentRecipientAmnt = value
     let currentChange = changeValue
-    let currentFee = fee
 
     let unsigned = await buildUnsignedPsbt(currentRecipientAmnt, currentChange)
     let tx = await signAndFinalize(unsigned)
     let vsize = tx.virtualSize()
-    let requiredFee = Math.ceil(vsize * feeRate)
+    let requiredFee = BigInt(vsize) * feeRate
 
-    if (requiredFee <= currentFee) {
-      return { txid: tx.getId(), hex: tx.toHex(), fee: currentFee, vsize }
+    if (requiredFee <= fee) {
+      return { txid: tx.getId(), hex: tx.toHex(), fee, vsize }
     }
 
-    const delta = requiredFee - currentFee
-    currentFee = requiredFee
+    const dustLimit = this._dustLimit
 
-    if (currentChange > 0) {
-      const newChange = currentChange - delta
-      currentChange = newChange > this._dustLimit ? newChange : 0
+    const delta = requiredFee - fee
+    fee = requiredFee
+    if (currentChange > 0n) {
+      let newChange = currentChange - delta
+      if (newChange <= dustLimit) newChange = 0n
+      currentChange = newChange
       unsigned = await buildUnsignedPsbt(currentRecipientAmnt, currentChange)
       tx = await signAndFinalize(unsigned)
     } else {
       const newRecipientAmnt = currentRecipientAmnt - delta
-      if (newRecipientAmnt <= this._dustLimit) {
-        throw new Error(`The amount after fees must be bigger than the dust limit (= ${this._dustLimit}).`)
+      if (newRecipientAmnt <= dustLimit) {
+        throw new Error(`The amount after fees must be bigger than the dust limit (= ${dustLimit}).`)
       }
       currentRecipientAmnt = newRecipientAmnt
       unsigned = await buildUnsignedPsbt(currentRecipientAmnt, currentChange)
@@ -398,11 +414,9 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     }
 
     vsize = tx.virtualSize()
-    requiredFee = Math.ceil(vsize * feeRate)
-    if (requiredFee > currentFee) {
-      throw new Error('Fee shortfall after output rebalance.')
-    }
+    requiredFee = BigInt(vsize) * feeRate
+    if (requiredFee > fee) throw new Error('Fee shortfall after output rebalance.')
 
-    return { txid: tx.getId(), hex: tx.toHex(), fee: currentFee }
+    return { txid: tx.getId(), hex: tx.toHex(), fee, vsize }
   }
 }

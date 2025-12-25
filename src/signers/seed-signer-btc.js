@@ -16,6 +16,7 @@ import { hmac } from '@noble/hashes/hmac'
 import { sha512 } from '@noble/hashes/sha512'
 import { initEccLib, networks, Psbt } from 'bitcoinjs-lib'
 import { BIP32Factory } from 'bip32'
+import * as bitcoinMessage from 'bitcoinjs-message'
 import { NotImplementedError } from '@tetherto/wdk-wallet'
 
 import * as bip39 from 'bip39'
@@ -156,7 +157,7 @@ export default class SeedSignerBtc {
     this._isRoot = true
 
     if (opts.path) {
-      const netdp = config.network === 'testnet' ? 1 : 0
+      const netdp = config.network === 'bitcoin' ? 0 : 1
       const fullPath = `m/${config.bip}'/${netdp}'/${opts.path}`
       const account = masterNode.derivePath(fullPath)
       const network = networks[config.network] || networks.bitcoin
@@ -215,9 +216,7 @@ export default class SeedSignerBtc {
    */
   get keyPair () {
     return {
-      privateKey: this._account
-        ? new Uint8Array(this._account.privateKey)
-        : null,
+      privateKey: this._account.privateKey ? new Uint8Array(this._account.privateKey) : null,
       publicKey: new Uint8Array(this._account.publicKey)
     }
   }
@@ -348,8 +347,14 @@ export default class SeedSignerBtc {
    * @returns {Promise<string>} The message's signature.
    */
   async sign (message) {
-    const messageHash = hashMessage(message)
-    return this._account.sign(messageHash).toString('hex')
+    return bitcoinMessage
+      .sign(
+        message,
+        this._account.privateKey,
+        true,
+        this._bip === 84 ? { segwitType: 'p2wpkh' } : undefined
+      )
+      .toString('base64')
   }
 
   /**
@@ -374,9 +379,10 @@ export default class SeedSignerBtc {
     sodium_memzero(this._masterNode.privateKey)
     sodium_memzero(this._masterNode.chainCode)
 
-    this._account = undefined
-
     this._masterNode = undefined
     this._isActive = false
+    Object.defineProperty(this._account, 'privateKey', {
+      get: () => null
+    })
   }
 }

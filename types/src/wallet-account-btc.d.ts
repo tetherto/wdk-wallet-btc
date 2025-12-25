@@ -55,7 +55,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      * @param {BtcTransaction} tx - The transaction.
      * @returns {Promise<TransactionResult>} The transaction's result.
      */
-    sendTransaction({ to, value }: BtcTransaction): Promise<TransactionResult>;
+    sendTransaction({ to, value, feeRate, confirmationTarget }: BtcTransaction): Promise<TransactionResult>;
     /**
      * Transfers a token to another address.
      *
@@ -117,7 +117,7 @@ export type BtcTransfer = {
     /**
      * - The value of the transfer (in satoshis).
      */
-    value: number;
+    value: bigint;
     /**
      * - The direction of the transfer.
      */
@@ -125,7 +125,7 @@ export type BtcTransfer = {
     /**
      * - The fee paid for the full transaction (in satoshis).
      */
-    fee?: number;
+    fee?: bigint;
     /**
      * - The receiving address for outgoing transfers.
      */

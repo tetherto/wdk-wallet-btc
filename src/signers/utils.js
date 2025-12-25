@@ -51,7 +51,7 @@ export function ensureWitnessUtxoIfNeeded (psbtInstance, i, bip, prevOut, input)
 }
 
 export function normalizeConfig (config = {}) {
-  const bip = config.bip ?? 44
+  const bip = config.bip ?? 84
   if (![44, 84].includes(bip)) {
     throw new Error('Invalid bip specification. Supported bips: 44, 84.')
   }
