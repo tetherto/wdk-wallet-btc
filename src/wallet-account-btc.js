@@ -329,8 +329,6 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    */
   dispose () {
     this._signer.dispose()
-    this._signer = undefined
-
     this._electrumClient.close()
     this._isActive = false
   }

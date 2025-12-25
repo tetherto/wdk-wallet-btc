@@ -17,11 +17,12 @@
 import { networks, Psbt } from 'bitcoinjs-lib'
 import * as ecc from '@bitcoinerlab/secp256k1'
 import { ECPairFactory } from 'ecpair'
+import * as bitcoinMessage from 'bitcoinjs-message'
 
 // eslint-disable-next-line camelcase
 import { sodium_memzero } from 'sodium-universal'
 
-import { hashMessage, buildPaymentScript, detectInputOwnership, ensureWitnessUtxoIfNeeded, normalizeConfig, getAddressFromPublicKey } from './utils.js'
+import { buildPaymentScript, detectInputOwnership, ensureWitnessUtxoIfNeeded, normalizeConfig, getAddressFromPublicKey } from './utils.js'
 
 const ECPair = ECPairFactory(ecc)
 /** @typedef {import('../wallet-account-read-only-btc.js').BtcWalletConfig} BtcWalletConfig */
@@ -100,15 +101,21 @@ export default class PrivateKeySignerBtc {
     throw new Error('Method implemented only in Signers with transport layer')
   }
 
+  /**
+   * Signs a message.
+   *
+   * @param {string} message - The message to sign.
+   * @returns {Promise<string>} The message's signature.
+   */
   async sign (message) {
-    const messageHash = hashMessage(message)
-    return this._account.sign(messageHash).toString('hex')
-  }
-
-  async verify (message, signature) {
-    const messageHash = hashMessage(message)
-    const signatureBuffer = Buffer.from(signature, 'hex')
-    return this._account.verify(messageHash, signatureBuffer)
+    return bitcoinMessage
+      .sign(
+        message,
+        this._account.privateKey,
+        true,
+        this._bip === 84 ? { segwitType: 'p2wpkh' } : undefined
+      )
+      .toString('base64')
   }
 
   async signPsbt (psbt) {

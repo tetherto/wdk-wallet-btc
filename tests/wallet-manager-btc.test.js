@@ -91,7 +91,7 @@ describe('WalletManagerBtc', () => {
 
       const acc = await wallet.getAccountByPath("1'/2/3", 'alt')
       expect(acc).toBeInstanceOf(WalletAccountBtc)
-      expect(acc.path).toBe("m/44'/0'/1'/2/3")
+      expect(acc.path).toBe("m/84'/1'/1'/2/3")
     })
 
     test('getAccountByPath caches per signerName:path (same instance on repeat)', async () => {
@@ -112,8 +112,8 @@ describe('WalletManagerBtc', () => {
       expect(accAlt).toBeInstanceOf(WalletAccountBtc)
       expect(accAlt).not.toBe(accDefault)
 
-      expect(accDefault.path).toBe("m/44'/0'/0'/0/5")
-      expect(accAlt.path).toBe("m/44'/0'/0'/0/5")
+      expect(accDefault.path).toBe("m/84'/1'/0'/0/5")
+      expect(accAlt.path).toBe("m/84'/1'/0'/0/5")
     })
 
     test('getAccountByPath throws for unknown signerName', async () => {

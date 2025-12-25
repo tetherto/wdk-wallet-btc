@@ -26,7 +26,6 @@ import * as ecc from '@bitcoinerlab/secp256k1'
 import { sodium_memzero } from 'sodium-universal'
 
 import {
-  hashMessage,
   buildPaymentScript,
   detectInputOwnership,
   ensureWitnessUtxoIfNeeded,
@@ -355,19 +354,6 @@ export default class SeedSignerBtc {
         this._bip === 84 ? { segwitType: 'p2wpkh' } : undefined
       )
       .toString('base64')
-  }
-
-  /**
-   * Verifies a message's signature.
-   *
-   * @param {string} message - The original message.
-   * @param {string} signature - The signature to verify.
-   * @returns {Promise<boolean>} True if the signature is valid.
-   */
-  async verify (message, signature) {
-    const messageHash = hashMessage(message)
-    const signatureBuffer = Buffer.from(signature, 'hex')
-    return this._account.verify(messageHash, signatureBuffer)
   }
 
   dispose () {
