@@ -5,12 +5,13 @@ import { HOST, PORT, ELECTRUM_PORT, ZMQ_PORT, DATA_DIR } from '../config.js'
 import { BitcoinCli, Waiter } from '../helpers/index.js'
 
 import WalletManagerBtc from '../../index.js'
+import SeedSignerBtc from '../../src/signers/index.js'
 
 function parseRawTransaction (rawTransaction, recipientAddress) {
   const getAddress = (vout) => vout.scriptPubKey.address || vout.scriptPubKey.addresses?.[0]
-  
+
   const output = rawTransaction.vout.find(vout => getAddress(vout) === recipientAddress)
-  
+
   return {
     txid: rawTransaction.txid,
     details: [{ address: getAddress(output), amount: output.value, vout: 0 }]
@@ -67,7 +68,8 @@ describe.each([44, 84])('@wdk/wallet-btc (BIP %i)', (bip) => {
   let wallet
 
   beforeAll(async () => {
-    wallet = new WalletManagerBtc(SEED_PHRASE, CONFIGURATION)
+    const signer = new SeedSignerBtc(SEED_PHRASE)
+    wallet = new WalletManagerBtc(signer,CONFIGURATION)
 
     bitcoin.sendToAddress(ACCOUNT_0.address[bip], 1)
     bitcoin.sendToAddress(ACCOUNT_1.address[bip], 1)
@@ -147,7 +149,7 @@ describe.each([44, 84])('@wdk/wallet-btc (BIP %i)', (bip) => {
     await waiter.mine()
 
     await account1.sendTransaction({ to: address0, value: 800n })
-    await waiter.mine() 
+    await waiter.mine()
 
     await account0.sendTransaction({ to: address1, value: 2_000n })
     await waiter.mine()
@@ -209,5 +211,5 @@ describe.each([44, 84])('@wdk/wallet-btc (BIP %i)', (bip) => {
       await expect(account.sendTransaction({ to: await account.getAddress(), value: 1_000n })).rejects.toThrow()
       await expect(account.sign(MESSAGE)).rejects.toThrow("private key should be a Buffer")
     }
-  })  
+  })
 })
