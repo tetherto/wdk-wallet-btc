@@ -15,7 +15,8 @@
 
 import {
   DeviceActionStatus,
-  DeviceManagementKitBuilder
+  DeviceManagementKitBuilder,
+  DeviceStatus
 } from '@ledgerhq/device-management-kit'
 import { webHidTransportFactory } from '@ledgerhq/device-transport-kit-web-hid'
 import {
@@ -23,21 +24,13 @@ import {
   DefaultWallet,
   SignerBtcBuilder
 } from '@ledgerhq/device-signer-kit-bitcoin'
-import { crypto, networks, payments } from 'bitcoinjs-lib'
+import { networks } from 'bitcoinjs-lib'
 import { BIP32Factory } from 'bip32'
 import * as ecc from '@bitcoinerlab/secp256k1'
 import { filter, firstValueFrom, map } from 'rxjs'
 
 /** @typedef {import('./seed-signer-btc.js').ISignerBtc} ISignerBtc */
-
-const BITCOIN = {
-  wif: 0x80,
-  bip32: { public: 0x0488b21e, private: 0x0488ade4 },
-  messagePrefix: '\x18Bitcoin Signed Message:\n',
-  bech32: 'bc',
-  pubKeyHash: 0x00,
-  scriptHash: 0x05
-}
+import { getAddressFromPublicKey, normalizeConfig } from './utils.js'
 
 const bip32 = BIP32Factory(ecc)
 
@@ -46,66 +39,18 @@ const bip32 = BIP32Factory(ecc)
  */
 export default class LedgerSignerBtc {
   constructor (path, config = {}, opts = {}) {
-    const bip = config.bip ?? 44
-    if (![44, 84].includes(bip)) {
-      throw new Error('Invalid bip specification. Supported bips: 44, 84.')
-    }
+    config = normalizeConfig(config)
+    const bip = config.bip
 
-    const netdp = config.network === 'testnet' ? 1 : 0
+    const netdp = config.network === 'bitcoin' ? 0 : 1
     const fullPath = `m/${bip}'/${netdp}'/${path}`
 
     /**
-     * Discover & connect a device
+     * Device/session state (lazy initialization like EVM signer)
      */
-
-    this._dmk =
-      opts.dmk ||
-      new DeviceManagementKitBuilder()
-        .addTransport(webHidTransportFactory)
-        .build()
-
-    this._dmk.startDiscovering({}).subscribe({
-      next: async (device) => {
-        this._sessionId = await this._dmk.connect({
-          device,
-          sessionRefresherOptions: { isRefresherDisabled: true }
-        })
-
-        // Create a hardware signer
-        this._signerBtc = new SignerBtcBuilder({
-          dmk: this._dmk,
-          sessionId: this._sessionId
-        }).build()
-
-        // Get the extended pubkey
-        const { observable } = this._signerBtc.getExtendedPublicKey(
-          fullPath.split('/').splice(1).join('/')
-        )
-        const xpub = await firstValueFrom(
-          observable.pipe(
-            filter((evt) => evt.status === DeviceActionStatus.Completed),
-            map((evt) => evt.output.extendedPublicKey)
-          )
-        )
-
-        // Derive the address
-        const network = networks[config.network] || networks.bitcoin
-        const account = bip32.fromBase58(xpub)
-        const { address } =
-          bip === 44
-            ? payments.p2pkh({ pubkey: account.publicKey, network })
-            : payments.p2wpkh({ pubkey: account.publicKey, network })
-
-        // Active
-        this._account = account
-        this._address = address
-        this._isActive = true
-      },
-      error: (e) => {
-        throw new Error(e)
-      }
-    })
-
+    this._address = undefined
+    this._sessionId = ''
+    this._signerBtc = undefined
     this._isActive = false
 
     /**
@@ -117,8 +62,16 @@ export default class LedgerSignerBtc {
     this._config = config
 
     this._path = fullPath
-
     this._bip = bip
+
+    /**
+     * @type {import('@ledgerhq/device-management-kit').DeviceManagementKit}
+     */
+    this._dmk =
+      opts.dmk ||
+      new DeviceManagementKitBuilder()
+        .addTransport(webHidTransportFactory)
+        .build()
   }
 
   get isActive () {
@@ -146,12 +99,200 @@ export default class LedgerSignerBtc {
     return this._address
   }
 
+  /**
+   * Disconnect current session if any.
+   * @private
+   */
+  async _disconnect () {
+    try {
+      if (this._signerBtc && this._dmk && this._sessionId) {
+        await this._dmk.disconnect({ sessionId: this._sessionId })
+      }
+    } catch (_) {
+      // ignore best-effort disconnect
+    } finally {
+      this._signerBtc = undefined
+      this._sessionId = ''
+      this._isActive = false
+    }
+  }
+
+  /**
+   * Reconnect device and refresh signer/address
+   *
+   * @private
+   */
+  async _reconnect () {
+    if (!this._dmk || !this._sessionId) {
+      await this._connect()
+      return
+    }
+    try {
+      const device = this._dmk.getConnectedDevice({ sessionId: this._sessionId })
+      this._sessionId = await this._dmk.reconnect({
+        device,
+        sessionRefresherOptions: { isRefresherDisabled: true }
+      })
+      // Rebuild signer to ensure refreshed handles
+      this._signerBtc = new SignerBtcBuilder({
+        dmk: this._dmk,
+        sessionId: this._sessionId
+      }).build()
+    } catch (_) {
+      // Fallback to full reconnect if soft reconnect fails
+      await this._disconnect()
+      await this._connect()
+    }
+  }
+
+  /**
+   * Ensure the device is in a usable state before sending actions.
+   * - If locked or busy: fail fast with a friendly error.
+   * - If not connected: attempt reconnect.
+   *
+   * @param {string} _context
+   * @private
+   */
+  async _ensureDeviceReady (_context) {
+    if (!this._dmk || !this._sessionId) return
+    let state
+    try {
+      state = await firstValueFrom(this._dmk.getDeviceSessionState({ sessionId: this._sessionId }))
+    } catch (_) {
+      // If state cannot be retrieved, try to reconnect; let subsequent action fail if still unavailable
+      await this._reconnect()
+      return
+    }
+    const status = state.deviceStatus
+    if (status === DeviceStatus.LOCKED) {
+      throw new Error('Device is locked')
+    }
+    if (status === DeviceStatus.BUSY) {
+      throw new Error('Device is busy')
+    }
+    if (status === DeviceStatus.NOT_CONNECTED) {
+      await this._reconnect()
+    }
+  }
+
+  /**
+   * Consume a DeviceAction observable and resolve on Completed; reject early on Error/Stopped.
+   *
+   * @template T
+   * @param {import('rxjs').Observable<any>} observable
+   * @returns {Promise<T>}
+   * @private
+   */
+  async _consumeDeviceAction (observable) {
+    console.log('Consuming device action inside _consumeDeviceAction')
+    const result = await firstValueFrom(
+      observable.pipe(
+        filter(
+          (evt) =>
+            evt.status === DeviceActionStatus.Completed ||
+            evt.status === DeviceActionStatus.Error ||
+            evt.status === DeviceActionStatus.Stopped
+        ),
+        map((evt) => {
+          console.log('Mapping event', evt)
+          if (evt.status === DeviceActionStatus.Completed) return evt.output
+          if (evt.status === DeviceActionStatus.Error) {
+            const err = evt.error || new Error('Unknown Ledger error')
+            throw err
+          }
+          // Stopped → user canceled or device blocked
+          throw new Error('Action stopped')
+        })
+      )
+    )
+    console.log('Consumed device action', result)
+    return result
+  }
+
+  /**
+   * Discover and connect the device, then hydrate signer/account/address.
+   *
+   * @private
+   */
+  async _connect () {
+    console.log('Connecting to device')
+    // Discover & Connect the device
+    const device = await firstValueFrom(this._dmk.startDiscovering({}))
+    this._sessionId = await this._dmk.connect({
+      device,
+      sessionRefresherOptions: { isRefresherDisabled: true }
+    })
+    console.log('Connected to device')
+    // Create a hardware signer
+    this._signerBtc = new SignerBtcBuilder({
+      dmk: this._dmk,
+      sessionId: this._sessionId
+    }).build()
+    console.log('Created hardware signer')
+    // Get the extended pubkey (strip leading "m/")
+    try {
+      console.log('Getting extended public key')
+      // For XPUB, Ledger expects the hardened account-level path only (e.g. "84'/0'/0'")
+      const accountLevelPath = this._path.split('/').slice(1, 4).join('/')
+      console.log('Account-level path for xpub', accountLevelPath)
+      const { observable } = this._signerBtc.getExtendedPublicKey(accountLevelPath, { skipOpenApp: true })
+      console.log('Observable', observable)
+      const extendedPublicKey = await (async () => {
+        console.log('Consuming device action')
+        const out = await this._consumeDeviceAction(observable)
+        console.log('Consumed device action')
+        console.log('Out', out)
+        // DMK returns either object {extendedPublicKey} or raw string depending on version
+        return typeof out === 'string' ? out : out.extendedPublicKey
+      })()
+      console.log('Got extended public key')
+      console.log(this._config.network)
+      // Derive the address
+      const network = networks[this._config.network] || networks.bitcoin
+      console.log('Network', network)
+      const account = bip32.fromBase58(extendedPublicKey)
+      console.log('Account', account)
+      const address = getAddressFromPublicKey(account.publicKey, network, this._bip)
+
+      // Active
+      this._address = address
+      this._isActive = true
+    } catch (err) {
+      await this._disconnect()
+      throw err
+    }
+  }
+
+  /**
+   * Derive a new signer at the given relative path, reusing the current device session.
+   *
+   * @param {string} relPath - Relative BIP-44 path (e.g. "0'/0/1").
+   * @param {import('../wallet-account-btc.js').BtcWalletConfig} [cfg]
+   * @returns {LedgerSignerBtc}
+   */
+  derive (relPath, cfg) {
+    const mergedCfg = cfg || this._config || {}
+    const mergedOpts = { dmk: this._dmk }
+    return new LedgerSignerBtc(`${relPath}`, mergedCfg, mergedOpts)
+  }
+
+  /** @returns {Promise<string>} */
+  async getAddress () {
+    console.log('getAddress', this._address)
+    await this._ensureDeviceReady('get address')
+    if (!this._signerBtc) await this._connect()
+    console.log('after connect')
+    return this._address
+  }
+
   async signPsbt (psbt) {
-    if (!this._signerBtc) throw new Error('Ledger is not connected yet.')
+    await this._ensureDeviceReady('transaction signing')
+    if (!this._signerBtc) await this._connect()
 
-    const accountLevelPath = this._path.split('/').slice(1, 4).join('/')
+    let accountLevelPath = this._path.split('/').slice(1, 4).join('/')
+    if (!accountLevelPath.startsWith('/')) accountLevelPath = `/${accountLevelPath}`
 
-    const { observable } = this._signerBtc.signTransaction(
+    const { observable } = this._signerBtc.signPsbt(
       new DefaultWallet(
         accountLevelPath,
         this._bip === 44
@@ -161,24 +302,23 @@ export default class LedgerSignerBtc {
       psbt
     )
 
-    const [partialSig] = await firstValueFrom(
-      observable.pipe(
-        filter((evt) => evt.status === DeviceActionStatus.Completed),
-        map((evt) => evt.output)
-      )
-    )
+    const output = await this._consumeDeviceAction(observable)
+    const signatures = Array.isArray(output) ? output : [output]
 
-    if ('signature' in partialSig) {
-      const { pubkey, signature } = partialSig
-      psbt.updateInput(partialSig.inputIndex, {
-        partialSig: [
+    for (const psig of signatures) {
+      if (psig && 'signature' in psig && typeof psig.inputIndex === 'number') {
+        const { pubkey, signature, inputIndex } = psig
+        const existing = (psbt.data.inputs[inputIndex] && psbt.data.inputs[inputIndex].partialSig) || []
+        const next = [
+          ...existing,
           { pubkey: Buffer.from(pubkey), signature: Buffer.from(signature) }
         ]
-      })
-      return psbt
+        psbt.updateInput(inputIndex, { partialSig: next })
+      }
+      // Ignore MuSig or unsupported outputs for now
     }
 
-    return psbt // not consider other cases in this poc yet
+    return psbt
   }
 
   /**
@@ -188,17 +328,22 @@ export default class LedgerSignerBtc {
    * @returns {Promise<string>} The message's signature.
    */
   async sign (message) {
-    if (!this._signerBtc) throw new Error('Ledger is not connected yet.')
+    await this._ensureDeviceReady('message signing')
+    if (!this._signerBtc) await this._connect()
 
     const { observable } = this._signerBtc.signMessage(this._path, message)
-    const { r, s } = await firstValueFrom(
-      observable.pipe(
-        filter((evt) => evt.status === DeviceActionStatus.Completed),
-        map((evt) => evt.output)
-      )
-    )
-
-    return r.replace(/^0x/, '') + s.replace(/^0x/, '')
+    const { r, s, v } = await this._consumeDeviceAction(observable)
+    const rHex = String(r).replace(/^0x/i, '').padStart(64, '0')
+    const sHex = String(s).replace(/^0x/i, '').padStart(64, '0')
+    let recovery = Number(v)
+    recovery = recovery === 27 || recovery === 28 ? recovery - 27 : recovery
+    const header = 27 + recovery + 4 // compressed
+    const sigBuf = Buffer.concat([
+      Buffer.from([header]),
+      Buffer.from(rHex, 'hex'),
+      Buffer.from(sHex, 'hex')
+    ])
+    return sigBuf.toString('base64')
   }
 
   /**
@@ -209,25 +354,11 @@ export default class LedgerSignerBtc {
    * @returns {Promise<boolean>} True if the signature is valid.
    */
   async verify (message, signature) {
-    const data = Buffer.concat([
-      Buffer.from(BITCOIN.messagePrefix, 'utf8'),
-      Buffer.from([message.length]),
-      Buffer.from(message, 'utf8')
-    ])
-
-    const messageHash = crypto.sha256(crypto.sha256(data))
-    const signatureBuffer = Buffer.from(signature, 'hex')
-
-    return this._account.verify(messageHash, signatureBuffer)
+    throw new Error('verify(message, signature) is handled at the wallet-account level for Ledger signers.')
   }
 
   dispose () {
-    this._dmk.disconnect({ sessionId: this._sessionId })
-
-    this._account = undefined
-
-    this._sessionId = ''
-    this._signerBtc = undefined
-    this._isActive = false
+    this._disconnect()
+    this._dmk = undefined
   }
 }

@@ -1,21 +1,20 @@
 /** @implements {IWalletAccount} */
 export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implements IWalletAccount {
+    static fromPrivateKey(privateKey: any, config?: {}): WalletAccountBtc;
     /**
      * Creates a new bitcoin wallet account.
      *
-     * @param {string | Uint8Array} seed - The wallet's [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) seed phrase.
-     * @param {string} path - The derivation path suffix (e.g. "0'/0/0").
-     * @param {BtcWalletConfig} [config] - The configuration object.
+     * @param {ISignerBtc} signer - The signer..
      */
-    constructor(seed: string | Uint8Array, path: string, config?: BtcWalletConfig);
-    /** @private */
-    private _path;
-    /** @private */
-    private _bip;
-    /** @private */
-    private _masterNode;
-    /** @private */
-    private _account;
+    constructor(signer: ISignerBtc);
+    _signer: ISignerBtc;
+    _isActive: boolean;
+    /**
+     * Whether the account is active.
+     *
+     * @type {boolean}
+     */
+    get isActive(): boolean;
     /**
      * The derivation path's index of this account.
      *

@@ -51,8 +51,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
   /**
    * Creates a new bitcoin wallet account.
    *
-   * @param {ISignerBtc} signer - The signer.
-   * @param {BtcWalletConfig} [config] - The configuration object.
+   * @param {ISignerBtc} signer - The signer..
    */
   constructor (signer) {
     // TODO: add validation for signer
@@ -62,6 +61,23 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     super(signer.address, signer.config)
     this._signer = signer
     this._isActive = true
+  }
+
+  /**
+   * Returns the account's address. If not set at construction time (e.g. lazy hardware signers),
+   * it asks the underlying signer to resolve it, then caches it locally.
+   *
+   * @returns {Promise<string>} The account's address.
+   */
+  async getAddress () {
+    if (this._address) return this._address
+    if (this._signer && typeof this._signer.getAddress === 'function') {
+      const addr = await this._signer.getAddress()
+      // Cache inside the read-only base shape
+      this.__address = addr
+      return addr
+    }
+    throw new Error("The account's address must be set to perform this operation.")
   }
 
   /**

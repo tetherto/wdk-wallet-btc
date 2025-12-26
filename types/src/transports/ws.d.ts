@@ -52,12 +52,12 @@ export default class ElectrumWs implements IElectrumClient {
     private _request;
     close(): Promise<void>;
     reconnect(): Promise<void>;
-    getBalance(scripthash: string): Promise<import("./electrum-client.js").ElectrumBalance>;
-    listUnspent(scripthash: string): Promise<import("./electrum-client.js").ElectrumUtxo[]>;
-    getHistory(scripthash: string): Promise<import("./electrum-client.js").ElectrumHistoryItem[]>;
-    getTransaction(txHash: string): Promise<string>;
-    broadcast(rawTx: string): Promise<string>;
-    estimateFee(blocks: number): Promise<number>;
+    getBalance(scripthash: any): Promise<any>;
+    listUnspent(scripthash: any): Promise<any>;
+    getHistory(scripthash: any): Promise<any>;
+    getTransaction(txHash: any): Promise<any>;
+    broadcast(rawTx: any): Promise<any>;
+    estimateFee(blocks: any): Promise<any>;
 }
 export type ElectrumWsConfig = {
     /**
