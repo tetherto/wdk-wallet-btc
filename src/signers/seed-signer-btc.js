@@ -106,10 +106,6 @@ export class ISignerBtc {
     throw new NotImplementedError('verify(message, signature)')
   }
 
-  async getWalletAddress () {
-    throw new NotImplementedError('getWalletAddress()')
-  }
-
   async signPsbt (psbt) {
     throw new NotImplementedError('signPsbt(psbt)')
   }
@@ -280,10 +276,6 @@ export default class SeedSignerBtc {
     node.parentFingerprint = src.parentFingerprint
 
     return node.toBase58()
-  }
-
-  async getWalletAddress () {
-    throw new Error('Method implemented only in Signers with transport layer')
   }
 
   async signPsbt (psbt) {

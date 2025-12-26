@@ -97,10 +97,6 @@ export default class PrivateKeySignerBtc {
     throw new Error('Extended public key is unavailable for private-key imported signers.')
   }
 
-  async getWalletAddress () {
-    throw new Error('Method implemented only in Signers with transport layer')
-  }
-
   /**
    * Signs a message.
    *

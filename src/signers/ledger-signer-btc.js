@@ -24,15 +24,10 @@ import {
   DefaultWallet,
   SignerBtcBuilder
 } from '@ledgerhq/device-signer-kit-bitcoin'
-import { networks } from 'bitcoinjs-lib'
-import { BIP32Factory } from 'bip32'
-import * as ecc from '@bitcoinerlab/secp256k1'
 import { filter, firstValueFrom, map } from 'rxjs'
+import { normalizeConfig } from './utils.js'
 
 /** @typedef {import('./seed-signer-btc.js').ISignerBtc} ISignerBtc */
-import { getAddressFromPublicKey, normalizeConfig } from './utils.js'
-
-const bip32 = BIP32Factory(ecc)
 
 /**
  * @implements {ISignerBtc}
@@ -44,6 +39,7 @@ export default class LedgerSignerBtc {
 
     const netdp = config.network === 'bitcoin' ? 0 : 1
     const fullPath = `m/${bip}'/${netdp}'/${path}`
+    this.skipOpenApp = netdp === 1
 
     /**
      * Device/session state (lazy initialization like EVM signer)
@@ -97,6 +93,15 @@ export default class LedgerSignerBtc {
 
   get address () {
     return this._address
+  }
+
+  /**
+   * Ledger-backed signers do not expose private keys; key pairs are not available.
+   *
+   * @throws {Error} Always throws to indicate unavailability on Ledger.
+   */
+  get keyPair () {
+    throw new Error('Key pair is not available for Ledger signer.')
   }
 
   /**
@@ -184,7 +189,6 @@ export default class LedgerSignerBtc {
    * @private
    */
   async _consumeDeviceAction (observable) {
-    console.log('Consuming device action inside _consumeDeviceAction')
     const result = await firstValueFrom(
       observable.pipe(
         filter(
@@ -194,7 +198,6 @@ export default class LedgerSignerBtc {
             evt.status === DeviceActionStatus.Stopped
         ),
         map((evt) => {
-          console.log('Mapping event', evt)
           if (evt.status === DeviceActionStatus.Completed) return evt.output
           if (evt.status === DeviceActionStatus.Error) {
             const err = evt.error || new Error('Unknown Ledger error')
@@ -205,7 +208,6 @@ export default class LedgerSignerBtc {
         })
       )
     )
-    console.log('Consumed device action', result)
     return result
   }
 
@@ -215,47 +217,39 @@ export default class LedgerSignerBtc {
    * @private
    */
   async _connect () {
-    console.log('Connecting to device')
     // Discover & Connect the device
     const device = await firstValueFrom(this._dmk.startDiscovering({}))
     this._sessionId = await this._dmk.connect({
       device,
       sessionRefresherOptions: { isRefresherDisabled: true }
     })
-    console.log('Connected to device')
     // Create a hardware signer
     this._signerBtc = new SignerBtcBuilder({
       dmk: this._dmk,
       sessionId: this._sessionId
     }).build()
-    console.log('Created hardware signer')
-    // Get the extended pubkey (strip leading "m/")
+    // Hydrate address and cache public key
     try {
-      console.log('Getting extended public key')
-      // For XPUB, Ledger expects the hardened account-level path only (e.g. "84'/0'/0'")
-      const accountLevelPath = this._path.split('/').slice(1, 4).join('/')
-      console.log('Account-level path for xpub', accountLevelPath)
-      const { observable } = this._signerBtc.getExtendedPublicKey(accountLevelPath, { skipOpenApp: true })
-      console.log('Observable', observable)
-      const extendedPublicKey = await (async () => {
-        console.log('Consuming device action')
-        const out = await this._consumeDeviceAction(observable)
-        console.log('Consumed device action')
-        console.log('Out', out)
-        // DMK returns either object {extendedPublicKey} or raw string depending on version
-        return typeof out === 'string' ? out : out.extendedPublicKey
-      })()
-      console.log('Got extended public key')
-      console.log(this._config.network)
-      // Derive the address
-      const network = networks[this._config.network] || networks.bitcoin
-      console.log('Network', network)
-      const account = bip32.fromBase58(extendedPublicKey)
-      console.log('Account', account)
-      const address = getAddressFromPublicKey(account.publicKey, network, this._bip)
-
+      // Derivation pieces
+      const parts = this._path.split('/')
+      const accountLevelPath = parts.slice(1, 4).join('/') // "84'/0'/0'"
+      const changeIndex = Number(parts[4]) // 0 or 1
+      const addressIndex = Number(parts[5])
+      // 2) Resolve address directly from the device (works for mainnet/testnet apps)
+      const wallet = new DefaultWallet(
+        accountLevelPath,
+        this._bip === 44
+          ? DefaultDescriptorTemplate.LEGACY
+          : DefaultDescriptorTemplate.NATIVE_SEGWIT
+      )
+      const { observable: addrObs } = this._signerBtc.getWalletAddress(wallet, Number(addressIndex), {
+        change: changeIndex === 1,
+        skipOpenApp: this.skipOpenApp
+      })
+      const addrOut = await this._consumeDeviceAction(addrObs)
+      const resolvedAddress = typeof addrOut === 'string' ? addrOut : (addrOut && addrOut.address)
       // Active
-      this._address = address
+      this._address = resolvedAddress
       this._isActive = true
     } catch (err) {
       await this._disconnect()
@@ -278,10 +272,8 @@ export default class LedgerSignerBtc {
 
   /** @returns {Promise<string>} */
   async getAddress () {
-    console.log('getAddress', this._address)
     await this._ensureDeviceReady('get address')
     if (!this._signerBtc) await this._connect()
-    console.log('after connect')
     return this._address
   }
 
@@ -289,8 +281,7 @@ export default class LedgerSignerBtc {
     await this._ensureDeviceReady('transaction signing')
     if (!this._signerBtc) await this._connect()
 
-    let accountLevelPath = this._path.split('/').slice(1, 4).join('/')
-    if (!accountLevelPath.startsWith('/')) accountLevelPath = `/${accountLevelPath}`
+    const accountLevelPath = this._path.split('/').slice(1, 4).join('/')
 
     const { observable } = this._signerBtc.signPsbt(
       new DefaultWallet(
@@ -299,7 +290,8 @@ export default class LedgerSignerBtc {
           ? DefaultDescriptorTemplate.LEGACY
           : DefaultDescriptorTemplate.NATIVE_SEGWIT
       ),
-      psbt
+      psbt,
+      { skipOpenApp: this.skipOpenApp }
     )
 
     const output = await this._consumeDeviceAction(observable)
@@ -331,30 +323,14 @@ export default class LedgerSignerBtc {
     await this._ensureDeviceReady('message signing')
     if (!this._signerBtc) await this._connect()
 
-    const { observable } = this._signerBtc.signMessage(this._path, message)
+    // Ledger expects derivation path without the "m/" prefix (e.g. "84'/1'/0'/0/1")
+    const relPath = this._path.split('/').slice(1).join('/')
+    const { observable } = this._signerBtc.signMessage(relPath, message, { skipOpenApp: this.skipOpenApp })
     const { r, s, v } = await this._consumeDeviceAction(observable)
     const rHex = String(r).replace(/^0x/i, '').padStart(64, '0')
     const sHex = String(s).replace(/^0x/i, '').padStart(64, '0')
-    let recovery = Number(v)
-    recovery = recovery === 27 || recovery === 28 ? recovery - 27 : recovery
-    const header = 27 + recovery + 4 // compressed
-    const sigBuf = Buffer.concat([
-      Buffer.from([header]),
-      Buffer.from(rHex, 'hex'),
-      Buffer.from(sHex, 'hex')
-    ])
-    return sigBuf.toString('base64')
-  }
-
-  /**
-   * Verifies a message's signature.
-   *
-   * @param {string} message - The original message.
-   * @param {string} signature - The signature to verify.
-   * @returns {Promise<boolean>} True if the signature is valid.
-   */
-  async verify (message, signature) {
-    throw new Error('verify(message, signature) is handled at the wallet-account level for Ledger signers.')
+    const baseSig = Buffer.concat([Buffer.from(rHex, 'hex'), Buffer.from(sHex, 'hex')])
+    return Buffer.concat([Buffer.from([Number(v)]), baseSig]).toString('base64')
   }
 
   dispose () {
