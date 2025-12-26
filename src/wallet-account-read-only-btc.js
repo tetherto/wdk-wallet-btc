@@ -158,6 +158,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * @returns {Promise<bigint>} The token balance (in base unit).
    */
   async getTokenBalance (tokenAddress) {
+    throw new Error("The 'getTokenBalance' method is not supported on the bitcoin blockchain.")
   }
 
   /**

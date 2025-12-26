@@ -265,7 +265,12 @@ export default class LedgerSignerBtc {
    * @returns {LedgerSignerBtc}
    */
   derive (relPath, cfg) {
-    const mergedCfg = cfg || this._config || {}
+    const mergedCfg = {
+      ...this._config,
+      ...Object.fromEntries(
+        Object.entries(cfg || {}).filter(([, v]) => v !== undefined)
+      )
+    }
     const mergedOpts = { dmk: this._dmk }
     return new LedgerSignerBtc(`${relPath}`, mergedCfg, mergedOpts)
   }
