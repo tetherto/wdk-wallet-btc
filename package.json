@@ -63,6 +63,7 @@
     },
     "./signers": {
       "types": "./types/src/signers/index.d.ts",
+      "bare": "./src/signers/bare.js",
       "default": "./src/signers/index.js"
     },
     "./signers/ledger": {
