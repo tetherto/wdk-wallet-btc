@@ -25,7 +25,16 @@ import {
   SignerBtcBuilder
 } from '@ledgerhq/device-signer-kit-bitcoin'
 import { filter, firstValueFrom, map } from 'rxjs'
+import { networks, payments, Transaction } from 'bitcoinjs-lib'
+import { BIP32Factory } from 'bip32'
+import * as ecc from '@bitcoinerlab/secp256k1'
 import { normalizeConfig } from './utils.js'
+
+const bip32 = BIP32Factory(ecc)
+
+// APDU for GET_MASTER_FINGERPRINT (Bitcoin app)
+// CLA=0xE1, INS=0x05, P1=0x00, P2=0x00, no data
+const GET_MASTER_FINGERPRINT_APDU = new Uint8Array([0xe1, 0x05, 0x00, 0x00, 0x00])
 
 /** @typedef {import('./seed-signer-btc.js').ISignerBtc} ISignerBtc */
 
@@ -34,6 +43,9 @@ import { normalizeConfig } from './utils.js'
  */
 export default class LedgerSignerBtc {
   constructor (path, config = {}, opts = {}) {
+    if (config.network === 'regtest') {
+      throw new Error('Regtest is not supported for Ledger signer')
+    }
     config = normalizeConfig(config)
     const bip = config.bip
 
@@ -286,33 +298,117 @@ export default class LedgerSignerBtc {
     await this._ensureDeviceReady('transaction signing')
     if (!this._signerBtc) await this._connect()
 
-    const accountLevelPath = this._path.split('/').slice(1, 4).join('/')
+    // Parse derivation path: m/84'/0'/0'/0/0
+    const pathParts = this._path.split('/')
+    const accountLevelPath = pathParts.slice(1, 4).join('/') // "84'/0'/0'"
+    const changeIndex = Number(pathParts[4]) || 0
+    const addressIndex = Number(pathParts[5]) || 0
+    const fullPath = pathParts.slice(1).join('/') // "84'/0'/0'/0/0"
+
+    // Get network
+    const network = this._config.network === 'bitcoin'
+      ? networks.bitcoin
+      : (networks[this._config.network] || networks.testnet)
+
+    // 1. Get master fingerprint via raw APDU
+    const apduResponse = await this._dmk.sendApdu({
+      sessionId: this._sessionId,
+      apdu: GET_MASTER_FINGERPRINT_APDU
+    })
+
+    // Response is 4 bytes fingerprint + 2 bytes status (0x9000 = success)
+    const responseData = apduResponse.data || apduResponse
+    const masterFingerprint = Buffer.from(responseData.slice(0, 4))
+
+    // 2. Get account xpub to derive the pubkey for this address
+    const { observable: xpubObs } = this._signerBtc.getExtendedPublicKey(
+      accountLevelPath,
+      { skipOpenApp: this.skipOpenApp }
+    )
+    const xpubResult = await this._consumeDeviceAction(xpubObs)
+    const xpub = typeof xpubResult === 'string' ? xpubResult : xpubResult?.extendedPublicKey
+
+    // Parse xpub and derive child pubkey
+    const accountNode = bip32.fromBase58(xpub, network)
+    const childNode = accountNode.derive(changeIndex).derive(addressIndex)
+    const pubkey = childNode.publicKey
+
+    // Build expected output script to identify our inputs
+    const myScript = this._bip === 84
+      ? payments.p2wpkh({ pubkey, network }).output
+      : payments.p2pkh({ pubkey, network }).output
+
+    // 3. Process each input - add witnessUtxo and bip32Derivation
+    for (let i = 0; i < psbt.inputCount; i++) {
+      const input = psbt.data.inputs[i] || {}
+      const txIn = psbt.txInputs[i]
+
+      // Extract prevOut from witnessUtxo or nonWitnessUtxo
+      let prevOut = null
+      if (input.witnessUtxo) {
+        prevOut = input.witnessUtxo
+      } else if (input.nonWitnessUtxo) {
+        const prevTx = Transaction.fromBuffer(input.nonWitnessUtxo)
+        prevOut = prevTx.outs[txIn.index]
+
+        // Add witnessUtxo for SegWit (BIP84)
+        if (this._bip === 84 && prevOut) {
+          psbt.updateInput(i, {
+            witnessUtxo: { script: prevOut.script, value: prevOut.value }
+          })
+        }
+      }
+
+      // Check if this input belongs to us and add bip32Derivation
+      if (prevOut && prevOut.script && myScript.equals(prevOut.script)) {
+        const hasOurDerivation = (input.bip32Derivation || []).some(
+          d => d.pubkey && Buffer.isBuffer(d.pubkey) && d.pubkey.equals(pubkey)
+        )
+
+        if (!hasOurDerivation) {
+          psbt.updateInput(i, {
+            bip32Derivation: [
+              ...(input.bip32Derivation || []),
+              {
+                masterFingerprint,
+                path: `m/${fullPath}`,
+                pubkey
+              }
+            ]
+          })
+        }
+      }
+    }
+
+    // 4. Sign the PSBT
+    const wallet = new DefaultWallet(
+      accountLevelPath,
+      this._bip === 44
+        ? DefaultDescriptorTemplate.LEGACY
+        : DefaultDescriptorTemplate.NATIVE_SEGWIT
+    )
 
     const { observable } = this._signerBtc.signPsbt(
-      new DefaultWallet(
-        accountLevelPath,
-        this._bip === 44
-          ? DefaultDescriptorTemplate.LEGACY
-          : DefaultDescriptorTemplate.NATIVE_SEGWIT
-      ),
-      psbt,
+      wallet,
+      psbt.toBase64(),
       { skipOpenApp: this.skipOpenApp }
     )
 
     const output = await this._consumeDeviceAction(observable)
-    const signatures = Array.isArray(output) ? output : [output]
+    const signatures = Array.isArray(output) ? output : (output ? [output] : [])
 
+    // 5. Apply signatures to the PSBT
     for (const psig of signatures) {
-      if (psig && 'signature' in psig && typeof psig.inputIndex === 'number') {
-        const { pubkey, signature, inputIndex } = psig
-        const existing = (psbt.data.inputs[inputIndex] && psbt.data.inputs[inputIndex].partialSig) || []
-        const next = [
-          ...existing,
-          { pubkey: Buffer.from(pubkey), signature: Buffer.from(signature) }
-        ]
-        psbt.updateInput(inputIndex, { partialSig: next })
+      if (psig && 'pubkey' in psig && 'signature' in psig && typeof psig.inputIndex === 'number') {
+        const { pubkey: sigPubkey, signature, inputIndex } = psig
+        const existing = psbt.data.inputs[inputIndex]?.partialSig || []
+        psbt.updateInput(inputIndex, {
+          partialSig: [...existing, {
+            pubkey: Buffer.from(sigPubkey),
+            signature: Buffer.from(signature)
+          }]
+        })
       }
-      // Ignore MuSig or unsupported outputs for now
     }
 
     return psbt
