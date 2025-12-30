@@ -18,6 +18,7 @@ import pLimit from 'p-limit'
 import { LRUCache } from 'lru-cache'
 import * as bitcoinMessage from 'bitcoinjs-message'
 import PrivateKeySignerBtc from './signers/private-key-signer-btc.js'
+import SeedSignerBtc from './signers/seed-signer-btc.js'
 import WalletAccountReadOnlyBtc from './wallet-account-read-only-btc.js'
 
 /** @typedef {import('@tetherto/wdk-wallet').IWalletAccount} IWalletAccount */
@@ -116,8 +117,28 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     return this._signer.keyPair
   }
 
+  /**
+   * Creates a new bitcoin wallet account from a raw private key.
+   *
+   * @param {string | Uint8Array | Buffer} privateKey - The raw private key (hex string or 32 bytes).
+   * @param {BtcWalletConfig} [config] - The wallet configuration options.
+   * @returns {WalletAccountBtc} The wallet account.
+   */
   static fromPrivateKey (privateKey, config = {}) {
     const signer = new PrivateKeySignerBtc(privateKey, config)
+    return new WalletAccountBtc(signer)
+  }
+
+  /**
+   * Creates a new bitcoin wallet account from a seed phrase or seed buffer.
+   *
+   * @param {string | Buffer} seed - The seed phrase (mnemonic) or seed buffer.
+   * @param {BtcWalletConfig} [config] - The wallet configuration options (includes bip, network, etc.).
+   * @param {string} [path="0'/0/0"] - The derivation path relative to the BIP root.
+   * @returns {WalletAccountBtc} The wallet account.
+   */
+  static fromSeed (seed, config = {}, path = "0'/0/0") {
+    const signer = new SeedSignerBtc(seed, config, { path })
     return new WalletAccountBtc(signer)
   }
 

@@ -26,16 +26,23 @@ import { buildPaymentScript, detectInputOwnership, ensureWitnessUtxoIfNeeded, no
 
 const ECPair = ECPairFactory(ecc)
 /** @typedef {import('../wallet-account-read-only-btc.js').BtcWalletConfig} BtcWalletConfig */
+/** @typedef {import('@tetherto/wdk-wallet').KeyPair} KeyPair */
+/** @typedef {import('./seed-signer-btc.js').ISignerBtc} ISignerBtc */
 
 /**
  * Signer backed by a single raw private key (non-HD).
- * - Does not support HD derivation, extended keys, or master fingerprint.
- * - Signs messages and PSBTs directly using the leaf key.
+ *
+ * Does not support HD derivation, extended keys, or master fingerprint.
+ * Signs messages and PSBTs directly using the leaf key.
+ *
+ * @implements {ISignerBtc}
  */
 export default class PrivateKeySignerBtc {
   /**
-   * @param {string | Uint8Array | Buffer} privateKey - Hex string or bytes of the raw private key
-   * @param {BtcWalletConfig} [config] - Network/BIP configuration (bip defaults to 44, network to 'bitcoin')
+   * Creates a new private key signer.
+   *
+   * @param {string | Uint8Array | Buffer} privateKey - The raw private key (hex string or 32 bytes).
+   * @param {BtcWalletConfig} [config] - The wallet configuration.
    */
   constructor (privateKey, config = {}) {
     const cfg = normalizeConfig(config)
@@ -56,23 +63,47 @@ export default class PrivateKeySignerBtc {
     this._isPrivateKey = true
   }
 
+  /**
+   * Whether this signer is backed by a raw private key.
+   *
+   * @type {boolean}
+   */
   get isPrivateKey () {
     return this._isPrivateKey
   }
 
+  /**
+   * Whether the signer is still active (not disposed).
+   *
+   * @type {boolean}
+   */
   get isActive () {
     return this._isActive
   }
 
-  // Not meaningful for non-HD private key signers
+  /**
+   * Not available for private key signers.
+   *
+   * @throws {Error} Always throws since HD index is unavailable.
+   */
   get index () {
     throw new Error('HD index is unavailable for private-key imported signers.')
   }
 
+  /**
+   * Not available for private key signers.
+   *
+   * @throws {Error} Always throws since HD path is unavailable.
+   */
   get path () {
     throw new Error('HD path is unavailable for private-key imported signers.')
   }
 
+  /**
+   * The account's key pair (public and private keys).
+   *
+   * @type {KeyPair}
+   */
   get keyPair () {
     return {
       privateKey: this._account ? new Uint8Array(this._account.privateKey) : null,
@@ -80,19 +111,38 @@ export default class PrivateKeySignerBtc {
     }
   }
 
+  /**
+   * The wallet configuration.
+   *
+   * @type {BtcWalletConfig}
+   */
   get config () {
     return this._config
   }
 
+  /**
+   * The account's Bitcoin address.
+   *
+   * @type {string}
+   */
   get address () {
     return this._address
   }
 
-  // Non-HD signer cannot derive children
+  /**
+   * Not supported for private key signers.
+   *
+   * @throws {Error} Always throws since derivation requires HD keys.
+   */
   derive () {
     throw new Error('derive is not supported for PrivateKeySignerBtc.')
   }
 
+  /**
+   * Not available for private key signers.
+   *
+   * @throws {Error} Always throws since extended keys require HD derivation.
+   */
   async getExtendedPublicKey () {
     throw new Error('Extended public key is unavailable for private-key imported signers.')
   }
@@ -114,6 +164,12 @@ export default class PrivateKeySignerBtc {
       .toString('base64')
   }
 
+  /**
+   * Signs a PSBT (Partially Signed Bitcoin Transaction).
+   *
+   * @param {Psbt | string} psbt - The PSBT instance or base64 string.
+   * @returns {Promise<string>} The signed PSBT in base64 format.
+   */
   async signPsbt (psbt) {
     const psbtInstance = typeof psbt === 'string' ? Psbt.fromBase64(psbt) : psbt
 
@@ -139,6 +195,9 @@ export default class PrivateKeySignerBtc {
     return psbtInstance.toBase64()
   }
 
+  /**
+   * Disposes the signer, securely erasing the private key from memory.
+   */
   dispose () {
     if (this._account) {
       sodium_memzero(this._account.privateKey)

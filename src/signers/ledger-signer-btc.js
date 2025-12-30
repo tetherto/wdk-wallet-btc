@@ -16,7 +16,9 @@
 import {
   DeviceActionStatus,
   DeviceManagementKitBuilder,
-  DeviceStatus
+  DeviceStatus,
+  CommandUtils,
+  ApduParser
 } from '@ledgerhq/device-management-kit'
 import { webHidTransportFactory } from '@ledgerhq/device-transport-kit-web-hid'
 import {
@@ -25,10 +27,10 @@ import {
   SignerBtcBuilder
 } from '@ledgerhq/device-signer-kit-bitcoin'
 import { filter, firstValueFrom, map } from 'rxjs'
-import { networks, payments, Transaction } from 'bitcoinjs-lib'
+import { networks } from 'bitcoinjs-lib'
 import { BIP32Factory } from 'bip32'
 import * as ecc from '@bitcoinerlab/secp256k1'
-import { normalizeConfig } from './utils.js'
+import { normalizeConfig, buildPaymentScript, detectInputOwnership, ensureWitnessUtxoIfNeeded } from './utils.js'
 
 const bip32 = BIP32Factory(ecc)
 
@@ -37,11 +39,27 @@ const bip32 = BIP32Factory(ecc)
 const GET_MASTER_FINGERPRINT_APDU = new Uint8Array([0xe1, 0x05, 0x00, 0x00, 0x00])
 
 /** @typedef {import('./seed-signer-btc.js').ISignerBtc} ISignerBtc */
+/** @typedef {import('../wallet-account-read-only-btc.js').BtcWalletConfig} BtcWalletConfig */
+/** @typedef {import('bitcoinjs-lib').Psbt} Psbt */
+/** @typedef {import('@ledgerhq/device-management-kit').DeviceManagementKit} DeviceManagementKit */
 
 /**
+ * Hardware signer backed by a Ledger device.
+ *
+ * Uses the Ledger Device Management Kit for WebHID communication.
+ * Does not expose private keys as they remain on the hardware device.
+ *
  * @implements {ISignerBtc}
  */
 export default class LedgerSignerBtc {
+  /**
+   * Creates a new Ledger-backed signer.
+   *
+   * @param {string} path - The derivation path relative to BIP root (e.g., "0'/0/0").
+   * @param {BtcWalletConfig} [config] - The wallet configuration.
+   * @param {Object} [opts] - Internal options.
+   * @param {DeviceManagementKit} [opts.dmk] - Pre-existing Device Management Kit instance.
+   */
   constructor (path, config = {}, opts = {}) {
     if (config.network === 'regtest') {
       throw new Error('Regtest is not supported for Ledger signer')
@@ -60,7 +78,7 @@ export default class LedgerSignerBtc {
     this._sessionId = ''
     this._signerBtc = undefined
     this._isActive = false
-
+    this._extendedPublicKey = undefined
     /**
      * The wallet account configuration.
      *
@@ -72,9 +90,7 @@ export default class LedgerSignerBtc {
     this._path = fullPath
     this._bip = bip
 
-    /**
-     * @type {import('@ledgerhq/device-management-kit').DeviceManagementKit}
-     */
+    /** @type {DeviceManagementKit} */
     this._dmk =
       opts.dmk ||
       new DeviceManagementKitBuilder()
@@ -82,16 +98,26 @@ export default class LedgerSignerBtc {
         .build()
   }
 
+  /**
+   * Whether the signer is still active (connected to device).
+   *
+   * @type {boolean}
+   */
   get isActive () {
     return this._isActive
   }
 
+  /**
+   * The derivation path index of this account.
+   *
+   * @type {number}
+   */
   get index () {
     return +this._path.split('/').pop()
   }
 
   /**
-   * The derivation path of this account.
+   * The full derivation path of this account.
    *
    * @type {string}
    */
@@ -99,21 +125,44 @@ export default class LedgerSignerBtc {
     return this._path
   }
 
+  /**
+   * The wallet configuration.
+   *
+   * @type {BtcWalletConfig}
+   */
   get config () {
     return this._config
   }
 
+  /**
+   * The account's Bitcoin address.
+   *
+   * @type {string | undefined}
+   */
   get address () {
     return this._address
   }
 
   /**
-   * Ledger-backed signers do not expose private keys; key pairs are not available.
+   * The account's key pair. Private key is always undefined for Ledger signers.
    *
-   * @throws {Error} Always throws to indicate unavailability on Ledger.
+   * @type {KeyPair}
+   * @throws {Error} If the wallet has not been initialized yet.
    */
   get keyPair () {
-    throw new Error('Key pair is not available for Ledger signer.')
+    if (this.extendedPublicKey) {
+      const pathParts = this._path.split('/')
+      const changeIndex = Number(pathParts[4]) || 0
+      const addressIndex = Number(pathParts[5]) || 0
+      const network = networks[this._config.network] || networks.testnet
+      const accountNode = bip32.fromBase58(this._extendedPublicKey, network)
+      const childNode = accountNode.derive(changeIndex).derive(addressIndex)
+      return {
+        privateKey: undefined, // Ledger signers do not expose private keys
+        publicKey: new Uint8Array(childNode.publicKey)
+      }
+    }
+    throw new Error('Initialise wallet first')
   }
 
   /**
@@ -263,6 +312,7 @@ export default class LedgerSignerBtc {
       // Active
       this._address = resolvedAddress
       this._isActive = true
+      await this.getExtendedPublicKey()
     } catch (err) {
       await this._disconnect()
       throw err
@@ -270,11 +320,35 @@ export default class LedgerSignerBtc {
   }
 
   /**
-   * Derive a new signer at the given relative path, reusing the current device session.
+   * Returns the extended public key (xpub/zpub/tpub/vpub based on network and BIP).
    *
-   * @param {string} relPath - Relative BIP-44 path (e.g. "0'/0/1").
-   * @param {import('../wallet-account-btc.js').BtcWalletConfig} [cfg]
-   * @returns {LedgerSignerBtc}
+   * @returns {Promise<string>} The extended public key in base58 format.
+   */
+  async getExtendedPublicKey () {
+    if (this._extendedPublicKey) {
+      return this._extendedPublicKey
+    }
+    await this._ensureDeviceReady('getExtendedPublicKey')
+    if (!this._signerBtc) await this._connect()
+
+    const pathParts = this._path.split('/')
+    const accountLevelPath = pathParts.slice(1, 4).join('/') // "84'/0'/0'"
+    // 2. Get account xpub to derive the pubkey for this address
+    const { observable: xpubObs } = this._signerBtc.getExtendedPublicKey(
+      accountLevelPath,
+      { skipOpenApp: this.skipOpenApp }
+    )
+    const { extendedPublicKey } = await this._consumeDeviceAction(xpubObs)
+    this._extendedPublicKey = extendedPublicKey
+    return extendedPublicKey
+  }
+
+  /**
+   * Derives a child signer at the given relative path, reusing the current device session.
+   *
+   * @param {string} relPath - The relative derivation path (e.g., "0'/0/0").
+   * @param {BtcWalletConfig} [cfg] - Optional configuration overrides.
+   * @returns {LedgerSignerBtc} The derived child signer.
    */
   derive (relPath, cfg) {
     const mergedCfg = {
@@ -287,13 +361,23 @@ export default class LedgerSignerBtc {
     return new LedgerSignerBtc(`${relPath}`, mergedCfg, mergedOpts)
   }
 
-  /** @returns {Promise<string>} */
+  /**
+   * Returns the account's Bitcoin address, connecting to the device if needed.
+   *
+   * @returns {Promise<string>} The Bitcoin address.
+   */
   async getAddress () {
     await this._ensureDeviceReady('get address')
     if (!this._signerBtc) await this._connect()
     return this._address
   }
 
+  /**
+   * Signs a PSBT (Partially Signed Bitcoin Transaction) using the Ledger device.
+   *
+   * @param {Psbt} psbt - The PSBT instance to sign.
+   * @returns {Promise<Psbt>} The signed PSBT.
+   */
   async signPsbt (psbt) {
     await this._ensureDeviceReady('transaction signing')
     if (!this._signerBtc) await this._connect()
@@ -306,27 +390,30 @@ export default class LedgerSignerBtc {
     const fullPath = pathParts.slice(1).join('/') // "84'/0'/0'/0/0"
 
     // Get network
-    const network = this._config.network === 'bitcoin'
-      ? networks.bitcoin
-      : (networks[this._config.network] || networks.testnet)
+    const network = (networks[this._config.network] || networks.testnet)
 
     // 1. Get master fingerprint via raw APDU
     const apduResponse = await this._dmk.sendApdu({
       sessionId: this._sessionId,
       apdu: GET_MASTER_FINGERPRINT_APDU
     })
+    // Parse the result
+    const parser = new ApduParser(apduResponse)
+    // Check if the command was successful
+    if (!CommandUtils.isSuccessResponse(apduResponse)) {
+      throw new Error(
+        `Unexpected APDU error: ${parser.encodeToHexaString(
+          apduResponse.statusCode
+        )}`
+      )
+    }
 
     // Response is 4 bytes fingerprint + 2 bytes status (0x9000 = success)
-    const responseData = apduResponse.data || apduResponse
+    const responseData = apduResponse.data
     const masterFingerprint = Buffer.from(responseData.slice(0, 4))
 
     // 2. Get account xpub to derive the pubkey for this address
-    const { observable: xpubObs } = this._signerBtc.getExtendedPublicKey(
-      accountLevelPath,
-      { skipOpenApp: this.skipOpenApp }
-    )
-    const xpubResult = await this._consumeDeviceAction(xpubObs)
-    const xpub = typeof xpubResult === 'string' ? xpubResult : xpubResult?.extendedPublicKey
+    const xpub = await this.getExtendedPublicKey()
 
     // Parse xpub and derive child pubkey
     const accountNode = bip32.fromBase58(xpub, network)
@@ -334,49 +421,33 @@ export default class LedgerSignerBtc {
     const pubkey = childNode.publicKey
 
     // Build expected output script to identify our inputs
-    const myScript = this._bip === 84
-      ? payments.p2wpkh({ pubkey, network }).output
-      : payments.p2pkh({ pubkey, network }).output
+    const myScript = buildPaymentScript(this._bip, pubkey, network)
 
     // 3. Process each input - add witnessUtxo and bip32Derivation
     for (let i = 0; i < psbt.inputCount; i++) {
-      const input = psbt.data.inputs[i] || {}
-      const txIn = psbt.txInputs[i]
+      const { input, prevOut, isOurs } = detectInputOwnership(psbt, i, myScript)
 
-      // Extract prevOut from witnessUtxo or nonWitnessUtxo
-      let prevOut = null
-      if (input.witnessUtxo) {
-        prevOut = input.witnessUtxo
-      } else if (input.nonWitnessUtxo) {
-        const prevTx = Transaction.fromBuffer(input.nonWitnessUtxo)
-        prevOut = prevTx.outs[txIn.index]
+      if (!isOurs) continue
 
-        // Add witnessUtxo for SegWit (BIP84)
-        if (this._bip === 84 && prevOut) {
-          psbt.updateInput(i, {
-            witnessUtxo: { script: prevOut.script, value: prevOut.value }
-          })
-        }
-      }
+      // Add witnessUtxo for SegWit (BIP84) if needed
+      ensureWitnessUtxoIfNeeded(psbt, i, this._bip, prevOut, input)
 
-      // Check if this input belongs to us and add bip32Derivation
-      if (prevOut && prevOut.script && myScript.equals(prevOut.script)) {
-        const hasOurDerivation = (input.bip32Derivation || []).some(
-          d => d.pubkey && Buffer.isBuffer(d.pubkey) && d.pubkey.equals(pubkey)
-        )
+      // Add bip32Derivation for Ledger signing
+      const hasOurDerivation = (input.bip32Derivation || []).some(
+        d => d.pubkey && Buffer.isBuffer(d.pubkey) && d.pubkey.equals(pubkey)
+      )
 
-        if (!hasOurDerivation) {
-          psbt.updateInput(i, {
-            bip32Derivation: [
-              ...(input.bip32Derivation || []),
-              {
-                masterFingerprint,
-                path: `m/${fullPath}`,
-                pubkey
-              }
-            ]
-          })
-        }
+      if (!hasOurDerivation) {
+        psbt.updateInput(i, {
+          bip32Derivation: [
+            ...(input.bip32Derivation || []),
+            {
+              masterFingerprint,
+              path: `m/${fullPath}`,
+              pubkey
+            }
+          ]
+        })
       }
     }
 
@@ -394,8 +465,7 @@ export default class LedgerSignerBtc {
       { skipOpenApp: this.skipOpenApp }
     )
 
-    const output = await this._consumeDeviceAction(observable)
-    const signatures = Array.isArray(output) ? output : (output ? [output] : [])
+    const signatures = await this._consumeDeviceAction(observable)
 
     // 5. Apply signatures to the PSBT
     for (const psig of signatures) {
@@ -434,6 +504,9 @@ export default class LedgerSignerBtc {
     return Buffer.concat([Buffer.from([Number(v)]), baseSig]).toString('base64')
   }
 
+  /**
+   * Disposes the signer, disconnecting from the Ledger device.
+   */
   dispose () {
     this._disconnect()
     this._dmk = undefined

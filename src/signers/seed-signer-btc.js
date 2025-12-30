@@ -47,6 +47,7 @@ const bip32 = BIP32Factory(ecc)
 
 initEccLib(ecc)
 
+/** @private */
 function deriveMasterNode (seed) {
   const masterKeyAndChainCodeBuffer = hmac(sha512, MASTER_SECRET, seed)
 
@@ -66,59 +67,134 @@ function deriveMasterNode (seed) {
   return masterNode
 }
 
-// TODO: generate JSDoc and create types for this interface, export it in package.json
-/** @interface */
+/**
+ * Interface for Bitcoin signers.
+ *
+ * @interface
+ */
 export class ISignerBtc {
+  /**
+   * The derivation path index of this account.
+   *
+   * @type {number}
+   */
   get index () {
     throw new NotImplementedError('index')
   }
 
+  /**
+   * The full derivation path of this account.
+   *
+   * @type {string}
+   */
   get path () {
     throw new NotImplementedError('path')
   }
 
+  /**
+   * The account's key pair (public and private keys).
+   *
+   * @type {KeyPair}
+   */
   get keyPair () {
     throw new NotImplementedError('keyPair')
   }
 
+  /**
+   * The wallet configuration.
+   *
+   * @type {BtcWalletConfig}
+   */
   get config () {
     throw new NotImplementedError('config')
   }
 
+  /**
+   * The account's Bitcoin address.
+   *
+   * @type {string}
+   */
   get address () {
     throw new NotImplementedError('address')
   }
-  // TODO check this we might need it to be async due to the hardware wallets
 
+  /**
+   * Derives a child signer from the current signer.
+   *
+   * @param {string} relPath - The relative derivation path.
+   * @param {BtcWalletConfig} [config] - Optional configuration overrides.
+   * @returns {ISignerBtc} The derived child signer.
+   */
   derive (relPath, config = {}) {
     throw new NotImplementedError('derive(relPath, config)')
   }
 
+  /**
+   * Returns the extended public key (xpub/zpub).
+   *
+   * @returns {Promise<string>} The extended public key.
+   */
   async getExtendedPublicKey () {
     throw new NotImplementedError('getExtendedPublicKey()')
   }
 
+  /**
+   * Signs a message.
+   *
+   * @param {string} message - The message to sign.
+   * @returns {Promise<string>} The signature in base64 format.
+   */
   async sign (message) {
     throw new NotImplementedError('sign(message)')
   }
 
+  /**
+   * Verifies a message signature.
+   *
+   * @param {string} message - The original message.
+   * @param {string} signature - The signature to verify.
+   * @returns {Promise<boolean>} True if the signature is valid.
+   */
   async verify (message, signature) {
     throw new NotImplementedError('verify(message, signature)')
   }
 
+  /**
+   * Signs a PSBT (Partially Signed Bitcoin Transaction).
+   *
+   * @param {Psbt | string} psbt - The PSBT instance or base64 string.
+   * @returns {Promise<string>} The signed PSBT in base64 format.
+   */
   async signPsbt (psbt) {
     throw new NotImplementedError('signPsbt(psbt)')
   }
 
+  /**
+   * Disposes the signer, securely erasing sensitive data from memory.
+   */
   dispose () {
     throw new NotImplementedError('dispose()')
   }
 }
 
 /** @typedef {import('../wallet-account-read-only-btc.js').BtcWalletConfig} BtcWalletConfig */
+/** @typedef {import('@tetherto/wdk-wallet').KeyPair} KeyPair */
 
-/** @implements {ISignerBtc} */
+/**
+ * HD signer backed by a BIP39 seed phrase or seed buffer.
+ *
+ * @implements {ISignerBtc}
+ */
 export default class SeedSignerBtc {
+  /**
+   * Creates a new seed-based signer.
+   *
+   * @param {string | Buffer} seed - The seed phrase (mnemonic) or seed buffer.
+   * @param {BtcWalletConfig} [config] - The wallet configuration.
+   * @param {Object} [opts] - Internal options.
+   * @param {import('bip32').BIP32Interface} [opts.masterNode] - Pre-derived master node.
+   * @param {string} [opts.path] - Derivation path relative to BIP root.
+   */
   constructor (seed, config = {}, opts = {}) {
     if (typeof seed === 'string') {
       if (!bip39.validateMnemonic(seed)) {
@@ -155,7 +231,7 @@ export default class SeedSignerBtc {
       const netdp = config.network === 'bitcoin' ? 0 : 1
       const fullPath = `m/${config.bip}'/${netdp}'/${opts.path}`
       const account = masterNode.derivePath(fullPath)
-      const network = networks[config.network] || networks.bitcoin
+      const network = networks[config.network] || networks.testnet
       const address = getAddressFromPublicKey(
         account.publicKey,
         network,
@@ -177,20 +253,42 @@ export default class SeedSignerBtc {
     }
   }
 
+  /**
+   * Creates a signer from an extended private key (xprv/tprv).
+   *
+   * @param {string} xprv - The extended private key in base58 format.
+   * @param {BtcWalletConfig} [config] - The wallet configuration.
+   * @returns {SeedSignerBtc} The signer instance.
+   */
   static fromXprv (xprv, config = {}) {
-    const network = networks[config.network] || networks.bitcoin
+    const network = networks[config.network] || networks.testnet
     const masterNode = bip32.fromBase58(xprv, network)
     return new SeedSignerBtc(null, config, { masterNode })
   }
 
+  /**
+   * Whether this is the root (underived) signer.
+   *
+   * @type {boolean}
+   */
   get isRoot () {
     return this._isRoot
   }
 
+  /**
+   * Whether the signer is still active (not disposed).
+   *
+   * @type {boolean}
+   */
   get isActive () {
     return this._isActive
   }
 
+  /**
+   * The derivation path index of this account.
+   *
+   * @type {number}
+   */
   get index () {
     return +this._path.split('/').pop()
   }
@@ -216,14 +314,31 @@ export default class SeedSignerBtc {
     }
   }
 
+  /**
+   * The wallet configuration.
+   *
+   * @type {BtcWalletConfig}
+   */
   get config () {
     return this._config
   }
 
+  /**
+   * The account's Bitcoin address.
+   *
+   * @type {string}
+   */
   get address () {
     return this._address
   }
 
+  /**
+   * Derives a child signer from the current signer.
+   *
+   * @param {string} relPath - The relative derivation path (e.g., "0'/0/0").
+   * @param {BtcWalletConfig} [config] - Optional configuration overrides.
+   * @returns {SeedSignerBtc} The derived child signer.
+   */
   derive (relPath, config = {}) {
     const cfg = {
       ...this._config,
@@ -245,26 +360,13 @@ export default class SeedSignerBtc {
     return new SeedSignerBtc(null, cfg, opts)
   }
 
+  /**
+   * Returns the extended public key (xpub/zpub/tpub/vpub based on network and BIP).
+   *
+   * @returns {Promise<string>} The extended public key in base58 format.
+   */
   async getExtendedPublicKey () {
-    const isTestnet =
-      this._config.network === 'testnet' || this._config.network === 'regtest'
-    const versions = isTestnet
-      ? {
-          44: { public: 0x043587cf, private: 0x04358394 }, // tpub/tprv
-          84: { public: 0x045f1cf6, private: 0x045f18bc } // vpub/vprv
-        }
-      : {
-          44: { public: 0x0488b21e, private: 0x0488ade4 }, // xpub/xprv
-          84: { public: 0x04b24746, private: 0x04b2430c } // zpub/zprv
-        }
-
-    const { public: publicVersion, private: privateVersion } =
-      versions[this._bip]
-    const network = {
-      wif: isTestnet ? 0xef : 0x80,
-      bip32: { public: publicVersion, private: privateVersion }
-    }
-
+    const network = networks[this._config.network] || networks.testnet
     const src = this._account.neutered()
     const node = bip32.fromPublicKey(
       Buffer.from(src.publicKey),
@@ -278,6 +380,12 @@ export default class SeedSignerBtc {
     return node.toBase58()
   }
 
+  /**
+   * Signs a PSBT (Partially Signed Bitcoin Transaction).
+   *
+   * @param {Psbt | string} psbt - The PSBT instance or base64 string.
+   * @returns {Promise<string>} The signed PSBT in base64 format.
+   */
   async signPsbt (psbt) {
     const psbtInstance =
       typeof psbt === 'string' ? Psbt.fromBase64(psbt) : psbt
@@ -285,7 +393,7 @@ export default class SeedSignerBtc {
     const pubkey = this._account && this._account.publicKey
     if (!pubkey) return psbtInstance.toBase64()
 
-    const network = networks[this._config.network] || networks.bitcoin
+    const network = networks[this._config.network] || networks.testnet
     const myScript = buildPaymentScript(this._bip, pubkey, network)
 
     for (let i = 0; i < psbtInstance.inputCount; i++) {
@@ -348,6 +456,9 @@ export default class SeedSignerBtc {
       .toString('base64')
   }
 
+  /**
+   * Disposes the signer, securely erasing private keys from memory.
+   */
   dispose () {
     if (this._account) {
       sodium_memzero(this._account.privateKey)
