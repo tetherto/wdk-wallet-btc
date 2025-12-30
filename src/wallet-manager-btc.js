@@ -21,17 +21,32 @@ import WalletAccountBtc from './wallet-account-btc.js'
 
 /** @typedef {import('./wallet-account-btc.js').BtcWalletConfig} BtcWalletConfig */
 
+/** @typedef {import('./signers/seed-signer-btc.js').ISignerBtc} ISignerBtc */
+
 const MEMPOOL_SPACE_URL = 'https://mempool.space'
 
 export default class WalletManagerBtc extends WalletManager {
+  constructor (signer, config = {}) {
+    if (signer.isPrivateKey) {
+      throw new Error('Private key signers are not supported for wallet managers.')
+    }
+    super(signer, config)
+  }
+
   /**
-   * Creates a new wallet manager for the bitcoin blockchain.
+   * Creates a new signer.
    *
-   * @param {string | Uint8Array} seed - The wallet's [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) seed phrase.
-   * @param {BtcWalletConfig} [config] - The configuration object.
+   * @param {string} signerName - The signer name.
+   * @param {ISignerBtc} signer - The signer.
    */
-  constructor (seed, config = {}) {
-    super(seed, config)
+  createSigner (signerName, signer) {
+    if (!signerName) {
+      throw new Error('Signer name is required.')
+    }
+    // Maybe we should create a new wallet account for the signer here?
+    // TODO: add validation for signerBtc
+
+    this._signers.set(signerName, signer)
   }
 
   /**
@@ -43,10 +58,11 @@ export default class WalletManagerBtc extends WalletManager {
    * // For testnet or regtest: m/84'/1'/0'/0/1
    * const account = await wallet.getAccount(1);
    * @param {number} [index] - The index of the account to get (default: 0).
+   * @param {string} signerName - The signer name.
    * @returns {Promise<WalletAccountBtc>} The account.
    */
-  async getAccount (index = 0) {
-    return await this.getAccountByPath(`0'/0/${index}`)
+  async getAccount (index = 0, signerName = 'default') {
+    return await this.getAccountByPath(`0'/0/${index}`, signerName)
   }
 
   /**
@@ -58,16 +74,22 @@ export default class WalletManagerBtc extends WalletManager {
    * // For testnet or regtest: m/84'/1'/0'/0/1
    * const account = await wallet.getAccountByPath("0'/0/1");
    * @param {string} path - The derivation path (e.g. "0'/0/0").
+   * @param {string} signerName - The signer name.
    * @returns {Promise<WalletAccountBtc>} The account.
    */
-  async getAccountByPath (path) {
-    if (!this._accounts[path]) {
-      const account = new WalletAccountBtc(this._seed, path, this._config)
-
-      this._accounts[path] = account
+  async getAccountByPath (path, signerName = 'default') {
+    const key = `${signerName}:${path}`
+    if (this._accounts[key]) {
+      return this._accounts[key]
     }
-
-    return this._accounts[path]
+    const signer = this._signers.get(signerName)
+    if (!signer) {
+      throw new Error(`Signer ${signerName} not found.`)
+    }
+    const childSigner = signer.derive(path, this._config)
+    const account = new WalletAccountBtc(childSigner)
+    this._accounts[key] = account
+    return account
   }
 
   /**
