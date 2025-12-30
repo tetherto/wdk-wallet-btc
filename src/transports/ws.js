@@ -23,16 +23,20 @@
 /** @typedef {import('./electrum-client.js').ElectrumUtxo} ElectrumUtxo */
 /** @typedef {import('./electrum-client.js').ElectrumHistoryItem} ElectrumHistoryItem */
 
-const isNode =
-  typeof process !== 'undefined' &&
-  !!(process.versions && process.versions.node)
+const isNodeOrBare =
+  typeof Bare !== 'undefined' ||
+  (typeof process !== 'undefined' && !!process.versions?.node)
 
-const WS_SPEC = 'ws'
-const WebSocket =
-  globalThis.WebSocket ??
-  (isNode ? (await import(/* @vite-ignore */ WS_SPEC)).default : undefined)
-if (!WebSocket) {
-  throw new Error('No WebSocket implementation available in this environment.')
+let WebSocket = null
+
+async function getWebSocket () {
+  if (WebSocket) return WebSocket
+  WebSocket = globalThis.WebSocket ??
+    (isNodeOrBare ? (await import(/* @vite-ignore */ 'ws')).default : undefined)
+  if (!WebSocket) {
+    throw new Error('No WebSocket implementation available in this environment.')
+  }
+  return WebSocket
 }
 
 /**
@@ -98,8 +102,10 @@ export default class ElectrumWs {
     if (this._connected) return
     if (this._connecting) return this._connecting
 
+    const WS = await getWebSocket()
+
     this._connecting = new Promise((resolve, reject) => {
-      this._ws = new WebSocket(this._url)
+      this._ws = new WS(this._url)
 
       this._ws.onopen = () => {
         this._connected = true
@@ -177,7 +183,7 @@ export default class ElectrumWs {
 
   /** @private */
   async _request (method, params) {
-    if (!this._ws || this._ws.readyState !== WebSocket.OPEN) {
+    if (!this._ws || this._ws.readyState !== 1) { // 1 = WebSocket.OPEN
       throw new Error('WebSocket is not connected')
     }
 
