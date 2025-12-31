@@ -1,9 +1,9 @@
 /**
  * Interface for Bitcoin signers.
- *
+ * @implements {ISigner}
  * @interface
  */
-export class ISignerBtc {
+export class ISignerBtc implements ISigner {
     /**
      * The derivation path index of this account.
      *
@@ -75,8 +75,6 @@ export class ISignerBtc {
      */
     dispose(): void;
 }
-/** @typedef {import('../wallet-account-read-only-btc.js').BtcWalletConfig} BtcWalletConfig */
-/** @typedef {import('@tetherto/wdk-wallet').KeyPair} KeyPair */
 /**
  * HD signer backed by a BIP39 seed phrase or seed buffer.
  *
@@ -187,6 +185,7 @@ export default class SeedSignerBtc implements ISignerBtc {
      */
     dispose(): void;
 }
+export type ISigner = any;
 export type BtcWalletConfig = import("../wallet-account-read-only-btc.js").BtcWalletConfig;
 export type KeyPair = import("@tetherto/wdk-wallet").KeyPair;
 import { Psbt } from 'bitcoinjs-lib';

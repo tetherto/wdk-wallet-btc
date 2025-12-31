@@ -65,5 +65,13 @@ export function normalizeConfig(config?: {
  * @returns {string} The Bitcoin address.
  */
 export function getAddressFromPublicKey(publicKey: Buffer, network: Network, bip?: number): string;
+/**
+ * Signs a message.
+ *
+ * @param {string} message - The message to sign.
+ * @param {Buffer} privateKey - The private key.
+ * @returns {Promise<string>} The message's signature.
+ */
+export function signMessage(message: string, privateKey: Buffer, bip: any): Promise<string>;
 export type Network = import("bitcoinjs-lib").Network;
 export type Psbt = import("bitcoinjs-lib").Psbt;

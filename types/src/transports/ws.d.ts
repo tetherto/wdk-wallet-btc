@@ -1,12 +1,4 @@
 /**
- * @typedef {Object} ElectrumWsConfig
- * @property {string} url - The WebSocket URL (e.g., 'wss://electrum.example.com:50004').
- */
-/** @typedef {import('./electrum-client.js').default} IElectrumClient */
-/** @typedef {import('./electrum-client.js').ElectrumBalance} ElectrumBalance */
-/** @typedef {import('./electrum-client.js').ElectrumUtxo} ElectrumUtxo */
-/** @typedef {import('./electrum-client.js').ElectrumHistoryItem} ElectrumHistoryItem */
-/**
  * Electrum client using WebSocket transport.
  *
  * Compatible with browser environments where TCP sockets are not available.
@@ -131,9 +123,6 @@ export type ElectrumWsConfig = {
     url: string;
 };
 export type IElectrumClient = import("./electrum-client.js").default;
-<<<<<<< HEAD
-=======
 export type ElectrumBalance = import("./electrum-client.js").ElectrumBalance;
 export type ElectrumUtxo = import("./electrum-client.js").ElectrumUtxo;
 export type ElectrumHistoryItem = import("./electrum-client.js").ElectrumHistoryItem;
->>>>>>> develop
