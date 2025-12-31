@@ -16,11 +16,12 @@
 import { address as btcAddress, Psbt, Transaction } from 'bitcoinjs-lib'
 import pLimit from 'p-limit'
 import { LRUCache } from 'lru-cache'
-import * as bitcoinMessage from 'bitcoinjs-message'
+import bitcoinMessageModule from 'bitcoinjs-message'
 import PrivateKeySignerBtc from './signers/private-key-signer-btc.js'
 import SeedSignerBtc from './signers/seed-signer-btc.js'
 import WalletAccountReadOnlyBtc from './wallet-account-read-only-btc.js'
 
+const bitcoinMessage = bitcoinMessageModule.default ?? bitcoinMessageModule
 /** @typedef {import('@tetherto/wdk-wallet').IWalletAccount} IWalletAccount */
 
 /** @typedef {import('@tetherto/wdk-wallet').KeyPair} KeyPair */

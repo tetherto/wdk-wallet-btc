@@ -17,12 +17,11 @@
 import { networks, Psbt } from 'bitcoinjs-lib'
 import * as ecc from '@bitcoinerlab/secp256k1'
 import { ECPairFactory } from 'ecpair'
-import * as bitcoinMessage from 'bitcoinjs-message'
 
 // eslint-disable-next-line camelcase
 import { sodium_memzero } from 'sodium-universal'
 
-import { buildPaymentScript, detectInputOwnership, ensureWitnessUtxoIfNeeded, normalizeConfig, getAddressFromPublicKey } from './utils.js'
+import { buildPaymentScript, detectInputOwnership, ensureWitnessUtxoIfNeeded, normalizeConfig, getAddressFromPublicKey, signMessage } from './utils.js'
 
 const ECPair = ECPairFactory(ecc)
 /** @typedef {import('../wallet-account-read-only-btc.js').BtcWalletConfig} BtcWalletConfig */
@@ -154,14 +153,7 @@ export default class PrivateKeySignerBtc {
    * @returns {Promise<string>} The message's signature.
    */
   async sign (message) {
-    return bitcoinMessage
-      .sign(
-        message,
-        this._account.privateKey,
-        true,
-        this._bip === 84 ? { segwitType: 'p2wpkh' } : undefined
-      )
-      .toString('base64')
+    return signMessage(message, this._account.privateKey, this._config.bip)
   }
 
   /**

@@ -14,6 +14,9 @@
 'use strict'
 
 import { crypto, payments, Transaction } from 'bitcoinjs-lib'
+import bitcoinMessageModule from 'bitcoinjs-message'
+
+const bitcoinMessage = bitcoinMessageModule.default ?? bitcoinMessageModule
 
 /** @typedef {import('bitcoinjs-lib').Network} Network */
 /** @typedef {import('bitcoinjs-lib').Psbt} Psbt */
@@ -126,4 +129,16 @@ export function getAddressFromPublicKey (publicKey, network, bip = 44) {
     ? payments.p2pkh({ pubkey: publicKey, network })
     : payments.p2wpkh({ pubkey: publicKey, network })
   return address
+}
+
+/**
+ * Signs a message.
+ *
+ * @param {string} message - The message to sign.
+ * @param {Buffer} privateKey - The private key.
+ * @returns {Promise<string>} The message's signature.
+ */
+export function signMessage (message, privateKey, bip) {
+  return bitcoinMessage.sign(message, privateKey, true, bip === 84 ? { segwitType: 'p2wpkh' } : undefined)
+    .toString('base64')
 }

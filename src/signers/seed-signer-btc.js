@@ -16,7 +16,6 @@ import { hmac } from '@noble/hashes/hmac'
 import { sha512 } from '@noble/hashes/sha512'
 import { initEccLib, networks, Psbt } from 'bitcoinjs-lib'
 import { BIP32Factory } from 'bip32'
-import * as bitcoinMessage from 'bitcoinjs-message'
 import { NotImplementedError } from '@tetherto/wdk-wallet'
 
 import * as bip39 from 'bip39'
@@ -25,12 +24,17 @@ import * as ecc from '@bitcoinerlab/secp256k1'
 // eslint-disable-next-line camelcase
 import { sodium_memzero } from 'sodium-universal'
 
+/** @typedef {import('@tetherto/wdk-wallet/src/isigner.js').ISigner} ISigner */
+/** @typedef {import('../wallet-account-read-only-btc.js').BtcWalletConfig} BtcWalletConfig */
+/** @typedef {import('@tetherto/wdk-wallet').KeyPair} KeyPair */
+
 import {
   buildPaymentScript,
   detectInputOwnership,
   ensureWitnessUtxoIfNeeded,
   normalizeConfig,
-  getAddressFromPublicKey
+  getAddressFromPublicKey,
+  signMessage
 } from './utils.js'
 
 const MASTER_SECRET = Buffer.from('Bitcoin seed', 'utf8')
@@ -69,7 +73,7 @@ function deriveMasterNode (seed) {
 
 /**
  * Interface for Bitcoin signers.
- *
+ * @implements {ISigner}
  * @interface
  */
 export class ISignerBtc {
@@ -176,9 +180,6 @@ export class ISignerBtc {
     throw new NotImplementedError('dispose()')
   }
 }
-
-/** @typedef {import('../wallet-account-read-only-btc.js').BtcWalletConfig} BtcWalletConfig */
-/** @typedef {import('@tetherto/wdk-wallet').KeyPair} KeyPair */
 
 /**
  * HD signer backed by a BIP39 seed phrase or seed buffer.
@@ -446,14 +447,7 @@ export default class SeedSignerBtc {
    * @returns {Promise<string>} The message's signature.
    */
   async sign (message) {
-    return bitcoinMessage
-      .sign(
-        message,
-        this._account.privateKey,
-        true,
-        this._bip === 84 ? { segwitType: 'p2wpkh' } : undefined
-      )
-      .toString('base64')
+    return signMessage(message, this._account.privateKey, this._bip)
   }
 
   /**
