@@ -22,7 +22,11 @@ import * as ecc from '@bitcoinerlab/secp256k1'
 
 import { address as btcAddress, crypto, networks, Transaction } from 'bitcoinjs-lib'
 
-import ElectrumClient from './electrum-client.js'
+import { ElectrumTcp, ElectrumSsl, ElectrumTls } from './transports/index.js'
+
+/** @typedef {import('./transports/index.js').MempoolElectrumConfig} MempoolElectrumConfig */
+/** @typedef {import('./transports/index.js').MempoolElectrumClient} MempoolElectrumClient */
+/** @typedef {import('./transports/index.js').IElectrumClient} IElectrumClient */
 
 /** @typedef {import('@bitcoinerlab/coinselect').OutputWithValue} OutputWithValue */
 /** @typedef {import('bitcoinjs-lib').Network} Network */
@@ -42,10 +46,11 @@ import ElectrumClient from './electrum-client.js'
 
 /**
  * @typedef {Object} BtcWalletConfig
- * @property {string} [host] - The electrum server's hostname (default: "electrum.blockstream.info").
- * @property {number} [port] - The electrum server's port (default: 50001).
- * @property {"bitcoin" | "regtest" | "testnet"} [network] The name of the network to use (default: "bitcoin").
- * @property {"tcp" | "tls" | "ssl"} [protocol] - The transport protocol to use (default: "tcp").
+ * @property {IElectrumClient} [client] - Electrum client instance. If provided, host/port/protocol are ignored.
+ * @property {string} [host] - The electrum server's hostname (default: "electrum.blockstream.info"). Ignored if client is provided.
+ * @property {number} [port] - The electrum server's port (default: 50001). Ignored if client is provided.
+ * @property {"tcp" | "tls" | "ssl"} [protocol] - The transport protocol to use (default: "tcp"). Ignored if client is provided.
+ * @property {"bitcoin" | "regtest" | "testnet"} [network] - The name of the network to use (default: "bitcoin").
  * @property {44 | 84} [bip] - The BIP address type used for key and address derivation.
  *   - 44: [BIP-44 (P2PKH / legacy)](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)
  *   - 84: [BIP-84 (P2WPKH / native SegWit)](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki)
@@ -104,18 +109,15 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      */
     this._network = networks[this._config.network] || networks.bitcoin
 
+    const { host, port, protocol } = config
+
     /**
      * An electrum client to interact with the bitcoin node.
      *
      * @protected
-     * @type {ElectrumClient}
+     * @type {IElectrumClient}
      */
-    this._electrumClient = new ElectrumClient(
-      config.port || 50_001,
-      config.host || 'electrum.blockstream.info',
-      config.protocol || 'tcp',
-      { retryPeriod: 1_000, maxRetry: 2, pingPeriod: 120_000, callback: null }
-    )
+    this._electrumClient = config.client ?? this._createClient({ host, port, protocol })
 
     const prefix = Object.keys(BIP_BY_ADDRESS_PREFIX).find(p => address.startsWith(p))
     const bip = BIP_BY_ADDRESS_PREFIX[prefix] || 44
@@ -124,7 +126,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * The dust limit in satoshis based on the BIP type.
      *
      * @private
-     * @type {number}
+     * @type {bigint}
      */
     this._dustLimit = DUST_LIMIT[bip]
   }
@@ -135,9 +137,11 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * @returns {Promise<bigint>} The bitcoin balance (in satoshis).
    */
   async getBalance () {
+    await this._ensureConnected()
+
     const scriptHash = await this._getScriptHash()
 
-    const { confirmed } = await this._electrumClient.blockchainScripthash_getBalance(scriptHash)
+    const { confirmed } = await this._electrumClient.getBalance(scriptHash)
 
     return BigInt(confirmed)
   }
@@ -159,10 +163,12 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transaction's quotes.
    */
   async quoteSendTransaction ({ to, value, feeRate, confirmationTarget = 1 }) {
+    await this._ensureConnected()
+
     const address = await this.getAddress()
 
     if (!feeRate) {
-      const feeEstimate = await this._electrumClient.blockchainEstimatefee(confirmationTarget)
+      const feeEstimate = await this._electrumClient.estimateFee(confirmationTarget)
       feeRate = this._toBigInt(Math.max(feeEstimate * 100_000, 1))
     }
 
@@ -197,15 +203,17 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
       throw new Error("The 'getTransactionReceipt(hash)' method requires a valid transaction hash to fetch the receipt.")
     }
 
+    await this._ensureConnected()
+
     const scriptHash = await this._getScriptHash()
-    const history = await this._electrumClient.blockchainScripthash_getHistory(scriptHash)
+    const history = await this._electrumClient.getHistory(scriptHash)
     const item = Array.isArray(history) ? history.find(h => h?.tx_hash === hash) : null
 
     if (!item || !item.height || item.height <= 0) {
       return null
     }
 
-    const hex = await this._electrumClient.blockchainTransaction_get(hash, false)
+    const hex = await this._electrumClient.getTransaction(hash)
 
     const transaction = Transaction.fromHex(hex)
 
@@ -224,12 +232,14 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * @returns {Promise<BtcMaxSpendableResult>} The estimated maximum spendable result.
    */
   async getMaxSpendable () {
+    await this._ensureConnected()
+
     const fromAddress = await this.getAddress()
-    const feeRateRaw = await this._electrumClient.blockchainEstimatefee(1)
+    const feeRateRaw = await this._electrumClient.estimateFee(1)
     const feeRate = Math.max(Math.round(Number(feeRateRaw) * 100_000), 1)
 
     const scriptHash = await this._getScriptHash()
-    const unspent = await this._electrumClient.blockchainScripthash_listunspent(scriptHash)
+    const unspent = await this._electrumClient.listUnspent(scriptHash)
     if (!unspent || unspent.length === 0) {
       return { amount: 0n, fee: 0n, changeValue: 0n }
     }
@@ -284,6 +294,43 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
   }
 
   /**
+   * Ensures the electrum client is connected.
+   *
+   * @protected
+   * @returns {Promise<void>}
+   */
+  async _ensureConnected () {
+    await this._electrumClient.connect()
+  }
+
+  /**
+   * Creates a default Electrum client based on config options.
+   *
+   * @private
+   * @param {MempoolElectrumConfig} config - The configuration object.
+   * @returns {MempoolElectrumClient} The created client.
+   */
+  _createClient (config) {
+    const protocol = config.protocol || 'tcp'
+
+    const transportConfig = {
+      ...config,
+      host: config.host || 'electrum.blockstream.info',
+      port: config.port || 50_001
+    }
+
+    switch (protocol) {
+      case 'tls':
+        return new ElectrumTls(transportConfig)
+      case 'ssl':
+        return new ElectrumSsl(transportConfig)
+      case 'tcp':
+      default:
+        return new ElectrumTcp(transportConfig)
+    }
+  }
+
+  /**
    * Computes the sha-256 hash of the output script for this wallet's address, reverses the byte order,
    * and returns it as a hex string.
    *
@@ -334,7 +381,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
     const scriptHash = await this._getScriptHash()
 
-    const unspent = await this._electrumClient.blockchainScripthash_listunspent(scriptHash)
+    const unspent = await this._electrumClient.listUnspent(scriptHash)
 
     if (!unspent || unspent.length === 0) {
       throw new Error('No unspent outputs available.')

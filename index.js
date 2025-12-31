@@ -23,9 +23,19 @@
 
 /** @typedef {import('./src/wallet-account-read-only-btc.js').BtcTransaction} BtcTransaction */
 /** @typedef {import('./src/wallet-account-read-only-btc.js').BtcWalletConfig} BtcWalletConfig */
+/** @typedef {import('./src/wallet-account-read-only-btc.js').BtcMaxSpendableResult} BtcMaxSpendableResult */
+/** @typedef {import('./src/wallet-account-btc.js').BtcTransfer} BtcTransfer */
+
+/** @typedef {import('./src/transports/index.js').ElectrumClientConfig} ElectrumClientConfig */
+/** @typedef {import('./src/transports/index.js').ElectrumBalance} ElectrumBalance */
+/** @typedef {import('./src/transports/index.js').ElectrumUtxo} ElectrumUtxo */
+/** @typedef {import('./src/transports/index.js').ElectrumHistoryItem} ElectrumHistoryItem */
+/** @typedef {import('./src/transports/index.js').MempoolElectrumConfig} MempoolElectrumConfig */
 
 export { default } from './src/wallet-manager-btc.js'
 
 export { default as WalletAccountReadOnlyBtc } from './src/wallet-account-read-only-btc.js'
 
 export { default as WalletAccountBtc } from './src/wallet-account-btc.js'
+
+export { IElectrumClient, MempoolElectrumClient, ElectrumTcp, ElectrumSsl, ElectrumTls, ElectrumWs } from './src/transports/index.js'
