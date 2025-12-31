@@ -19,17 +19,24 @@
  */
 
 /** @typedef {import('./electrum-client.js').default} IElectrumClient */
+/** @typedef {import('./electrum-client.js').ElectrumBalance} ElectrumBalance */
+/** @typedef {import('./electrum-client.js').ElectrumUtxo} ElectrumUtxo */
+/** @typedef {import('./electrum-client.js').ElectrumHistoryItem} ElectrumHistoryItem */
 
-const isNode =
-  typeof process !== 'undefined' &&
-  !!(process.versions && process.versions.node)
+const isNodeOrBare =
+  typeof Bare !== 'undefined' ||
+  (typeof process !== 'undefined' && !!process.versions?.node)
 
-const WS_SPEC = 'ws'
-const WebSocket =
-  globalThis.WebSocket ??
-  (isNode ? (await import(/* @vite-ignore */ WS_SPEC)).default : undefined)
-if (!WebSocket) {
-  throw new Error('No WebSocket implementation available in this environment.')
+let WebSocket = null
+
+async function getWebSocket () {
+  if (WebSocket) return WebSocket
+  WebSocket = globalThis.WebSocket ??
+    (isNodeOrBare ? (await import(/* @vite-ignore */ 'ws')).default : undefined)
+  if (!WebSocket) {
+    throw new Error('No WebSocket implementation available in this environment.')
+  }
+  return WebSocket
 }
 
 /**
@@ -86,12 +93,19 @@ export default class ElectrumWs {
     this._connecting = null
   }
 
+  /**
+   * Establishes the connection to the Electrum server.
+   *
+   * @returns {Promise<void>}
+   */
   async connect () {
     if (this._connected) return
     if (this._connecting) return this._connecting
 
+    const WS = await getWebSocket()
+
     this._connecting = new Promise((resolve, reject) => {
-      this._ws = new WebSocket(this._url)
+      this._ws = new WS(this._url)
 
       this._ws.onopen = () => {
         this._connected = true
@@ -169,7 +183,7 @@ export default class ElectrumWs {
 
   /** @private */
   async _request (method, params) {
-    if (!this._ws || this._ws.readyState !== WebSocket.OPEN) {
+    if (!this._ws || this._ws.readyState !== 1) { // 1 = WebSocket.OPEN
       throw new Error('WebSocket is not connected')
     }
 
@@ -188,6 +202,11 @@ export default class ElectrumWs {
     })
   }
 
+  /**
+   * Closes the connection.
+   *
+   * @returns {Promise<void>}
+   */
   async close () {
     if (this._ws) {
       this._ws.close()
@@ -198,31 +217,78 @@ export default class ElectrumWs {
     this._connecting = null
   }
 
+  /**
+   * Recreates the underlying socket and reinitializes the session.
+   *
+   * @returns {Promise<void>}
+   */
   async reconnect () {
     await this.close()
     await this.connect()
   }
 
+  /**
+   * Returns the balance for a script hash.
+   *
+   * @param {string} scripthash - The script hash.
+   * @returns {Promise<ElectrumBalance>} The balance information.
+   * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-get-balance
+   */
   async getBalance (scripthash) {
     return this._request('blockchain.scripthash.get_balance', [scripthash])
   }
 
+  /**
+   * Returns unspent transaction outputs for a script hash.
+   *
+   * @param {string} scripthash - The script hash.
+   * @returns {Promise<ElectrumUtxo[]>} List of UTXOs.
+   * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-listunspent
+   */
   async listUnspent (scripthash) {
     return this._request('blockchain.scripthash.listunspent', [scripthash])
   }
 
+  /**
+   * Returns transaction history for a script hash.
+   *
+   * @param {string} scripthash - The script hash.
+   * @returns {Promise<ElectrumHistoryItem[]>} List of transactions.
+   * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-get-history
+   */
   async getHistory (scripthash) {
     return this._request('blockchain.scripthash.get_history', [scripthash])
   }
 
+  /**
+   * Returns a raw transaction.
+   *
+   * @param {string} txHash - The transaction hash.
+   * @returns {Promise<string>} Hex-encoded raw transaction.
+   * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-transaction-get
+   */
   async getTransaction (txHash) {
     return this._request('blockchain.transaction.get', [txHash, false])
   }
 
+  /**
+   * Broadcasts a raw transaction to the network.
+   *
+   * @param {string} rawTx - The raw transaction hex.
+   * @returns {Promise<string>} Transaction hash if successful.
+   * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-transaction-broadcast
+   */
   async broadcast (rawTx) {
     return this._request('blockchain.transaction.broadcast', [rawTx])
   }
 
+  /**
+   * Returns the estimated fee rate.
+   *
+   * @param {number} blocks - The confirmation target in blocks.
+   * @returns {Promise<number>} Fee rate in BTC/kB.
+   * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-estimatefee
+   */
   async estimateFee (blocks) {
     return this._request('blockchain.estimatefee', [blocks])
   }

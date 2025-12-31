@@ -27,6 +27,9 @@ import MempoolClient from '@mempool/electrum-client'
  */
 
 /** @typedef {import('./electrum-client.js').default} IElectrumClient */
+/** @typedef {import('./electrum-client.js').ElectrumBalance} ElectrumBalance */
+/** @typedef {import('./electrum-client.js').ElectrumUtxo} ElectrumUtxo */
+/** @typedef {import('./electrum-client.js').ElectrumHistoryItem} ElectrumHistoryItem */
 
 /**
  * Electrum client using @mempool/electrum-client.
@@ -84,8 +87,13 @@ export default class MempoolElectrumClient {
     this._connecting = null
   }
 
-  async connect () {
-    if (this._connected) return
+  /**
+   * Establishes the connection to the Electrum server.
+   *
+   * @returns {Promise<void>}
+   */
+  connect () {
+    if (this._connected) return Promise.resolve()
     if (this._connecting) return this._connecting
 
     this._connecting = this._client
@@ -100,12 +108,22 @@ export default class MempoolElectrumClient {
     return this._connecting
   }
 
+  /**
+   * Closes the connection.
+   *
+   * @returns {Promise<void>}
+   */
   async close () {
     this._client.close()
     this._connected = false
     this._connecting = null
   }
 
+  /**
+   * Recreates the underlying socket and reinitializes the session.
+   *
+   * @returns {Promise<void>}
+   */
   async reconnect () {
     this._connected = false
     this._connecting = null
@@ -113,26 +131,68 @@ export default class MempoolElectrumClient {
     await this.connect()
   }
 
+  /**
+   * Returns the balance for a script hash.
+   *
+   * @param {string} scripthash - The script hash.
+   * @returns {Promise<ElectrumBalance>} The balance information.
+   * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-get-balance
+   */
   async getBalance (scripthash) {
     return this._client.blockchainScripthash_getBalance(scripthash)
   }
 
+  /**
+   * Returns unspent transaction outputs for a script hash.
+   *
+   * @param {string} scripthash - The script hash.
+   * @returns {Promise<ElectrumUtxo[]>} List of UTXOs.
+   * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-listunspent
+   */
   async listUnspent (scripthash) {
     return this._client.blockchainScripthash_listunspent(scripthash)
   }
 
+  /**
+   * Returns transaction history for a script hash.
+   *
+   * @param {string} scripthash - The script hash.
+   * @returns {Promise<ElectrumHistoryItem[]>} List of transactions.
+   * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-get-history
+   */
   async getHistory (scripthash) {
     return this._client.blockchainScripthash_getHistory(scripthash)
   }
 
+  /**
+   * Returns a raw transaction.
+   *
+   * @param {string} txHash - The transaction hash.
+   * @returns {Promise<string>} Hex-encoded raw transaction.
+   * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-transaction-get
+   */
   async getTransaction (txHash) {
     return this._client.blockchainTransaction_get(txHash)
   }
 
+  /**
+   * Broadcasts a raw transaction to the network.
+   *
+   * @param {string} rawTx - The raw transaction hex.
+   * @returns {Promise<string>} Transaction hash if successful.
+   * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-transaction-broadcast
+   */
   async broadcast (rawTx) {
     return this._client.blockchainTransaction_broadcast(rawTx)
   }
 
+  /**
+   * Returns the estimated fee rate.
+   *
+   * @param {number} blocks - The confirmation target in blocks.
+   * @returns {Promise<number>} Fee rate in BTC/kB.
+   * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-estimatefee
+   */
   async estimateFee (blocks) {
     return this._client.blockchainEstimatefee(blocks)
   }
