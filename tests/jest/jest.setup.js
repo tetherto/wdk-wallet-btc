@@ -6,6 +6,7 @@ import { HOST, PORT, ELECTRUM_PORT, ZMQ_PORT, DATA_DIR } from '../config.js'
 import { BitcoinCli, Waiter } from '../helpers/index.js'
 
 const BITCOIN_CORE_VERSION = 'v29.'
+const BITCOIN_CORE_VERSION_UPDATED = 'v30.'
 
 const ELECTRS_VERSION = 'v0.10.'
 
@@ -17,7 +18,7 @@ function checkBitcoinCore () {
   try {
     const buffer = execSync(`bitcoind --version`, { stdio: ['inherit', 'pipe', 'ignore'] })
     const output = buffer.toString()
-    return output.includes(BITCOIN_CORE_VERSION)
+    return output.includes(BITCOIN_CORE_VERSION) || output.includes(BITCOIN_CORE_VERSION_UPDATED)
   } catch {
     return false
   }

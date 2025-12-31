@@ -20,7 +20,7 @@
  * @property {number} height - The block height (0 or negative if unconfirmed).
  */
 /** @interface */
-export default interface IElectrumClient {
+export default class IElectrumClient {
     /**
      * Closes the connection.
      *

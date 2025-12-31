@@ -118,9 +118,14 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @type {IElectrumClient}
      */
     this._electrumClient = config.client ?? this._createClient({ host, port, protocol })
-
-    const prefix = Object.keys(BIP_BY_ADDRESS_PREFIX).find(p => address.startsWith(p))
-    const bip = BIP_BY_ADDRESS_PREFIX[prefix] || 44
+    let bip = null
+    let prefix = null
+    if (address) {
+      prefix = Object.keys(BIP_BY_ADDRESS_PREFIX).find(p => address.startsWith(p))
+      bip = BIP_BY_ADDRESS_PREFIX[prefix] || 44
+    } else {
+      bip = config.bip
+    }
 
     /**
      * The dust limit in satoshis based on the BIP type.
