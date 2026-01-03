@@ -391,11 +391,20 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @returns {Promise<string>} The raw hexadecimal string of the transaction.
    */
   async quoteSendTransactionTX ({ to, value, feeRate, confirmationTarget = 1 }) {
+    console.log('[wallet-account-btc] quoteSendTransactionTX called with:', {
+      to,
+      value: value.toString(),
+      feeRate: feeRate ? feeRate.toString() : 'auto',
+      confirmationTarget
+    })
+    
     const address = await this.getAddress()
+    console.log('[wallet-account-btc] From address:', address)
 
     if (!feeRate) {
       const feeEstimate = await this._electrumClient.blockchainEstimatefee(confirmationTarget)
       feeRate = this._toBigInt(Math.max(feeEstimate * 100_000, 1))
+      console.log('[wallet-account-btc] Estimated fee rate:', feeRate.toString(), 'sats/vB')
     }
 
     const { utxos, fee, changeValue } = await this._planSpend({
@@ -403,6 +412,13 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
       toAddress: to,
       amount: value,
       feeRate
+    })
+    
+    console.log('[wallet-account-btc] Plan spend result:', {
+      utxoCount: utxos.length,
+      fee: fee.toString(),
+      changeValue: changeValue.toString(),
+      totalInput: utxos.reduce((sum, u) => sum + this._toBigInt(u.value), 0n).toString()
     })
 
     // Build transaction WITHOUT memo (no additionalOutputs)
@@ -414,6 +430,14 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
       feeRate,
       changeValue
     })
+    
+    console.log('[wallet-account-btc] Transaction created:', {
+      txid: tx.txid,
+      hexLength: tx.hex.length,
+      vsize: tx.vsize,
+      fee: tx.fee.toString()
+    })
+    console.log('[wallet-account-btc] Full transaction hex:', tx.hex)
 
     return tx.hex
   }

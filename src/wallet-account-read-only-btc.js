@@ -375,6 +375,14 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     feeRate = this._toBigInt(feeRate)
     if (feeRate < 1n) feeRate = 1n
 
+    console.log('[wallet-account-read-only-btc] _planSpend called with:', {
+      fromAddress,
+      toAddress,
+      amount: amount.toString(),
+      feeRate: feeRate.toString(),
+      dustLimit: this._dustLimit.toString()
+    })
+
     if (amount <= this._dustLimit) {
       throw new Error(`The amount must be bigger than the dust limit (= ${this._dustLimit}).`)
     }
@@ -393,11 +401,32 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
       throw new Error('No unspent outputs available.')
     }
 
+    const totalBalance = unspent.reduce((sum, u) => sum + BigInt(u.value), 0n)
+    console.log('[wallet-account-read-only-btc] UTXO information:', {
+      utxoCount: unspent.length,
+      totalBalance: totalBalance.toString(),
+      totalBalanceBTC: (Number(totalBalance) / 100000000).toFixed(8),
+      utxos: unspent.map(u => ({
+        tx_hash: u.tx_hash,
+        tx_pos: u.tx_pos,
+        value: u.value,
+        valueBTC: (u.value / 100000000).toFixed(8),
+        height: u.height
+      }))
+    })
+
     const utxosForCoinSelect = unspent.map(u => ({
       output: fromAddressOutput,
       value: u.value,
       __ref: u
     }))
+
+    console.log('[wallet-account-read-only-btc] Calling coinselect with:', {
+      utxoCount: utxosForCoinSelect.length,
+      targetAmount: Number(amount),
+      targetAmountBTC: (Number(amount) / 100000000).toFixed(8),
+      feeRate: Number(feeRate)
+    })
 
     const result = coinselect({
       utxos: utxosForCoinSelect,
@@ -407,6 +436,14 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     })
 
     if (!result) {
+      console.error('[wallet-account-read-only-btc] coinselect failed - insufficient balance:', {
+        totalBalance: totalBalance.toString(),
+        totalBalanceBTC: (Number(totalBalance) / 100000000).toFixed(8),
+        requestedAmount: amount.toString(),
+        requestedAmountBTC: (Number(amount) / 100000000).toFixed(8),
+        feeRate: feeRate.toString(),
+        estimatedMinFee: (Number(feeRate) * 141).toString() // MIN_TX_FEE_SATS = 141
+      })
       throw new Error('Insufficient balance to send the transaction.')
     }
 
@@ -427,7 +464,55 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     const total = utxos.reduce((s, u) => s + this._toBigInt(u.value), 0n)
     const changeValue = total - fee - amount
 
+    // Calculate estimated transaction size for fee analysis
+    // P2WPKH: ~68 vbytes per input, ~31 vbytes per output, ~11 vbytes overhead
+    // P2TR: ~58 vbytes per input, ~43 vbytes per output, ~11 vbytes overhead
+    const inputCount = result.utxos.length
+    const outputCount = changeValue > 0n ? 2 : 1 // recipient + change (if any)
+    const isP2WPKH = fromAddress.toLowerCase().startsWith('bc1q') || fromAddress.toLowerCase().startsWith('tb1q')
+    const inputVBytes = isP2WPKH ? 68 : 58
+    const outputVBytes = isP2WPKH ? 31 : 43
+    const txOverheadVBytes = 11
+    const estimatedVSize = txOverheadVBytes + (inputCount * inputVBytes) + (outputCount * outputVBytes)
+    const estimatedFeeFromSize = Number(feeRate) * estimatedVSize
+
+    console.log('[wallet-account-read-only-btc] coinselect result:', {
+      selectedUtxoCount: result.utxos.length,
+      coinselectFee: result.fee,
+      coinselectFeeBTC: result.fee ? (result.fee / 100000000).toFixed(8) : 'N/A',
+      finalFee: fee.toString(),
+      finalFeeBTC: (Number(fee) / 100000000).toFixed(8),
+      feeRate: feeRate.toString(),
+      feeRatePerVByte: Number(feeRate),
+      estimatedVSize,
+      estimatedFeeFromSize,
+      estimatedFeeFromSizeBTC: (estimatedFeeFromSize / 100000000).toFixed(8),
+      inputVBytesPerInput: inputVBytes,
+      outputVBytesPerOutput: outputVBytes,
+      outputCount,
+      changeValue: changeValue.toString(),
+      note: 'Fee = max(coinselect_fee, MIN_TX_FEE_SATS) where MIN_TX_FEE_SATS = 141'
+    })
+
+    console.log('[wallet-account-read-only-btc] Transaction plan:', {
+      totalInput: total.toString(),
+      totalInputBTC: (Number(total) / 100000000).toFixed(8),
+      amount: amount.toString(),
+      amountBTC: (Number(amount) / 100000000).toFixed(8),
+      fee: fee.toString(),
+      feeBTC: (Number(fee) / 100000000).toFixed(8),
+      changeValue: changeValue.toString(),
+      changeValueBTC: (Number(changeValue) / 100000000).toFixed(8),
+      dustLimit: this._dustLimit.toString()
+    })
+
     if (changeValue < 0n) {
+      console.error('[wallet-account-read-only-btc] Insufficient balance after fees:', {
+        totalInput: total.toString(),
+        amount: amount.toString(),
+        fee: fee.toString(),
+        shortfall: (-changeValue).toString()
+      })
       throw new Error('Insufficient balance after fees.')
     }
 
