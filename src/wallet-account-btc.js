@@ -30,6 +30,9 @@ import { sodium_memzero } from 'sodium-universal'
 
 import WalletAccountReadOnlyBtc from './wallet-account-read-only-btc.js'
 
+// TEST: Module-level log to verify local package is loaded
+console.log('🚀🚀🚀 [wdk-wallet-btc] LOCAL PACKAGE LOADED - wallet-account-btc.js module executed 🚀🚀🚀')
+
 /** @typedef {import('@tetherto/wdk-wallet').IWalletAccount} IWalletAccount */
 
 /** @typedef {import('@tetherto/wdk-wallet').KeyPair} KeyPair */
@@ -102,6 +105,9 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @param {BtcWalletConfig} [config] - The configuration object.
    */
   constructor (seed, path, config = {}) {
+    // TEST: Local wdk-wallet-btc override is working! 🎉
+    console.log('🚀 [wdk-wallet-btc] LOCAL VERSION DETECTED - Using local wdk-wallet-btc from file:../wdk-wallet-btc')
+    
     if (typeof seed === 'string') {
       if (!bip39.validateMnemonic(seed)) {
         throw new Error('The seed phrase is invalid.')
@@ -403,8 +409,11 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
 
     if (!feeRate) {
       const feeEstimate = await this._electrumClient.blockchainEstimatefee(confirmationTarget)
+      console.log('[wallet-account-btc] blockchainEstimatefee raw result:', feeEstimate, 'BTC/KB')
       feeRate = this._toBigInt(Math.max(feeEstimate * 100_000, 1))
-      console.log('[wallet-account-btc] Estimated fee rate:', feeRate.toString(), 'sats/vB')
+      console.log('[wallet-account-btc] Estimated fee rate:', feeRate.toString(), 'sats/vB (converted from', feeEstimate, 'BTC/KB)')
+    } else {
+      console.log('[wallet-account-btc] Using provided fee rate:', feeRate.toString(), 'sats/vB')
     }
 
     const { utxos, fee, changeValue } = await this._planSpend({

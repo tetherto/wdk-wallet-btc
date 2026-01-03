@@ -87,6 +87,9 @@ const DUST_LIMIT = {
   86: 330n
 }
 
+// TEST: Module-level log to verify local package is loaded
+console.log('🚀🚀🚀 [wdk-wallet-btc] LOCAL PACKAGE LOADED - wallet-account-read-only-btc.js module executed 🚀🚀🚀')
+
 export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
   /**
    * Creates a new bitcoin read-only wallet account.
@@ -96,6 +99,9 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    */
   constructor (address, config = {}) {
     super(address)
+
+    // TEST: Local wdk-wallet-btc override is working! 🎉
+    console.log('🚀 [wdk-wallet-btc] LOCAL VERSION DETECTED - Using local wdk-wallet-btc from file:../wdk-wallet-btc')
 
     /**
      * The read-only wallet account configuration.
@@ -144,6 +150,8 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * @returns {Promise<bigint>} The bitcoin balance (in satoshis).
    */
   async getBalance () {
+    // TEST: Verify local package is being used
+    console.log('🚀 [wdk-wallet-btc] LOCAL VERSION - getBalance called (local package active)')
     const scriptHash = await this._getScriptHash()
 
     const { confirmed } = await this._electrumClient.blockchainScripthash_getBalance(scriptHash)
@@ -168,11 +176,17 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transaction's quotes.
    */
   async quoteSendTransaction ({ to, value, feeRate, confirmationTarget = 1 }) {
+    // TEST: Verify local package is being used
+    console.log('🚀 [wdk-wallet-btc] LOCAL VERSION - quoteSendTransaction called (local package active)')
     const address = await this.getAddress()
 
     if (!feeRate) {
       const feeEstimate = await this._electrumClient.blockchainEstimatefee(confirmationTarget)
+      console.log('[wallet-account-read-only-btc] blockchainEstimatefee raw result:', feeEstimate, 'BTC/KB')
       feeRate = this._toBigInt(Math.max(feeEstimate * 100_000, 1))
+      console.log('[wallet-account-read-only-btc] Estimated fee rate:', feeRate.toString(), 'sats/vB (converted from', feeEstimate, 'BTC/KB)')
+    } else {
+      console.log('[wallet-account-read-only-btc] Using provided fee rate:', feeRate.toString(), 'sats/vB')
     }
 
     const { fee } = await this._planSpend({
@@ -421,12 +435,33 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
       __ref: u
     }))
 
-    console.log('[wallet-account-read-only-btc] Calling coinselect with:', {
+    // Calculate estimated transaction size for better fee estimation
+    // Base transaction: ~10 vbytes overhead
+    // Each input: ~68 vbytes (P2WPKH)
+    // Each output: ~31 vbytes (P2WPKH) or ~43 vbytes (P2TR)
+    const estimatedInputCount = Math.ceil(Number(amount) / (Number(totalBalance) / unspent.length)) || 1
+    const estimatedOutputCount = 2 // recipient + change
+    const estimatedVSize = 10 + (estimatedInputCount * 68) + (estimatedOutputCount * 31)
+    const estimatedFeeFromSize = Number(feeRate) * estimatedVSize
+    const estimatedTotalRequired = Number(amount) + estimatedFeeFromSize
+
+    const coinselectParams = {
       utxoCount: utxosForCoinSelect.length,
       targetAmount: Number(amount),
       targetAmountBTC: (Number(amount) / 100000000).toFixed(8),
-      feeRate: Number(feeRate)
-    })
+      feeRate: Number(feeRate),
+      estimatedVSize,
+      estimatedFeeFromSize,
+      estimatedFeeFromSizeBTC: (estimatedFeeFromSize / 100000000).toFixed(8),
+      estimatedTotalRequired,
+      estimatedTotalRequiredBTC: (estimatedTotalRequired / 100000000).toFixed(8),
+      totalBalanceAvailable: totalBalance.toString(),
+      totalBalanceAvailableBTC: (Number(totalBalance) / 100000000).toFixed(8),
+      sufficient: Number(totalBalance) >= estimatedTotalRequired
+    }
+    console.log('🚀🚀🚀 [LOCAL PACKAGE] Calling coinselect with:', JSON.stringify(coinselectParams, null, 2))
+    console.warn('🚀🚀🚀 [LOCAL PACKAGE] Calling coinselect with:', JSON.stringify(coinselectParams, null, 2))
+    console.error('🚀🚀🚀 [LOCAL PACKAGE] Calling coinselect with:', JSON.stringify(coinselectParams, null, 2))
 
     const result = coinselect({
       utxos: utxosForCoinSelect,
@@ -436,15 +471,25 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     })
 
     if (!result) {
-      console.error('[wallet-account-read-only-btc] coinselect failed - insufficient balance:', {
+      const failureDetails = {
         totalBalance: totalBalance.toString(),
         totalBalanceBTC: (Number(totalBalance) / 100000000).toFixed(8),
         requestedAmount: amount.toString(),
         requestedAmountBTC: (Number(amount) / 100000000).toFixed(8),
         feeRate: feeRate.toString(),
-        estimatedMinFee: (Number(feeRate) * 141).toString() // MIN_TX_FEE_SATS = 141
-      })
-      throw new Error('Insufficient balance to send the transaction.')
+        estimatedVSize,
+        estimatedFeeFromSize,
+        estimatedFeeFromSizeBTC: (estimatedFeeFromSize / 100000000).toFixed(8),
+        estimatedTotalRequired,
+        estimatedTotalRequiredBTC: (estimatedTotalRequired / 100000000).toFixed(8),
+        estimatedMinFee: (Number(feeRate) * 141).toString(), // MIN_TX_FEE_SATS = 141
+        shortfall: estimatedTotalRequired - Number(totalBalance),
+        shortfallBTC: ((estimatedTotalRequired - Number(totalBalance)) / 100000000).toFixed(8)
+      }
+      console.error('🚀🚀🚀 [LOCAL PACKAGE] coinselect FAILED - insufficient balance:', JSON.stringify(failureDetails, null, 2))
+      console.warn('🚀🚀🚀 [LOCAL PACKAGE] coinselect FAILED - insufficient balance:', JSON.stringify(failureDetails, null, 2))
+      console.log('🚀🚀🚀 [LOCAL PACKAGE] coinselect FAILED - insufficient balance:', JSON.stringify(failureDetails, null, 2))
+      throw new Error(`🚀🚀🚀 LOCAL PACKAGE ACTIVE - Insufficient balance to send the transaction. Details: ${JSON.stringify(failureDetails)} 🚀🚀🚀`)
     }
 
     if (result.utxos.length > MAX_UTXO_INPUTS) {
@@ -464,7 +509,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     const total = utxos.reduce((s, u) => s + this._toBigInt(u.value), 0n)
     const changeValue = total - fee - amount
 
-    // Calculate estimated transaction size for fee analysis
+    // Calculate actual transaction size for fee analysis
     // P2WPKH: ~68 vbytes per input, ~31 vbytes per output, ~11 vbytes overhead
     // P2TR: ~58 vbytes per input, ~43 vbytes per output, ~11 vbytes overhead
     const inputCount = result.utxos.length
@@ -473,8 +518,8 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     const inputVBytes = isP2WPKH ? 68 : 58
     const outputVBytes = isP2WPKH ? 31 : 43
     const txOverheadVBytes = 11
-    const estimatedVSize = txOverheadVBytes + (inputCount * inputVBytes) + (outputCount * outputVBytes)
-    const estimatedFeeFromSize = Number(feeRate) * estimatedVSize
+    const actualVSize = txOverheadVBytes + (inputCount * inputVBytes) + (outputCount * outputVBytes)
+    const actualFeeFromSize = Number(feeRate) * actualVSize
 
     console.log('[wallet-account-read-only-btc] coinselect result:', {
       selectedUtxoCount: result.utxos.length,
@@ -484,9 +529,9 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
       finalFeeBTC: (Number(fee) / 100000000).toFixed(8),
       feeRate: feeRate.toString(),
       feeRatePerVByte: Number(feeRate),
-      estimatedVSize,
-      estimatedFeeFromSize,
-      estimatedFeeFromSizeBTC: (estimatedFeeFromSize / 100000000).toFixed(8),
+      actualVSize,
+      actualFeeFromSize,
+      actualFeeFromSizeBTC: (actualFeeFromSize / 100000000).toFixed(8),
       inputVBytesPerInput: inputVBytes,
       outputVBytesPerOutput: outputVBytes,
       outputCount,
@@ -513,7 +558,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
         fee: fee.toString(),
         shortfall: (-changeValue).toString()
       })
-      throw new Error('Insufficient balance after fees.')
+      throw new Error('🚀🚀🚀 LOCAL PACKAGE ACTIVE - Insufficient balance after fees. 🚀🚀🚀')
     }
 
     if (changeValue <= this._dustLimit) {
@@ -595,7 +640,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     })
 
     if (!result) {
-      throw new Error('Insufficient balance to send the transaction.')
+      throw new Error('🚀🚀🚀 LOCAL PACKAGE ACTIVE - Insufficient balance to send the transaction. 🚀🚀🚀')
     }
 
     if (result.utxos.length > MAX_UTXO_INPUTS) {

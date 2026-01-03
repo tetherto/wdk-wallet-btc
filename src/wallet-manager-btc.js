@@ -31,6 +31,8 @@ export default class WalletManagerBtc extends WalletManager {
    * @param {BtcWalletConfig} [config] - The configuration object.
    */
   constructor (seed, config = {}) {
+    // TEST: Local package is being used
+    console.log('🚀 [wdk-wallet-btc] LOCAL VERSION - WalletManagerBtc constructor called (local package active)')
     super(seed, config)
   }
 
