@@ -408,11 +408,22 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     const toAddressOutput = new Output({ descriptor: `addr(${toAddress})`, network })
 
     const scriptHash = await this._getScriptHash()
+    console.log('[wallet-account-read-only-btc] _planSpend scriptHash:', scriptHash)
+    console.log('[wallet-account-read-only-btc] _planSpend fromAddress:', fromAddress)
+    console.log('[wallet-account-read-only-btc] _planSpend network:', network)
 
     const unspent = await this._electrumClient.blockchainScripthash_listunspent(scriptHash)
+    console.log('[wallet-account-read-only-btc] _planSpend unspent result:', JSON.stringify(unspent))
 
     if (!unspent || unspent.length === 0) {
-      throw new Error('No unspent outputs available.')
+      // Try to get balance to see if address has funds
+      try {
+        const balance = await this._electrumClient.blockchainScripthash_getBalance(scriptHash)
+        console.error('[wallet-account-read-only-btc] _planSpend - No UTXOs but balance check:', JSON.stringify(balance))
+      } catch (balanceError) {
+        console.error('[wallet-account-read-only-btc] _planSpend - Balance check failed:', balanceError)
+      }
+      throw new Error(`🚀🚀🚀 LOCAL PACKAGE ACTIVE - No unspent outputs available for address ${fromAddress} (scriptHash: ${scriptHash}). 🚀🚀🚀`)
     }
 
     const totalBalance = unspent.reduce((sum, u) => sum + BigInt(u.value), 0n)
@@ -612,12 +623,22 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
     const scriptHash = await this._getScriptHash()
     console.log('[wallet-account-read-only-btc] _planSpendWithMemo scriptHash:', scriptHash)
+    console.log('[wallet-account-read-only-btc] _planSpendWithMemo fromAddress:', fromAddress)
+    console.log('[wallet-account-read-only-btc] _planSpendWithMemo network:', network)
     console.log('=== _planSpendWithMemo scriptHash obtained ===')
 
     const unspent = await this._electrumClient.blockchainScripthash_listunspent(scriptHash)
+    console.log('[wallet-account-read-only-btc] _planSpendWithMemo unspent result:', JSON.stringify(unspent))
 
     if (!unspent || unspent.length === 0) {
-      throw new Error('No unspent outputs available.')
+      // Try to get balance to see if address has funds
+      try {
+        const balance = await this._electrumClient.blockchainScripthash_getBalance(scriptHash)
+        console.error('[wallet-account-read-only-btc] _planSpendWithMemo - No UTXOs but balance check:', JSON.stringify(balance))
+      } catch (balanceError) {
+        console.error('[wallet-account-read-only-btc] _planSpendWithMemo - Balance check failed:', balanceError)
+      }
+      throw new Error(`🚀🚀🚀 LOCAL PACKAGE ACTIVE - No unspent outputs available for address ${fromAddress} (scriptHash: ${scriptHash}). 🚀🚀🚀`)
     }
 
     const utxosForCoinSelect = unspent.map(u => ({

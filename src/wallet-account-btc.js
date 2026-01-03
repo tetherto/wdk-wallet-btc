@@ -138,6 +138,15 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
       }
     }
 
+    console.log('🚀🚀🚀 [wdk-wallet-btc] WalletAccountBtc constructor config:', {
+      bip,
+      scriptType,
+      path,
+      network: config.network,
+      host: config.host,
+      port: config.port
+    })
+
     // Validate bip value
     if (![44, 84, 86].includes(bip)) {
       throw new Error('Invalid bip specification. Supported bips: 44, 84, 86.')
@@ -153,6 +162,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
 
     const netdp = config.network === 'bitcoin' ? 0 : 1
     const fullPath = `m/${bip}'/${netdp}'/${path}`
+    console.log('🚀🚀🚀 [wdk-wallet-btc] WalletAccountBtc derivation path:', fullPath)
 
     const { masterNode, account } = derivePath(seed, fullPath)
 
@@ -178,6 +188,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
       address = p2wpkhAddress
     }
 
+    console.log('🚀🚀🚀 [wdk-wallet-btc] WalletAccountBtc generated address:', address)
     super(address, config)
 
     /**
