@@ -128,6 +128,65 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
         confirmationTarget?: number;
     }): Promise<string>;
     /**
+     * Quotes an update transaction with hex data and returns the raw hexadecimal string without broadcasting it.
+     * Creates a transaction that:
+     * 1. Sends value to the recipient address
+     * 2. Embeds hex-encoded data in an OP_RETURN output
+     * 3. Spends from a prior transaction UTXO (requires priorAcct for signing)
+     * 4. Returns change to the main account
+     *
+     * @param {Object} options - Transaction options.
+     * @param {string} options.to - The recipient's Bitcoin address.
+     * @param {string} options.hex - The hex-encoded data string to embed in OP_RETURN.
+     * @param {string} options.priorTx - The existing transaction id to reference.
+     * @param {WalletAccountBtc} options.priorAcct - The account that owns the priorTx UTXO (for signing).
+     * @param {number | bigint} [options.value] - The amount to send (in satoshis, default: 1007).
+     * @param {number | bigint} [options.feeRate] - Optional fee rate (in sats/vB). If not provided, estimated from network.
+     * @param {number} [options.confirmationTarget] - Optional confirmation target in blocks (default: 1).
+     * @returns {Promise<string>} The raw hexadecimal string of the transaction.
+     */
+    quoteUpdateTransactionWithHexTX({ to, hex, priorTx, priorAcct, value, feeRate, confirmationTarget }: {
+        to: string;
+        hex: string;
+        priorTx: string;
+        priorAcct: WalletAccountBtc;
+        value?: number | bigint;
+        feeRate?: number | bigint;
+        confirmationTarget?: number;
+    }): Promise<string>;
+    /**
+     * Sends a transaction that updates a prior transaction with hex data in OP_RETURN.
+     * Creates a transaction with 2 inputs:
+     * 1. A UTXO from the priorTx that has a value of 1007 sats (signed by priorAcct)
+     * 2. A UTXO from the main account to fund this transaction (signed by this account)
+     *
+     * Outputs (in order):
+     * 1. Spend 1007 sats to the "to" address param
+     * 2. An OP_RETURN output containing the hex-encoded data
+     * 3. The change returning to the main account
+     *
+     * Broadcasts the transaction and returns the transaction result.
+     *
+     * @param {Object} options - Transaction options.
+     * @param {string} options.to - The recipient's Bitcoin address.
+     * @param {string} options.hex - The hex-encoded data string to embed in OP_RETURN.
+     * @param {string} options.priorTx - The existing transaction id to reference.
+     * @param {WalletAccountBtc} options.priorAcct - The account that owns the priorTx UTXO (for signing).
+     * @param {number | bigint} [options.value] - The amount to send (in satoshis, default: 1007).
+     * @param {number | bigint} [options.feeRate] - Optional fee rate (in sats/vB). If not provided, estimated from network.
+     * @param {number} [options.confirmationTarget] - Optional confirmation target in blocks (default: 1).
+     * @returns {Promise<TransactionResult>} The transaction result with hash and fee.
+     */
+    updateTransactionWithHex({ to, hex, priorTx, priorAcct, value, feeRate, confirmationTarget }: {
+        to: string;
+        hex: string;
+        priorTx: string;
+        priorAcct: WalletAccountBtc;
+        value?: number | bigint;
+        feeRate?: number | bigint;
+        confirmationTarget?: number;
+    }): Promise<TransactionResult>;
+    /**
      * Transfers a token to another address.
      *
      * @param {TransferOptions} options - The transfer's options.

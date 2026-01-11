@@ -518,6 +518,399 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
   }
 
   /**
+   * Creates an OP_RETURN script from hex-encoded data.
+   * Similar to createOpReturnScript but accepts hex data instead of UTF-8 string.
+   *
+   * @param {string} hexData - The hex-encoded data to embed.
+   * @returns {Buffer} The OP_RETURN script as a Buffer.
+   */
+  createOpReturnScriptFromHex (hexData) {
+    // Validate hex string
+    if (!/^[0-9a-fA-F]*$/.test(hexData)) {
+      throw new Error('Hex data must be a valid hexadecimal string')
+    }
+
+    const dataBuffer = Buffer.from(hexData, 'hex')
+    const dataLength = dataBuffer.length
+
+    // OP_RETURN (0x6a) + OP_PUSHNUM_1 (0x51) + push opcode + data
+    // For data <= 75 bytes, use OP_PUSHBYTES_<n> (0x01-0x4b)
+    // For larger data, we'd need OP_PUSHDATA1/2/4, but 75 bytes is usually enough
+    if (dataLength > 75) {
+      throw new Error('OP_RETURN data cannot exceed 75 bytes')
+    }
+
+    const script = Buffer.allocUnsafe(1 + 1 + 1 + dataLength)
+    script[0] = 0x6a // OP_RETURN
+    script[1] = 0x51 // OP_PUSHNUM_1
+    script[2] = dataLength // OP_PUSHBYTES_<n>
+    dataBuffer.copy(script, 3)
+
+    return script
+  }
+
+  /**
+   * Quotes a transaction that updates a prior transaction with hex data in OP_RETURN.
+   * Creates a transaction with 2 inputs:
+   * 1. A UTXO from the priorTx that has a value of 1007 sats (signed by priorAcct)
+   * 2. A UTXO from the main account to fund this transaction (signed by this account)
+   *
+   * Outputs (in order):
+   * 1. Spend 1007 sats to the "to" address param
+   * 2. An OP_RETURN output containing the hex-encoded data
+   * 3. The change returning to the main account
+   *
+   * Returns the transaction hex without broadcasting.
+   *
+   * @param {Object} options - Transaction options.
+   * @param {string} options.to - The recipient's Bitcoin address.
+   * @param {string} options.hex - The hex-encoded data string to embed in OP_RETURN.
+   * @param {string} options.priorTx - The existing transaction id to reference.
+   * @param {WalletAccountBtc} options.priorAcct - The account that owns the priorTx UTXO (for signing).
+   * @param {number | bigint} [options.value] - The amount to send (in satoshis, default: 1007).
+   * @param {number | bigint} [options.feeRate] - Optional fee rate (in sats/vB). If not provided, estimated from network.
+   * @param {number} [options.confirmationTarget] - Optional confirmation target in blocks (default: 1).
+   * @returns {Promise<string>} The raw hexadecimal string of the transaction.
+   */
+  async quoteUpdateTransactionWithHexTX ({ to, hex, priorTx, priorAcct, value, feeRate, confirmationTarget = 1 }) {
+    // Default value to 1007 if not provided
+    const sendValue = value !== undefined ? this._toBigInt(value) : 1007n
+
+    const address = await this.getAddress()
+    const network = this._network
+
+    if (!feeRate) {
+      const feeEstimate = await this._electrumClient.blockchainEstimatefee(confirmationTarget)
+      feeRate = this._toBigInt(Math.max(feeEstimate * 100_000, 1))
+    }
+
+    feeRate = this._toBigInt(feeRate)
+    if (feeRate < 1n) feeRate = 1n
+
+    // Fetch the prior transaction
+    const priorTxHex = await this._electrumClient.blockchainTransaction_get(priorTx, false)
+    const priorTransaction = Transaction.fromHex(priorTxHex)
+
+    // Find an output from priorTx with value 1007 sats
+    let priorUtxoIndex = -1
+    let priorUtxoScript = null
+    for (let i = 0; i < priorTransaction.outs.length; i++) {
+      const output = priorTransaction.outs[i]
+      if (BigInt(output.value) === 1007n) {
+        priorUtxoIndex = i
+        priorUtxoScript = output.script
+        break
+      }
+    }
+
+    if (priorUtxoIndex === -1) {
+      throw new Error(`No output with value 1007 sats found in transaction ${priorTx}`)
+    }
+
+    // Get UTXOs from main account
+    const scriptHash = await this._getScriptHash()
+    const unspent = await this._electrumClient.blockchainScripthash_listunspent(scriptHash)
+
+    if (!unspent || unspent.length === 0) {
+      throw new Error(`No unspent outputs available for address ${address}`)
+    }
+
+    // Get the script for the account's address
+    const fromAddressScriptHex = btcAddress.toOutputScript(address, network).toString('hex')
+
+    // Validate priorAcct parameter
+    if (!priorAcct) {
+      throw new Error('priorAcct parameter is required to sign the prior transaction UTXO')
+    }
+
+    // Get priorAcct address and verify network matches
+    const priorAcctAddress = await priorAcct.getAddress()
+    const priorAcctNetwork = priorAcct._network
+    if (priorAcctNetwork.name !== network.name) {
+      throw new Error('priorAcct network must match the current account network')
+    }
+
+    // Verify that the priorTx UTXO script matches the priorAcct's address script
+    // This ensures priorAcct can sign the input
+    const priorAcctScriptHex = btcAddress.toOutputScript(priorAcctAddress, network).toString('hex')
+    const priorUtxoScriptHex = priorUtxoScript.toString('hex')
+    if (priorUtxoScriptHex !== priorAcctScriptHex) {
+      throw new Error(`Prior transaction UTXO script does not match priorAcct address. Cannot sign this input.`)
+    }
+
+    // Create OP_RETURN script from hex
+    const opReturnScript = this.createOpReturnScriptFromHex(hex)
+
+    // Estimate transaction size for fee calculation
+    // Base: ~10-11 vbytes
+    // Inputs: 2 inputs (priorTx UTXO + main account UTXO)
+    //   - P2WPKH: ~68 vbytes per input
+    //   - P2TR: ~58 vbytes per input
+    // Outputs: 3 outputs (to address + OP_RETURN + change)
+    //   - P2WPKH: ~31 vbytes per output
+    //   - P2TR: ~43 vbytes per output
+    const isP2WPKH = address.toLowerCase().startsWith('bc1q') || address.toLowerCase().startsWith('tb1q')
+    const inputVBytes = isP2WPKH ? 68 : 58
+    const outputVBytes = isP2WPKH ? 31 : 43
+    const txOverheadVBytes = 11
+    const estimatedVSize = txOverheadVBytes + (2 * inputVBytes) + (3 * outputVBytes)
+    const estimatedFee = BigInt(estimatedVSize) * feeRate
+
+    // Calculate total needed: sendValue + estimatedFee
+    const totalNeeded = sendValue + estimatedFee
+
+    // Select UTXO from main account to fund the transaction
+    // We need at least totalNeeded amount
+    let selectedUtxo = null
+    for (const utxo of unspent) {
+      if (BigInt(utxo.value) >= totalNeeded) {
+        selectedUtxo = utxo
+        break
+      }
+    }
+
+    // If no single UTXO is large enough, try to find one that's close
+    if (!selectedUtxo) {
+      // Sort by value descending and take the largest
+      const sortedUtxos = [...unspent].sort((a, b) => Number(b.value) - Number(a.value))
+      if (sortedUtxos.length > 0) {
+        selectedUtxo = sortedUtxos[0]
+      }
+    }
+
+    if (!selectedUtxo) {
+      throw new Error(`Insufficient balance to fund transaction. Need at least ${totalNeeded.toString()} sats.`)
+    }
+
+    // Construct UTXO list with both inputs
+    const utxos = [
+      {
+        tx_hash: priorTx,
+        tx_pos: priorUtxoIndex,
+        value: 1007,
+        vout: {
+          value: 1007n,
+          scriptPubKey: { hex: priorUtxoScript.toString('hex') }
+        }
+      },
+      {
+        tx_hash: selectedUtxo.tx_hash,
+        tx_pos: selectedUtxo.tx_pos,
+        value: selectedUtxo.value,
+        vout: {
+          value: this._toBigInt(selectedUtxo.value),
+          scriptPubKey: { hex: fromAddressScriptHex }
+        }
+      }
+    ]
+
+    // Calculate total input value
+    const totalInput = utxos.reduce((sum, u) => sum + this._toBigInt(u.value), 0n)
+
+    // Recalculate actual fee based on transaction size
+    // We'll build the transaction and adjust if needed
+    const changeValue = totalInput - sendValue - estimatedFee
+
+    // Build transaction with multi-account signing
+    // First input (priorTx UTXO) is signed by priorAcct
+    // Second input (main account UTXO) is signed by this account
+    const tx = await this._buildMultiAccountTransaction({
+      utxos,
+      to,
+      value: sendValue,
+      fee: estimatedFee,
+      feeRate,
+      changeValue: changeValue > 0n ? changeValue : 0n,
+      additionalOutputs: [{ script: opReturnScript, value: 0 }],
+      priorAcct
+    })
+
+    return tx.hex
+  }
+
+  /**
+   * Sends a transaction that updates a prior transaction with hex data in OP_RETURN.
+   * Creates a transaction with 2 inputs:
+   * 1. A UTXO from the priorTx that has a value of 1007 sats (signed by priorAcct)
+   * 2. A UTXO from the main account to fund this transaction (signed by this account)
+   *
+   * Outputs (in order):
+   * 1. Spend 1007 sats to the "to" address param
+   * 2. An OP_RETURN output containing the hex-encoded data
+   * 3. The change returning to the main account
+   *
+   * Broadcasts the transaction and returns the transaction result.
+   *
+   * @param {Object} options - Transaction options.
+   * @param {string} options.to - The recipient's Bitcoin address.
+   * @param {string} options.hex - The hex-encoded data string to embed in OP_RETURN.
+   * @param {string} options.priorTx - The existing transaction id to reference.
+   * @param {WalletAccountBtc} options.priorAcct - The account that owns the priorTx UTXO (for signing).
+   * @param {number | bigint} [options.value] - The amount to send (in satoshis, default: 1007).
+   * @param {number | bigint} [options.feeRate] - Optional fee rate (in sats/vB). If not provided, estimated from network.
+   * @param {number} [options.confirmationTarget] - Optional confirmation target in blocks (default: 1).
+   * @returns {Promise<TransactionResult>} The transaction result with hash and fee.
+   */
+  async updateTransactionWithHex ({ to, hex, priorTx, priorAcct, value, feeRate, confirmationTarget = 1 }) {
+    // Default value to 1007 if not provided
+    const sendValue = value !== undefined ? this._toBigInt(value) : 1007n
+
+    const address = await this.getAddress()
+    const network = this._network
+
+    if (!feeRate) {
+      const feeEstimate = await this._electrumClient.blockchainEstimatefee(confirmationTarget)
+      feeRate = this._toBigInt(Math.max(feeEstimate * 100_000, 1))
+    }
+
+    feeRate = this._toBigInt(feeRate)
+    if (feeRate < 1n) feeRate = 1n
+
+    // Fetch the prior transaction
+    const priorTxHex = await this._electrumClient.blockchainTransaction_get(priorTx, false)
+    const priorTransaction = Transaction.fromHex(priorTxHex)
+
+    // Find an output from priorTx with value 1007 sats
+    let priorUtxoIndex = -1
+    let priorUtxoScript = null
+    for (let i = 0; i < priorTransaction.outs.length; i++) {
+      const output = priorTransaction.outs[i]
+      if (BigInt(output.value) === 1007n) {
+        priorUtxoIndex = i
+        priorUtxoScript = output.script
+        break
+      }
+    }
+
+    if (priorUtxoIndex === -1) {
+      throw new Error(`No output with value 1007 sats found in transaction ${priorTx}`)
+    }
+
+    // Get UTXOs from main account
+    const scriptHash = await this._getScriptHash()
+    const unspent = await this._electrumClient.blockchainScripthash_listunspent(scriptHash)
+
+    if (!unspent || unspent.length === 0) {
+      throw new Error(`No unspent outputs available for address ${address}`)
+    }
+
+    // Get the script for the account's address
+    const fromAddressScriptHex = btcAddress.toOutputScript(address, network).toString('hex')
+
+    // Validate priorAcct parameter
+    if (!priorAcct) {
+      throw new Error('priorAcct parameter is required to sign the prior transaction UTXO')
+    }
+
+    // Get priorAcct address and verify network matches
+    const priorAcctAddress = await priorAcct.getAddress()
+    const priorAcctNetwork = priorAcct._network
+    if (priorAcctNetwork.name !== network.name) {
+      throw new Error('priorAcct network must match the current account network')
+    }
+
+    // Verify that the priorTx UTXO script matches the priorAcct's address script
+    // This ensures priorAcct can sign the input
+    const priorAcctScriptHex = btcAddress.toOutputScript(priorAcctAddress, network).toString('hex')
+    const priorUtxoScriptHex = priorUtxoScript.toString('hex')
+    if (priorUtxoScriptHex !== priorAcctScriptHex) {
+      throw new Error(`Prior transaction UTXO script does not match priorAcct address. Cannot sign this input.`)
+    }
+
+    // Create OP_RETURN script from hex
+    const opReturnScript = this.createOpReturnScriptFromHex(hex)
+
+    // Estimate transaction size for fee calculation
+    // Base: ~10-11 vbytes
+    // Inputs: 2 inputs (priorTx UTXO + main account UTXO)
+    //   - P2WPKH: ~68 vbytes per input
+    //   - P2TR: ~58 vbytes per input
+    // Outputs: 3 outputs (to address + OP_RETURN + change)
+    //   - P2WPKH: ~31 vbytes per output
+    //   - P2TR: ~43 vbytes per output
+    const isP2WPKH = address.toLowerCase().startsWith('bc1q') || address.toLowerCase().startsWith('tb1q')
+    const inputVBytes = isP2WPKH ? 68 : 58
+    const outputVBytes = isP2WPKH ? 31 : 43
+    const txOverheadVBytes = 11
+    const estimatedVSize = txOverheadVBytes + (2 * inputVBytes) + (3 * outputVBytes)
+    const estimatedFee = BigInt(estimatedVSize) * feeRate
+
+    // Calculate total needed: sendValue + estimatedFee
+    const totalNeeded = sendValue + estimatedFee
+
+    // Select UTXO from main account to fund the transaction
+    // We need at least totalNeeded amount
+    let selectedUtxo = null
+    for (const utxo of unspent) {
+      if (BigInt(utxo.value) >= totalNeeded) {
+        selectedUtxo = utxo
+        break
+      }
+    }
+
+    // If no single UTXO is large enough, try to find one that's close
+    if (!selectedUtxo) {
+      // Sort by value descending and take the largest
+      const sortedUtxos = [...unspent].sort((a, b) => Number(b.value) - Number(a.value))
+      if (sortedUtxos.length > 0) {
+        selectedUtxo = sortedUtxos[0]
+      }
+    }
+
+    if (!selectedUtxo) {
+      throw new Error(`Insufficient balance to fund transaction. Need at least ${totalNeeded.toString()} sats.`)
+    }
+
+    // Construct UTXO list with both inputs
+    const utxos = [
+      {
+        tx_hash: priorTx,
+        tx_pos: priorUtxoIndex,
+        value: 1007,
+        vout: {
+          value: 1007n,
+          scriptPubKey: { hex: priorUtxoScript.toString('hex') }
+        }
+      },
+      {
+        tx_hash: selectedUtxo.tx_hash,
+        tx_pos: selectedUtxo.tx_pos,
+        value: selectedUtxo.value,
+        vout: {
+          value: this._toBigInt(selectedUtxo.value),
+          scriptPubKey: { hex: fromAddressScriptHex }
+        }
+      }
+    ]
+
+    // Calculate total input value
+    const totalInput = utxos.reduce((sum, u) => sum + this._toBigInt(u.value), 0n)
+
+    // Recalculate actual fee based on transaction size
+    // We'll build the transaction and adjust if needed
+    const changeValue = totalInput - sendValue - estimatedFee
+
+    // Build transaction with multi-account signing
+    // First input (priorTx UTXO) is signed by priorAcct
+    // Second input (main account UTXO) is signed by this account
+    const tx = await this._buildMultiAccountTransaction({
+      utxos,
+      to,
+      value: sendValue,
+      fee: estimatedFee,
+      feeRate,
+      changeValue: changeValue > 0n ? changeValue : 0n,
+      additionalOutputs: [{ script: opReturnScript, value: 0 }],
+      priorAcct
+    })
+
+    // Broadcast the transaction
+    await this._electrumClient.blockchainTransaction_broadcast(tx.hex)
+
+    return { hash: tx.txid, fee: tx.fee }
+  }
+
+  /**
    * Transfers a token to another address.
    *
    * @param {TransferOptions} options - The transfer's options.
@@ -778,6 +1171,220 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     this._masterNode = undefined
 
     this._electrumClient.close()
+  }
+
+  /**
+   * Builds and signs a raw transaction with inputs from multiple accounts.
+   * First input (index 0) is signed by priorAcct, second input (index 1) is signed by this account.
+   * For P2TR (Taproot) transactions, uses Schnorr signatures (BIP-340) automatically.
+   * For P2WPKH transactions, uses ECDSA signatures.
+   * Supports additional outputs including OP_RETURN scripts.
+   *
+   * @private
+   * @param {Object} options - Transaction options.
+   * @param {Array} options.utxos - The UTXOs to spend (first from priorAcct, second from this account).
+   * @param {string} options.to - The recipient's address.
+   * @param {number | bigint} options.value - The amount to send.
+   * @param {number | bigint} options.fee - The transaction fee.
+   * @param {number | bigint} options.feeRate - The fee rate.
+   * @param {number | bigint} options.changeValue - The change amount.
+   * @param {Array<Object>} [options.additionalOutputs] - Additional outputs to include.
+   * @param {WalletAccountBtc} options.priorAcct - The account to sign the first input.
+   * @returns {Promise<{txid: string, hex: string, fee: bigint, vsize: number}>} The transaction details.
+   */
+  async _buildMultiAccountTransaction ({ utxos, to, value, fee, feeRate, changeValue, additionalOutputs = [], priorAcct }) {
+    feeRate = this._toBigInt(feeRate)
+    if (feeRate < 1n) feeRate = 1n
+    value = this._toBigInt(value)
+    changeValue = this._toBigInt(changeValue)
+    fee = this._toBigInt(fee)
+
+    const legacyPrevTxCache = new Map()
+    const getPrevTxHex = async (txid) => {
+      if (legacyPrevTxCache.has(txid)) return legacyPrevTxCache.get(txid)
+      const hex = await this._electrumClient.blockchainTransaction_get(txid, false)
+      legacyPrevTxCache.set(txid, hex)
+      return hex
+    }
+
+    const buildAndSign = async (rcptVal, chgVal) => {
+      if (!this._masterNode || !this._account) {
+        throw new Error('Wallet account has been disposed or not properly initialized. Cannot build transaction.')
+      }
+
+      if (!priorAcct._masterNode || !priorAcct._account) {
+        throw new Error('Prior account has been disposed or not properly initialized. Cannot build transaction.')
+      }
+
+      const psbt = new Psbt({ network: this._network })
+
+      // Add inputs - first input from priorAcct, second from this account
+      for (let i = 0; i < utxos.length; i++) {
+        const utxo = utxos[i]
+        const account = i === 0 ? priorAcct : this
+
+        if (account._scriptType === 'P2TR') {
+          // P2TR (Taproot) input creation
+          const inputData = {
+            hash: utxo.tx_hash,
+            index: utxo.tx_pos,
+            witnessUtxo: {
+              script: Buffer.from(utxo.vout.scriptPubKey.hex, 'hex'),
+              value: Number(utxo.value)
+            },
+            tapInternalKey: account._internalPubkey
+          }
+          psbt.addInput(inputData)
+          const inputIndex = psbt.inputCount - 1
+          const input = psbt.data.inputs[inputIndex]
+          if (input) {
+            input.tapBip32Derivation = [{
+              masterFingerprint: account._masterNode.fingerprint,
+              path: account._path,
+              pubkey: Buffer.from(account._internalPubkey),
+              leafHashes: []
+            }]
+          }
+        } else if (account._bip === 84) {
+          // P2WPKH (Native SegWit) input creation
+          psbt.addInput({
+            hash: utxo.tx_hash,
+            index: utxo.tx_pos,
+            witnessUtxo: {
+              script: Buffer.from(utxo.vout.scriptPubKey.hex, 'hex'),
+              value: Number(utxo.value)
+            },
+            bip32Derivation: [{
+              masterFingerprint: account._masterNode.fingerprint,
+              path: account._path,
+              pubkey: account._account.publicKey
+            }]
+          })
+        } else {
+          // P2PKH (Legacy) input creation
+          const prevHex = await getPrevTxHex(utxo.tx_hash)
+          psbt.addInput({
+            hash: utxo.tx_hash,
+            index: utxo.tx_pos,
+            nonWitnessUtxo: Buffer.from(prevHex, 'hex'),
+            bip32Derivation: [{
+              masterFingerprint: account._masterNode.fingerprint,
+              path: account._path,
+              pubkey: account._account.publicKey
+            }]
+          })
+        }
+      }
+
+      psbt.addOutput({ address: to, value: Number(rcptVal) })
+
+      // Add additional outputs (OP_RETURN scripts or regular address outputs)
+      for (const output of additionalOutputs) {
+        if (output.script) {
+          if (output.value !== 0 && output.value !== 0n) {
+            throw new Error('OP_RETURN outputs must have value 0')
+          }
+          psbt.addOutput({ script: output.script, value: 0 })
+        } else if (output.address) {
+          const outputValue = typeof output.value === 'bigint' ? Number(output.value) : output.value
+          psbt.addOutput({ address: output.address, value: Number(outputValue) })
+        } else {
+          throw new Error('Additional output must have either "script" or "address" property')
+        }
+      }
+
+      if (chgVal > 0n) psbt.addOutput({ address: await this.getAddress(), value: Number(chgVal) })
+
+      // Sign inputs individually - first with priorAcct, second with this account
+      for (let i = 0; i < utxos.length; i++) {
+        const account = i === 0 ? priorAcct : this
+
+        if (account._scriptType === 'P2TR') {
+          // Taproot signing
+          const { output } = payments.p2tr({
+            internalPubkey: account._internalPubkey,
+            network: account._network
+          })
+          const tweakedOutputPubkey = output.slice(2, 34)
+          const tapTweakHashValue = tapTweakHash(Buffer.from(account._internalPubkey), undefined)
+          const verifiedTweakedResult = tweakKey(Buffer.from(account._internalPubkey), undefined)
+          const verifiedTweakedPubkeyBuf = verifiedTweakedResult.x
+
+          let internalPrivKey = Buffer.from(account._account.privateKey)
+          const internalPubKeyFull = Buffer.from(account._account.publicKey)
+          const internalPubKeyHasOddY = (internalPubKeyFull[0] & 1) === 1
+
+          const secp256k1Order = BigInt('0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141')
+          if (internalPubKeyHasOddY) {
+            const internalPrivKeyBigInt = BigInt('0x' + internalPrivKey.toString('hex'))
+            const negatedBigInt = (secp256k1Order - internalPrivKeyBigInt) % secp256k1Order
+            const negatedHex = negatedBigInt.toString(16).padStart(64, '0')
+            internalPrivKey = Buffer.from(negatedHex, 'hex')
+          }
+
+          const tweakedPrivKeyDirect = Buffer.from(ecc.privateAdd(internalPrivKey, tapTweakHashValue))
+          let tweakedPrivKey
+          if (verifiedTweakedResult.parity === 1) {
+            const tweakedPrivKeyBigInt = BigInt('0x' + tweakedPrivKeyDirect.toString('hex'))
+            const negatedBigInt = (secp256k1Order - tweakedPrivKeyBigInt) % secp256k1Order
+            const negatedHex = negatedBigInt.toString(16).padStart(64, '0')
+            tweakedPrivKey = Buffer.from(negatedHex, 'hex')
+          } else {
+            tweakedPrivKey = tweakedPrivKeyDirect
+          }
+
+          const taprootSigner = {
+            publicKey: tweakedOutputPubkey,
+            network: account._network,
+            signSchnorr: (hash) => ecc.signSchnorr(hash, tweakedPrivKey)
+          }
+          psbt.signInput(i, taprootSigner)
+        } else {
+          // P2WPKH and P2PKH use standard ECDSA signatures with HD derivation
+          psbt.signInputHD(i, account._masterNode)
+        }
+      }
+
+      psbt.finalizeAllInputs()
+
+      return psbt.extractTransaction()
+    }
+
+    let currentRecipientAmnt = value
+    let currentChange = changeValue
+
+    let tx = await buildAndSign(currentRecipientAmnt, currentChange)
+    let vsize = tx.virtualSize()
+    let requiredFee = BigInt(vsize) * feeRate
+
+    if (requiredFee <= fee) {
+      return { txid: tx.getId(), hex: tx.toHex(), fee, vsize }
+    }
+
+    const dustLimit = this._dustLimit
+
+    const delta = requiredFee - fee
+    fee = requiredFee
+
+    if (currentChange > 0n) {
+      let newChange = currentChange - delta
+      if (newChange <= dustLimit) newChange = 0n
+      currentChange = newChange
+      tx = await buildAndSign(currentRecipientAmnt, currentChange)
+    } else {
+      const newRecipientAmnt = currentRecipientAmnt - delta
+      if (newRecipientAmnt <= dustLimit) {
+        throw new Error(`The amount after fees must be bigger than the dust limit (= ${dustLimit}).`)
+      }
+      currentRecipientAmnt = newRecipientAmnt
+      tx = await buildAndSign(currentRecipientAmnt, currentChange)
+    }
+
+    vsize = tx.virtualSize()
+    requiredFee = BigInt(vsize) * feeRate
+    if (requiredFee > fee) throw new Error('Fee shortfall after output rebalance.')
+
+    return { txid: tx.getId(), hex: tx.toHex(), fee, vsize }
   }
 
   /**
