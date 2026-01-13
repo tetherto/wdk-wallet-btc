@@ -194,24 +194,6 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
   }
 
   /**
-   * Verifies a message's signature.
-   *
-   * @param {string} message - The original message.
-   * @param {string} signature - The signature to verify.
-   * @returns {Promise<boolean>} True if the signature is valid.
-   */
-  async verify (message, signature) {
-    return bitcoinMessage
-      .verify(
-        message,
-        await this.getAddress(),
-        signature,
-        null,
-        true
-      )
-  }
-
-  /**
    * Sends a transaction.
    *
    * @param {BtcTransaction} tx - The transaction.

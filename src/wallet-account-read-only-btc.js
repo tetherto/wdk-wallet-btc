@@ -21,6 +21,9 @@ import { DescriptorsFactory } from '@bitcoinerlab/descriptors'
 import * as ecc from '@bitcoinerlab/secp256k1'
 
 import { address as btcAddress, crypto, networks, Transaction } from 'bitcoinjs-lib'
+import bitcoinMessageModule from 'bitcoinjs-message'
+
+const bitcoinMessage = bitcoinMessageModule.default ?? bitcoinMessageModule
 
 import { ElectrumTcp, ElectrumSsl, ElectrumTls } from './transports/index.js'
 
@@ -434,5 +437,23 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     }
 
     return { utxos, fee, changeValue }
+  }
+
+  /**
+   * Verifies a message's signature.
+   *
+   * @param {string} message - The original message.
+   * @param {string} signature - The signature to verify.
+   * @returns {Promise<boolean>} True if the signature is valid.
+   */
+  async verify (message, signature) {
+    return bitcoinMessage
+      .verify(
+        message,
+        await this.getAddress(),
+        signature,
+        null,
+        true
+      )
   }
 }
