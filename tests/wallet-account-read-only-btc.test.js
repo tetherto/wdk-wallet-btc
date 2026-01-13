@@ -11,6 +11,22 @@ const ADDRESSES = {
   84: 'bcrt1q56sfepv68sf2xfm2kgk3ea2mdjzswljl3r3tdx'
 }
 
+const ACCOUNTS = {
+  44: {
+    address: 'mjsVx6s5oH9VqwmhfjCyVo6t7APRGY6T8o'
+  },
+  84: {
+    address: 'bcrt1q8dqnpagwt9rtl7k38nuaa2ahf690avzkm74nhn'
+  }
+}
+
+const MESSAGE = 'Dummy message to sign.'
+
+const SIGNATURES = {
+  44: 'H4RwJWJzRmVkgQDqmTgX0qCbSONLQjvjfXH7ZdKZs5S3BWbpfjqbGdIJQXy/+ppW4Lvaw0wZ/UaDOLhMw5TIDuk=',
+  84: 'KAVgsxrQT5V4Mhfnk6taeCN1/j8p/sa8S9iNsbsgRb8zbfNOOPXV1w3dQQV0IjboJrlxYuDJnHw5a/E6vRJ+0Ek='
+}
+
 export const FEES = {
   44: 223n,
   84: 141n
@@ -182,6 +198,31 @@ describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
     test('should throw an unsupported operation error', async () => {
       await expect(account.quoteTransfer({}))
         .rejects.toThrow("The 'quoteTransfer' method is not supported on the bitcoin blockchain.")
+    })
+  })
+
+  describe('verify', () => {
+    test('should return true for a valid signature', async () => {
+      const verifyAccount = new WalletAccountReadOnlyBtc(ACCOUNTS[bip].address, CONFIGURATION)
+      const result = await verifyAccount.verify(MESSAGE, SIGNATURES[bip])
+
+      expect(result).toBe(true)
+      verifyAccount._electrumClient.close()
+    })
+
+    test('should return false for an invalid signature', async () => {
+      const verifyAccount = new WalletAccountReadOnlyBtc(ACCOUNTS[bip].address, CONFIGURATION)
+      const result = await verifyAccount.verify('Another message.', SIGNATURES[bip])
+
+      expect(result).toBe(false)
+      verifyAccount._electrumClient.close()
+    })
+
+    test('should throw on a malformed signature', async () => {
+      const verifyAccount = new WalletAccountReadOnlyBtc(ACCOUNTS[bip].address, CONFIGURATION)
+      await expect(verifyAccount.verify(MESSAGE, 'A bad signature'))
+        .rejects.toThrow('Invalid signature')
+      verifyAccount._electrumClient.close()
     })
   })
 })
