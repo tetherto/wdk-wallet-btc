@@ -11,15 +11,6 @@ const ADDRESSES = {
   84: 'bcrt1q56sfepv68sf2xfm2kgk3ea2mdjzswljl3r3tdx'
 }
 
-const ACCOUNTS = {
-  44: {
-    address: 'mjsVx6s5oH9VqwmhfjCyVo6t7APRGY6T8o'
-  },
-  84: {
-    address: 'bcrt1q8dqnpagwt9rtl7k38nuaa2ahf690avzkm74nhn'
-  }
-}
-
 const MESSAGE = 'Dummy message to sign.'
 
 const SIGNATURES = {

@@ -22,10 +22,9 @@ import * as ecc from '@bitcoinerlab/secp256k1'
 
 import { address as btcAddress, crypto, networks, Transaction } from 'bitcoinjs-lib'
 import bitcoinMessageModule from 'bitcoinjs-message'
+import { ElectrumTcp, ElectrumSsl, ElectrumTls } from './transports/index.js'
 
 const bitcoinMessage = bitcoinMessageModule.default ?? bitcoinMessageModule
-
-import { ElectrumTcp, ElectrumSsl, ElectrumTls } from './transports/index.js'
 
 /** @typedef {import('./transports/index.js').MempoolElectrumConfig} MempoolElectrumConfig */
 /** @typedef {import('./transports/index.js').MempoolElectrumClient} MempoolElectrumClient */
