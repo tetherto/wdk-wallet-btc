@@ -203,26 +203,18 @@ describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
 
   describe('verify', () => {
     test('should return true for a valid signature', async () => {
-      const verifyAccount = new WalletAccountReadOnlyBtc(ACCOUNTS[bip].address, CONFIGURATION)
-      const result = await verifyAccount.verify(MESSAGE, SIGNATURES[bip])
-
-      expect(result).toBe(true)
-      verifyAccount._electrumClient.close()
+        const result = await account.verify(MESSAGE, SIGNATURES[bip])
+        expect(result).toBe(true)
     })
 
     test('should return false for an invalid signature', async () => {
-      const verifyAccount = new WalletAccountReadOnlyBtc(ACCOUNTS[bip].address, CONFIGURATION)
-      const result = await verifyAccount.verify('Another message.', SIGNATURES[bip])
-
+      const result = await account.verify('Another message.', SIGNATURES[bip])
       expect(result).toBe(false)
-      verifyAccount._electrumClient.close()
     })
 
     test('should throw on a malformed signature', async () => {
-      const verifyAccount = new WalletAccountReadOnlyBtc(ACCOUNTS[bip].address, CONFIGURATION)
-      await expect(verifyAccount.verify(MESSAGE, 'A bad signature'))
+      await expect(account.verify(MESSAGE, 'A bad signature'))
         .rejects.toThrow('Invalid signature')
-      verifyAccount._electrumClient.close()
     })
   })
 })
