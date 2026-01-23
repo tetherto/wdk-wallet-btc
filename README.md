@@ -168,7 +168,7 @@ console.log('Estimated fee:', quote.fee, 'satoshis')
 
 ### Message Signing and Verification
 
-Sign and verify messages using `WalletAccountBtc`.
+Sign messages using `WalletAccountBtc`. Verify messages using `WalletAccountReadOnlyBtc` (also available on `WalletAccountBtc` through inheritance).
 
 ```javascript
 // Sign a message
@@ -504,6 +504,8 @@ Verifies a message signature using the account's public key.
 const isValid = await account.verify('Hello Bitcoin!', signature)
 console.log('Signature valid:', isValid)
 ```
+
+**Note**: The `verify` method is available on `WalletAccountReadOnlyBtc` and is inherited by `WalletAccountBtc`.
 
 ##### `toReadOnlyAccount()`
 Creates a read-only version of this account that can query balances but cannot sign transactions.
