@@ -11,6 +11,13 @@ const ADDRESSES = {
   84: 'bcrt1q56sfepv68sf2xfm2kgk3ea2mdjzswljl3r3tdx'
 }
 
+const MESSAGE = 'Dummy message to sign.'
+
+const SIGNATURES = {
+  44: 'H4RwJWJzRmVkgQDqmTgX0qCbSONLQjvjfXH7ZdKZs5S3BWbpfjqbGdIJQXy/+ppW4Lvaw0wZ/UaDOLhMw5TIDuk=',
+  84: 'KAVgsxrQT5V4Mhfnk6taeCN1/j8p/sa8S9iNsbsgRb8zbfNOOPXV1w3dQQV0IjboJrlxYuDJnHw5a/E6vRJ+0Ek='
+}
+
 export const FEES = {
   44: 223n,
   84: 141n
@@ -182,6 +189,23 @@ describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
     test('should throw an unsupported operation error', async () => {
       await expect(account.quoteTransfer({}))
         .rejects.toThrow("The 'quoteTransfer' method is not supported on the bitcoin blockchain.")
+    })
+  })
+
+  describe('verify', () => {
+    test('should return true for a valid signature', async () => {
+        const result = await account.verify(MESSAGE, SIGNATURES[bip])
+        expect(result).toBe(true)
+    })
+
+    test('should return false for an invalid signature', async () => {
+      const result = await account.verify('Another message.', SIGNATURES[bip])
+      expect(result).toBe(false)
+    })
+
+    test('should throw on a malformed signature', async () => {
+      await expect(account.verify(MESSAGE, 'A bad signature'))
+        .rejects.toThrow('Invalid signature')
     })
   })
 })

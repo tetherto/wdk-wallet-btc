@@ -12,7 +12,8 @@ For detailed documentation about the complete WDK ecosystem, visit [docs.wallet.
 
 ## 🌟 Features
 
-- **Bitcoin Derivation Paths**: Support for BIP-84 standard derivation paths for Bitcoin (m/84'/0')
+- **BIP-39 Seed Phrase Support**: Generate and validate BIP-39 mnemonic seed phrases
+- **Bitcoin Derivation Paths**: Support for BIP-84 (Native SegWit) and BIP-44 (Legacy) derivation paths
 - **Multi-Account Management**: Create and manage multiple accounts from a single seed phrase
 - **Transaction Management**: Create, sign, and broadcast Bitcoin transactions
 - **UTXO Management**: Track and manage unspent transaction outputs using Electrum servers
@@ -34,15 +35,26 @@ npm install @tetherto/wdk-wallet-btc
 ### Creating a New Wallet
 
 ```javascript
-import WalletManagerBtc, { WalletAccountBtc } from '@tetherto/wdk-wallet-btc'
+import WalletManagerBtc, { WalletAccountBtc, ElectrumTcp } from '@tetherto/wdk-wallet-btc'
 
 // Use a BIP-39 seed phrase (replace with your own secure phrase)
 const seedPhrase = 'test only example nut use this real life secret phrase must random'
 
+// Choose your Electrum transport - import from '@tetherto/wdk-wallet-btc':
+const client = new ElectrumTcp({ host: 'electrum.blockstream.info', port: 50001 })
+
+// import { ElectrumTls, ElectrumSsl, ElectrumWs } from '@tetherto/wdk-wallet-btc'
+// const client = new ElectrumTls({ host: 'electrum.blockstream.info', port: 50002 })
+// const client = new ElectrumSsl({ host: 'electrum.blockstream.info', port: 50002 })
+// const client = new ElectrumWs({ host: 'electrum.blockstream.info', port: 50003 })
+//
+// Or implement your own by extending IElectrumClient:
+// import { IElectrumClient } from '@tetherto/wdk-wallet-btc'
+// class MyCustomElectrumClient implements IElectrumClient { ... }
+
 // Create wallet manager with Electrum server config
 const wallet = new WalletManagerBtc(seedPhrase, {
-  host: 'electrum.blockstream.info', // Electrum server hostname
-  port: 50001, // Electrum server port (50001 for TCP, 50002 for SSL)
+  client, // Pass a client instance
   network: 'bitcoin' // 'bitcoin', 'testnet', or 'regtest'
 })
 
@@ -52,9 +64,12 @@ const account = await wallet.getAccount(0)
 // Get the account's address (Native SegWit by default)
 const address = await account.getAddress()
 console.log('Account address:', address)
+
+// Convert to a read-only account
+const readOnlyAccount = await account.toReadOnlyAccount()
 ```
 
-**Note**: This implementation uses BIP-84 derivation paths and generates Native SegWit (bech32) addresses by default. The address type is determined by the BIP-84 standard, not by configuration.
+**Note**: This implementation uses BIP-84 derivation paths by default and generates Native SegWit (bech32) addresses. BIP-44 (legacy) addresses are also supported via the `bip` configuration option.
 
 **Important Note about Electrum Servers**: 
 While the package defaults to `electrum.blockstream.info` if no host is specified, **we strongly recommend configuring your own Electrum server** for production use. Public servers like Blockstream's can be significantly slower (10-300x) and may fail when fetching transaction history for popular addresses with many transactions. For better performance, consider using alternative public servers like `fulcrum.frznode.com` for development, or set up your own Fulcrum server for production environments.
@@ -76,16 +91,16 @@ const address1 = await account1.getAddress()
 console.log('Account 1 address:', address1)
 
 // Get account by custom derivation path
-// Full path will be m/84'/0'/0'/0/5
+// Full path will be m/84'/0'/0'/0/5 (mainnet) or m/84'/1'/0'/0/5 (testnet/regtest)
 const customAccount = await wallet.getAccountByPath("0'/0/5")
 const customAddress = await customAccount.getAddress()
 console.log('Custom account address:', customAddress)
 
-// Note: All addresses are Native SegWit (bech32) addresses (bc1...)
 // All accounts inherit the provider configuration from the wallet manager
 ```
+### Methods
 
-**Note**: This implementation generates Native SegWit (bech32) addresses only. Legacy and P2SH-wrapped SegWit address types are not supported. All accounts use BIP-84 derivation paths (m/84'/0'/account'/0/index).
+**Note**: This implementation generates Native SegWit (bech32) addresses by default. All accounts use BIP-84 derivation paths (`m/84'/0'/account'/0/index` for mainnet, `m/84'/1'/account'/0/index` for testnet/regtest).
 
 ### Checking Balances
 
@@ -129,7 +144,9 @@ Send Bitcoin and estimate fees using `WalletAccountBtc`. Uses Electrum servers f
 // Send Bitcoin (single recipient only)
 const result = await account.sendTransaction({
   to: 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh', // Recipient's Bitcoin address
-  value: 50000n // Amount in satoshis
+  value: 50000n, // Amount in satoshis
+  feeRate: 10n, // Optional: fee rate in sat/vB (auto-estimated if not provided)
+  confirmationTarget: 1 // Optional: target blocks for confirmation (default: 1)
 })
 console.log('Transaction hash:', result.hash)
 console.log('Transaction fee:', result.fee, 'satoshis')
@@ -144,14 +161,14 @@ console.log('Estimated fee:', quote.fee, 'satoshis')
 
 **Important Notes:**
 - Bitcoin transactions support **single recipient only** (no multiple recipients in one call)
-- Fee rate is calculated automatically based on network conditions
+- Fee rate is calculated automatically based on network conditions if not provided
 - Transaction amounts and fees are always in **satoshis** (1 BTC = 100,000,000 satoshis)
 - `sendTransaction()` returns `hash` and `fee` properties
 - `quoteSendTransaction()` returns only the `fee` estimate
 
 ### Message Signing and Verification
 
-Sign and verify messages using `WalletAccountBtc`.
+Sign messages using `WalletAccountBtc`. Verify messages using `WalletAccountReadOnlyBtc` (also available on `WalletAccountBtc` through inheritance).
 
 ```javascript
 // Sign a message
@@ -170,9 +187,9 @@ Retrieve current fee rates using `WalletManagerBtc`. Rates are provided in satos
 
 ```javascript
 // Get current fee rates
-const feeRates = await wallet.getFeeRates();
-console.log('Normal fee rate:', feeRates.normal, 'sat/vB');  // Standard confirmation time (~1 hour)
-console.log('Fast fee rate:', feeRates.fast, 'sat/vB');     // Faster confirmation time
+const feeRates = await wallet.getFeeRates()
+console.log('Normal fee rate:', feeRates.normal, 'sat/vB')  // Standard confirmation time (~1 hour)
+console.log('Fast fee rate:', feeRates.fast, 'sat/vB')     // Faster confirmation time
 ```
 
 **Important Notes:**
@@ -201,7 +218,8 @@ wallet.dispose()
 | Class | Description | Methods |
 |-------|-------------|---------|
 | [WalletManagerBtc](#walletmanagerbtc) | Main class for managing Bitcoin wallets. Extends `WalletManager` from `@tetherto/wdk-wallet`. | [Constructor](#constructor), [Methods](#methods) |
-| [WalletAccountBtc](#walletaccountbtc) | Individual Bitcoin wallet account implementation. Implements `IWalletAccount` from `@tetherto/wdk-wallet`. | [Constructor](#constructor-1), [Methods](#methods-1), [Properties](#properties) |
+| [WalletAccountBtc](#walletaccountbtc) | Individual Bitcoin wallet account implementation. Extends `WalletAccountReadOnlyBtc` and implements `IWalletAccount` from `@tetherto/wdk-wallet`. | [Constructor](#constructor-1), [Methods](#methods-1), [Properties](#properties) |
+| [WalletAccountReadOnlyBtc](#walletaccountreadonlybtc) | Read-only Bitcoin wallet account. Extends `WalletAccountReadOnly` from `@tetherto/wdk-wallet`. | [Constructor](#constructor-2), [Methods](#methods-2) |
 
 ### WalletManagerBtc
 
@@ -217,15 +235,24 @@ new WalletManagerBtc(seed, config)
 **Parameters:**
 - `seed` (string | Uint8Array): BIP-39 mnemonic seed phrase or seed bytes
 - `config` (object, optional): Configuration object
-  - `host` (string, optional): Electrum server hostname (default: "electrum.blockstream.info")
-  - `port` (number, optional): Electrum server port (default: 50001)
+  - `client` (IElectrumClient, optional): Electrum client instance (recommended). If provided, host/port/protocol are ignored.
   - `network` (string, optional): "bitcoin", "testnet", or "regtest" (default: "bitcoin")
-
+  - `bip` (number, optional): BIP address type - 44 (legacy) or 84 (native SegWit) (default: 84)
+  - `host` (string, optional): Electrum server hostname (default: "electrum.blockstream.info"). Ignored if client is provided.
+  - `port` (number, optional): Electrum server port (default: 50001). Ignored if client is provided.
+  - `protocol` (string, optional): Transport protocol - "tcp", "tls", "ssl", or "ws" (default: "tcp"). Ignored if client is provided.
+  
 **Example:**
 ```javascript
-const wallet = new WalletManagerBtc(seedPhrase, {
+import { ElectrumTcp } from '@tetherto/wdk-wallet-btc'
+
+const client = new ElectrumTcp({
   host: 'electrum.blockstream.info',
-  port: 50001,
+  port: 50001
+})
+
+const wallet = new WalletManagerBtc(seedPhrase, {
+  client,
   network: 'bitcoin'
 })
 ```
@@ -236,7 +263,7 @@ const wallet = new WalletManagerBtc(seedPhrase, {
 |--------|-------------|---------|
 | `getAccount(index)` | Returns a wallet account at the specified index | `Promise<WalletAccountBtc>` |
 | `getAccountByPath(path)` | Returns a wallet account at the specified BIP-84 derivation path | `Promise<WalletAccountBtc>` |
-| `getFeeRates()` | Returns current fee rates for transactions | `Promise<{normal: number, fast: number}>` |
+| `getFeeRates()` | Returns current fee rates for transactions | `Promise<{normal: bigint, fast: bigint}>` |
 | `dispose()` | Disposes all wallet accounts, clearing private keys from memory | `void` |
 
 ##### `getAccount(index)`
@@ -249,7 +276,10 @@ Returns a wallet account at the specified index using BIP-84 derivation.
 
 **Example:**
 ```javascript
-const account = await wallet.getAccount(0)
+// Returns the account with derivation path:
+// For mainnet (bitcoin): m/84'/0'/0'/0/1
+// For testnet or regtest: m/84'/1'/0'/0/1
+const account = await wallet.getAccount(1)
 ```
 
 ##### `getAccountByPath(path)`
@@ -262,13 +292,16 @@ Returns a wallet account at the specified BIP-84 derivation path.
 
 **Example:**
 ```javascript
+// Returns the account with derivation path:
+// For mainnet (bitcoin): m/84'/0'/0'/0/1
+// For testnet or regtest: m/84'/1'/0'/0/1
 const account = await wallet.getAccountByPath("0'/0/1")
 ```
 
 ##### `getFeeRates()`
 Returns current fee rates from mempool.space API.
 
-**Returns:** `Promise<{normal: number, fast: number}>` - Object containing fee rates in sat/vB
+**Returns:** `Promise<{normal: bigint, fast: bigint}>` - Object containing fee rates in sat/vB
 - `normal`: Standard fee rate for confirmation within ~1 hour
 - `fast`: Higher fee rate for faster confirmation
 
@@ -291,7 +324,7 @@ wallet.dispose()
 
 ### WalletAccountBtc
 
-Represents an individual Bitcoin wallet account. Implements `IWalletAccount` from `@tetherto/wdk-wallet`.
+Represents an individual Bitcoin wallet account. Extends `WalletAccountReadOnlyBtc` and implements `IWalletAccount` from `@tetherto/wdk-wallet`.
 
 #### Constructor
 
@@ -301,41 +334,45 @@ new WalletAccountBtc(seed, path, config)
 
 **Parameters:**
 - `seed` (string | Uint8Array): BIP-39 mnemonic seed phrase or seed bytes
-- `path` (string): BIP-84 derivation path (e.g., "0'/0/0")
+- `path` (string): Derivation path suffix (e.g., "0'/0/0")
 - `config` (object, optional): Configuration object
-  - `host` (string, optional): Electrum server hostname (default: "electrum.blockstream.info")
-  - `port` (number, optional): Electrum server port (default: 50001)
+  - `client` (IElectrumClient, optional): Electrum client instance (recommended). If provided, host/port/protocol are ignored.
   - `network` (string, optional): "bitcoin", "testnet", or "regtest" (default: "bitcoin")
-
+  - `bip` (number, optional): BIP address type - 44 (legacy) or 84 (native SegWit) (default: 84)
+  - `host` (string, optional): Electrum server hostname (default: "electrum.blockstream.info"). Ignored if client is provided.
+  - `port` (number, optional): Electrum server port (default: 50001). Ignored if client is provided.
+  - `protocol` (string, optional): Transport protocol - "tcp", "tls", "ssl", or "ws" (default: "tcp"). Ignored if client is provided.
 #### Methods
 
 | Method | Description | Returns |
 |--------|-------------|---------|
-| `getAddress()` | Returns the account's Native SegWit address | `Promise<string>` |
+| `getAddress()` | Returns the account's Bitcoin address | `Promise<string>` |
 | `getBalance()` | Returns the confirmed account balance in satoshis | `Promise<bigint>` |
 | `sendTransaction(options)` | Sends a Bitcoin transaction | `Promise<{hash: string, fee: bigint}>` |
 | `quoteSendTransaction(options)` | Estimates the fee for a transaction | `Promise<{fee: bigint}>` |
 | `getTransfers(options?)` | Returns the account's transfer history | `Promise<BtcTransfer[]>` |
+| `getTransactionReceipt(hash)` | Returns a transaction's receipt | `Promise<BtcTransaction \| null>` |
+| `getMaxSpendable()` | Returns the maximum spendable amount | `Promise<{amount: bigint, fee: bigint, changeValue: bigint}>` |
 | `sign(message)` | Signs a message with the account's private key | `Promise<string>` |
 | `verify(message, signature)` | Verifies a message signature | `Promise<boolean>` |
-| `toReadOnlyAccount()` | Creates a read-only version of this account | `Promise<never>` |
+| `toReadOnlyAccount()` | Creates a read-only version of this account | `Promise<WalletAccountReadOnlyBtc>` |
 | `dispose()` | Disposes the wallet account, clearing private keys from memory | `void` |
 
 ##### `getAddress()`
-Returns the account's Native SegWit (bech32) address.
+Returns the account's Bitcoin address (Native SegWit bech32 by default, or legacy if using BIP-44).
 
 **Returns:** `Promise<string>` - The Bitcoin address
 
 **Example:**
 ```javascript
 const address = await account.getAddress()
-console.log('Address:', address) // bc1q...
+console.log('Address:', address) // bc1q... (BIP-84) or 1... (BIP-44)
 ```
 
 ##### `getBalance()`
 Returns the account's confirmed balance in satoshis.
 
-**Returns:** `Promise<number>` - Balance in satoshis
+**Returns:** `Promise<bigint>` - Balance in satoshis
 
 **Example:**
 ```javascript
@@ -350,14 +387,16 @@ Sends a Bitcoin transaction to a single recipient.
 - `options` (object): Transaction options
   - `to` (string): Recipient's Bitcoin address
   - `value` (number | bigint): Amount in satoshis
+  - `feeRate` (number | bigint, optional): Fee rate in sat/vB (auto-estimated if not provided)
+  - `confirmationTarget` (number, optional): Target blocks for confirmation (default: 1)
 
-**Returns:** `Promise<{hash: string, fee: number}>` - Object containing hash and fee (in satoshis)
+**Returns:** `Promise<{hash: string, fee: bigint}>` - Object containing hash and fee (in satoshis)
 
 **Example:**
 ```javascript
 const result = await account.sendTransaction({
   to: 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh',
-  value: 50000
+  value: 50000n
 })
 console.log('Transaction hash:', result.hash)
 console.log('Fee:', result.fee, 'satoshis')
@@ -370,14 +409,16 @@ Estimates the fee for a transaction without broadcasting it.
 - `options` (object): Same as sendTransaction options
   - `to` (string): Recipient's Bitcoin address
   - `value` (number | bigint): Amount in satoshis
+  - `feeRate` (number | bigint, optional): Fee rate in sat/vB (auto-estimated if not provided)
+  - `confirmationTarget` (number, optional): Target blocks for confirmation (default: 1)
 
-**Returns:** `Promise<{fee: number}>` - Object containing estimated fee (in satoshis)
+**Returns:** `Promise<{fee: bigint}>` - Object containing estimated fee (in satoshis)
 
 **Example:**
 ```javascript
 const quote = await account.quoteSendTransaction({
   to: 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh',
-  value: 50000
+  value: 50000n
 })
 console.log('Estimated fee:', quote.fee, 'satoshis')
 ```
@@ -402,13 +443,46 @@ const transfers = await account.getTransfers({
 console.log('Recent incoming transfers:', transfers)
 ```
 
+##### `getTransactionReceipt(hash)`
+Returns a transaction's receipt if it has been included in a block.
+
+**Parameters:**
+- `hash` (string): The transaction hash (64 hex characters)
+
+**Returns:** `Promise<BtcTransaction | null>` - The transaction object, or null if not yet confirmed
+
+**Example:**
+```javascript
+const receipt = await account.getTransactionReceipt('abc123...')
+if (receipt) {
+  console.log('Transaction confirmed')
+}
+```
+
+##### `getMaxSpendable()`
+Returns the maximum spendable amount that can be sent in a single transaction. The maximum spendable amount can differ from the wallet's total balance for several reasons:
+- **Transaction fees**: Fees are subtracted from the total balance
+- **Uneconomic UTXOs**: Small UTXOs where the fee to spend them exceeds their value are excluded
+- **UTXO limit**: A transaction can include at most 200 inputs. Wallets with more UTXOs cannot spend their full balance in a single transaction.
+- **Dust limit**: Outputs below the dust threshold (294 sats for SegWit, 546 sats for legacy) cannot be created
+
+
+**Returns:** `Promise<{amount: bigint, fee: bigint, changeValue: bigint}>` - Maximum spendable result
+
+**Example:**
+```javascript
+const { amount, fee } = await account.getMaxSpendable()
+console.log('Max spendable:', amount, 'satoshis')
+console.log('Estimated fee:', fee, 'satoshis')
+```
+
 ##### `sign(message)`
 Signs a message using the account's private key.
 
 **Parameters:**
 - `message` (string): Message to sign
 
-**Returns:** `Promise<string>` - Signature as hex string
+**Returns:** `Promise<string>` - Signature as base64 string
 
 **Example:**
 ```javascript
@@ -421,7 +495,7 @@ Verifies a message signature using the account's public key.
 
 **Parameters:**
 - `message` (string): Original message
-- `signature` (string): Signature as hex string
+- `signature` (string): Signature as base64 string
 
 **Returns:** `Promise<boolean>` - True if signature is valid
 
@@ -431,25 +505,21 @@ const isValid = await account.verify('Hello Bitcoin!', signature)
 console.log('Signature valid:', isValid)
 ```
 
+**Note**: The `verify` method is available on `WalletAccountReadOnlyBtc` and is inherited by `WalletAccountBtc`.
+
 ##### `toReadOnlyAccount()`
-Creates a read-only version of this account (not supported on Bitcoin blockchain).
+Creates a read-only version of this account that can query balances but cannot sign transactions.
 
-**Returns:** `Promise<never>` - Always throws an error
-
-**Throws:** Error - "Read-only accounts are not supported for the bitcoin blockchain."
+**Returns:** `Promise<WalletAccountReadOnlyBtc>` - The read-only account
 
 **Example:**
 ```javascript
-// This will throw an error
-try {
-  await account.toReadOnlyAccount()
-} catch (error) {
-  console.log(error.message) // Read-only accounts are not supported
-}
+const readOnlyAccount = await account.toReadOnlyAccount()
+const balance = await readOnlyAccount.getBalance()
 ```
 
 ##### `dispose()`
-Disposes the wallet account, securely erasing the private key from memory.
+Disposes the wallet account, securely erasing the private key from memory and closing the Electrum connection.
 
 **Returns:** `void`
 
@@ -459,17 +529,45 @@ account.dispose()
 // Private key is now securely wiped from memory
 ```
 
-**Note**: `getTokenBalance()`, `transfer()`, `quoteTransfer()`, and `toReadOnlyAccount()` methods are not supported on the Bitcoin blockchain and will throw errors.
+**Note**: `getTokenBalance()`, `transfer()`, and `quoteTransfer()` methods are not supported on the Bitcoin blockchain and will throw errors.
 
 #### Properties
 
 | Property | Type | Description |
 |----------|------|-------------|
 | `index` | `number` | The derivation path's index of this account |
-| `path` | `string` | The full BIP-84 derivation path of this account |
+| `path` | `string` | The full derivation path of this account |
 | `keyPair` | `object` | The account's key pair (⚠️ Contains sensitive data) |
 
 ⚠️ **Security Note**: The `keyPair` property contains sensitive cryptographic material. Never log, display, or expose the private key.
+
+### WalletAccountReadOnlyBtc
+
+Represents a read-only Bitcoin wallet account. Extends `WalletAccountReadOnly` from `@tetherto/wdk-wallet`.
+
+#### Constructor
+
+```javascript
+new WalletAccountReadOnlyBtc(address, config)
+```
+
+**Parameters:**
+- `address` (string): The account's Bitcoin address
+- `config` (object, optional): Configuration object
+  - `client` (IElectrumClient, optional): Electrum client instance (if provided, host/port/protocol are ignored)
+  - `host` (string, optional): Electrum server hostname (default: "electrum.blockstream.info")
+  - `port` (number, optional): Electrum server port (default: 50001)
+  - `protocol` (string, optional): Transport protocol - "tcp", "tls", or "ssl" (default: "tcp")
+  - `network` (string, optional): "bitcoin", "testnet", or "regtest" (default: "bitcoin")
+
+#### Methods
+
+| Method | Description | Returns |
+|--------|-------------|---------|
+| `getBalance()` | Returns the confirmed account balance in satoshis | `Promise<bigint>` |
+| `quoteSendTransaction(options)` | Estimates the fee for a transaction | `Promise<{fee: bigint}>` |
+| `getTransactionReceipt(hash)` | Returns a transaction's receipt | `Promise<BtcTransaction \| null>` |
+| `getMaxSpendable()` | Returns the maximum spendable amount | `Promise<{amount: bigint, fee: bigint, changeValue: bigint}>` |
 
 ## 🌐 Supported Networks
 
@@ -497,14 +595,16 @@ This package works with Bitcoin networks:
 
 ### Supported Address Types
 
-This implementation supports **Native SegWit (P2WPKH) addresses only**:
+This implementation supports the following address types:
 
-- **Native SegWit (P2WPKH)**: Addresses starting with 'bc1' (mainnet) or 'tb1' (testnet)
-  - Uses BIP-84 derivation paths (`m/84'/0'/account'/0/index`)
+- **Native SegWit (P2WPKH)** (default, BIP-84): Addresses starting with 'bc1' (mainnet) or 'tb1' (testnet)
+  - Uses BIP-84 derivation paths (`m/84'/0'/account'/0/index` for mainnet)
   - Lower transaction fees compared to legacy formats
   - Full SegWit benefits including transaction malleability protection
 
-**Note**: Legacy (P2PKH) and wrapped SegWit (P2SH-P2WPKH) address types are not supported by this implementation. All generated addresses use the Native SegWit format for optimal fee efficiency and modern Bitcoin standards.
+- **Legacy (P2PKH)** (BIP-44): Addresses starting with '1' (mainnet) or 'm'/'n' (testnet)
+  - Uses BIP-44 derivation paths (`m/44'/0'/account'/0/index` for mainnet)
+  - Enable via `{ bip: 44 }` in config
 
 ## 🔒 Security Considerations
 
@@ -515,7 +615,7 @@ This implementation supports **Native SegWit (P2WPKH) addresses only**:
 - **Memory Cleanup**: Use the `dispose()` method to clear private keys from memory when done
 - **UTXO Management**: UTXO selection and change handling is managed automatically by the wallet
 - **Fee Management**: Fee rates are fetched from mempool.space API automatically
-- **Address Format**: Only Native SegWit (bech32) addresses are supported
+- **Address Format**: Native SegWit (bech32) addresses are used by default
 
 ## 🛠️ Development
 

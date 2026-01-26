@@ -147,25 +147,6 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     })
   })
 
-  describe('verify', () => {
-    test('should return true for a valid signature', async () => {
-      const result = await account.verify(MESSAGE, SIGNATURES[bip])
-
-      expect(result).toBe(true)
-    })
-
-    test('should return false for an invalid signature', async () => {
-      const result = await account.verify('Another message.', SIGNATURES[bip])
-
-      expect(result).toBe(false)
-    })
-
-    test('should throw on a malformed signature', async () => {
-      await expect(account.verify(MESSAGE, 'A bad signature'))
-        .rejects.toThrow('Invalid signature')
-    })
-  })
-
   describe('sendTransaction', () => {
     test('should successfully send a transaction', async () => {
       const TRANSACTION = { to: recipient, value: 1_000 }

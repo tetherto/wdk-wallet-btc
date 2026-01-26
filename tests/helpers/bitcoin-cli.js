@@ -1,18 +1,29 @@
 import { execSync } from 'child_process'
+import { platform } from 'os'
 
 const EXEC_SYNC_OPTIONS = {
   stdio: ['inherit', 'pipe', 'ignore']
 }
 
+const isWindows = platform() === 'win32'
+
 export default class BitcoinCli {
   constructor ({ wallet, ...config }) {
     const { host, port, dataDir } = config
 
-    this._config = config
-
     this._wallet = wallet
 
-    this._cli = `bitcoin-cli -regtest -rpcconnect=${host} -rpcport=${port} -datadir=${dataDir}`
+    let actualDataDir = dataDir
+    if (isWindows && !dataDir.startsWith('/')) {
+      const wslUsername = execSync('wsl whoami', { stdio: 'pipe' }).toString().trim()
+      const normalizedDir = dataDir.replace(/^\.\//, '')
+      actualDataDir = `/home/${wslUsername}/${normalizedDir}`
+    }
+
+    this._config = { ...config, dataDir: actualDataDir }
+
+    const prefix = isWindows ? 'wsl ' : ''
+    this._cli = `${prefix}bitcoin-cli -regtest -rpcconnect=${host} -rpcport=${port} -datadir=${actualDataDir}`
   }
 
   setWallet (wallet) {
@@ -22,7 +33,8 @@ export default class BitcoinCli {
   start () {
     const { host, port, dataDir, zmqPort } = this._config
 
-    execSync('bitcoind -regtest -daemon ' +
+    const prefix = isWindows ? 'wsl ' : ''
+    execSync(`${prefix}bitcoind -regtest -daemon ` +
       '-server=1 ' +
       '-txindex=1 ' +
       '-fallbackfee=0.0001 ' +
