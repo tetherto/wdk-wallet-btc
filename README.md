@@ -636,9 +636,17 @@ npm run lint:fix
 ```
 
 ### Testing
-
 ```bash
-# Run tests
+# Run unit tests
+npm run test:unit
+
+# Run unit tests with coverage
+npm run test:unit:coverage
+
+# Run integration tests (requires Bitcoin Core v29+ and Electrs v0.10+)
+npm run test:integration
+
+# Run all tests
 npm test
 
 # Run tests with coverage
