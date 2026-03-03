@@ -4,9 +4,10 @@
     "src/**/*.js",
   ],
   "compilerOptions": {
-    "target": "ES2015",
+    "target": "ES2020",
     "module": "NodeNext",
     "moduleResolution": "nodenext",
+    "checkJs": true,
     "allowJs": true,
     "declaration": true,
     "emitDeclarationOnly": true,
