@@ -347,7 +347,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     return buffer.toString('hex')
   }
 
-  /** @private */
+  /** @internal */
   _toBigInt (v) { return typeof v === 'bigint' ? v : BigInt(Math.round(Number(v))) }
 
   /**
@@ -362,7 +362,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * @param {string} tx.toAddress - The recipient's address.
    * @param {number | bigint} tx.amount - The amount to send (in satoshis).
    * @param {number | bigint} tx.feeRate - The fee rate (in sats/vB).
-   * @returns {Promise<{ utxos: OutputWithValue[], fee: number, changeValue: number }>} - The funding plan.
+   * @returns {Promise<{ utxos: OutputWithValue[], fee: number | bigint, changeValue: number | bigint }>} - The funding plan.
    */
   async _planSpend ({ fromAddress, toAddress, amount, feeRate }) {
     amount = this._toBigInt(amount)
