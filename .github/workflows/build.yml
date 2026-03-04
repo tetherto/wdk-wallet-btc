@@ -7,9 +7,9 @@ on:
     branches: [main, develop, ci/test-env]
 
 env:
-  NODE_VERSION: 22
-  ELECTRS_VERSION_TAG: 0.10.10 # Don't use preserved ELECTRS_VERSION
-  BITCOIND_VERSION_TAG: 29.0
+  NODE_VERSION: "22"
+  ELECTRS_VERSION_TAG: "0.10.10" # Don't use preserved ELECTRS_VERSION
+  BITCOIND_VERSION_TAG: "29.0"
 
 jobs:
   build:
