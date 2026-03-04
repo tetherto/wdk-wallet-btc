@@ -8,7 +8,7 @@ on:
 
 env:
   NODE_VERSION: 22
-  ELECTRS_INSTALLED_VERSION: "0.10.10"
+  ELECTRS_VERSION_TAG: 0.10.10
 
 jobs:
   build:
@@ -41,14 +41,12 @@ jobs:
 
       - name: Install electrs
         run: |
-          wget https://github.com/romanz/electrs/archive/refs/tags/v${{ env.ELECTRS_INSTALLED_VERSION }}.tar.gz
-          tar -xzf v${{ env.ELECTRS_INSTALLED_VERSION }}.tar.gz
-          cd electrs-${{ env.ELECTRS_INSTALLED_VERSION }}
+          wget https://github.com/romanz/electrs/archive/refs/tags/v${{ env.ELECTRS_VERSION_TAG }}.tar.gz
+          tar -xzf v${{ env.ELECTRS_VERSION_TAG }}.tar.gz
+          cd electrs-${{ env.ELECTRS_VERSION_TAG }}
           cargo build --locked --release
       - name: Install electrs
-        run: |
-          sudo install -m0755 electrs-${{ env.ELECTRS_INSTALLED_VERSION }}/target/release/electrs /usr/local/bin/
-          electrs --version
+        run: sudo install -m0755 electrs-${{ env.ELECTRS_VERSION_TAG }}/target/release/electrs /usr/local/bin/
 
       - name: Install dependencies
         run: npm clean-install
