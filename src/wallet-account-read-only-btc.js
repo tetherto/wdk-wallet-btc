@@ -27,8 +27,10 @@ import { ElectrumTcp, ElectrumSsl, ElectrumTls } from './transports/index.js'
 /** @typedef {import('./transports/index.js').MempoolElectrumConfig} MempoolElectrumConfig */
 /** @typedef {import('./transports/index.js').MempoolElectrumClient} MempoolElectrumClient */
 /** @typedef {import('./transports/index.js').IElectrumClient} IElectrumClient */
+/** @typedef {import('./transports/index.js').ElectrumUtxo} ElectrumUtxo */
 
 /** @typedef {import('@bitcoinerlab/coinselect').OutputWithValue} OutputWithValue */
+/** @typedef {OutputWithValue & { __ref: ElectrumUtxo }} OutputWithValueWithRef */
 /** @typedef {import('bitcoinjs-lib').Network} Network */
 /** @typedef {import('bitcoinjs-lib').Transaction} BtcTransactionReceipt */
 
@@ -42,7 +44,7 @@ import { ElectrumTcp, ElectrumSsl, ElectrumTls } from './transports/index.js'
  * @property {number | bigint} value - The amount of bitcoins to send to the recipient (in satoshis).
  * @property {number} [confirmationTarget] - Optional confirmation target in blocks (default: 1).
  * @property {number | bigint} [feeRate] - Optional fee rate in satoshis per virtual byte. If provided, this value overrides the fee rate estimated from the blockchain (default: undefined).
- * */
+ */
 
 /**
  * @typedef {Object} BtcWalletConfig
@@ -55,7 +57,8 @@ import { ElectrumTcp, ElectrumSsl, ElectrumTls } from './transports/index.js'
  *   - 44: [BIP-44 (P2PKH / legacy)](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)
  *   - 84: [BIP-84 (P2WPKH / native SegWit)](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki)
  *   - Default: 84 (P2WPKH).
- * */
+ * @property {number | bigint} [transferMaxFee] - [Unused] The maximum fee amount for transfer operations.
+ */
 
 /**
  * @typedef {Object} BtcMaxSpendableResult
@@ -125,7 +128,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     /**
      * The dust limit in satoshis based on the BIP type.
      *
-     * @private
+     * @protected
      * @type {bigint}
      */
     this._dustLimit = DUST_LIMIT[bip]
@@ -410,13 +413,19 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
     const fee = this._toBigInt(Math.max(result.fee ?? 0, MIN_TX_FEE_SATS))
 
-    const utxos = result.utxos.map(({ __ref }) => ({
-      ...__ref,
-      vout: {
-        value: this._toBigInt(__ref.value),
-        scriptPubKey: { hex: fromAddressScriptHex }
-      }
-    }))
+    const utxos = result.utxos.map(
+      /**
+       * @param {OutputWithValueWithRef} opt
+       */
+      ({output, value, __ref }) => ({
+        ...__ref,
+        output,
+        vout: {
+          value: this._toBigInt(value),
+          scriptPubKey: { hex: fromAddressScriptHex }
+        }
+      })
+    )
 
     const total = utxos.reduce((s, u) => s + this._toBigInt(u.value), 0n)
     const changeValue = total - fee - amount

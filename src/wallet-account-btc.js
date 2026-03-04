@@ -22,14 +22,12 @@ import { LRUCache } from 'lru-cache'
 
 import * as bip39 from 'bip39'
 import * as ecc from '@bitcoinerlab/secp256k1'
-import bitcoinMessageModule from 'bitcoinjs-message'
+import bitcoinMessage from 'bitcoinjs-message'
 
 // eslint-disable-next-line camelcase
 import { sodium_memzero } from 'sodium-universal'
 
 import WalletAccountReadOnlyBtc from './wallet-account-read-only-btc.js'
-
-const bitcoinMessage = bitcoinMessageModule.default ?? bitcoinMessageModule
 
 /** @typedef {import('@tetherto/wdk-wallet').IWalletAccount} IWalletAccount */
 
@@ -258,6 +256,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     const address = await this.getAddress()
     const myScript = btcAddress.toOutputScript(address, network)
 
+    /** @type {LRUCache<string, Transaction>} */
     const txCache = new LRUCache({ max: MAX_CACHE_ENTRIES })
     const prevUtxoCache = new LRUCache({ max: MAX_CACHE_ENTRIES })
     const limitConcurrency = pLimit(MAX_CONCURRENT_REQUESTS)

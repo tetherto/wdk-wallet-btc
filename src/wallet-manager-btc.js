@@ -25,6 +25,13 @@ const MEMPOOL_SPACE_URL = 'https://mempool.space'
 
 export default class WalletManagerBtc extends WalletManager {
   /**
+   * Overrides the base class `_accounts` property type.
+   *
+   * @type {{ [path: string]: WalletAccountBtc }}
+   */
+  _accounts = {}
+
+  /**
    * Creates a new wallet manager for the bitcoin blockchain.
    *
    * @param {string | Uint8Array} seed - The wallet's [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) seed phrase.
@@ -62,7 +69,7 @@ export default class WalletManagerBtc extends WalletManager {
    */
   async getAccountByPath (path) {
     if (!this._accounts[path]) {
-      const account = new WalletAccountBtc(this._seed, path, this._config)
+      const account = new WalletAccountBtc(this.seed, path, this._config)
 
       this._accounts[path] = account
     }
