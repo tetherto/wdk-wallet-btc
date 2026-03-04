@@ -47,7 +47,7 @@ jobs:
           cargo build --locked --release
       - name: Install electrs
         run: |
-          sudo install -m0755 electrs/target/release/electrs /usr/local/bin/
+          sudo install -m0755 electrs-${{ env.ELECTRS_VERSION }}/target/release/electrs /usr/local/bin/
 
       - name: Install dependencies
         run: npm clean-install
