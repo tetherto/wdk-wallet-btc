@@ -8,6 +8,7 @@ on:
 
 env:
   NODE_VERSION: 22
+  ELECTRS_VERSION: 0.10.10
 
 jobs:
   build:
@@ -27,21 +28,22 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y llvm-dev libclang-dev clang pkg-config
 
+      - name: Install Rust
+        run: |
+          curl https://sh.rustup.rs -sSf | sh -s -- -y
+          source $HOME/.cargo/env
+
       - name: Install Bitcoin Core 29.0
         run: |
           wget https://bitcoincore.org/bin/bitcoin-core-29.0/bitcoin-29.0-x86_64-linux-gnu.tar.gz
           tar -xzf bitcoin-29.0-x86_64-linux-gnu.tar.gz
           sudo install -m 0755 -o root -g root -t /usr/local/bin bitcoin-29.0/bin/*
 
-      - name: Install Rust
+      - name: Install electrs
         run: |
-          curl https://sh.rustup.rs -sSf | sh -s -- -y
-          source $HOME/.cargo/env
-      - name: Clone electrs
-        run: git clone https://github.com/romanz/electrs.git
-      - name: Build electrs
-        run: |
-          cd electrs
+          wget https://github.com/romanz/electrs/releases/download/v${{ env.ELECTRS_VERSION }}/electrs-${{ env.ELECTRS_VERSION }}.tar.gz
+          tar -xzf electrs-${{ env.ELECTRS_VERSION }}.tar.gz
+          cd electrs-${{ env.ELECTRS_VERSION }}
           cargo build --locked --release
       - name: Install electrs
         run: |
