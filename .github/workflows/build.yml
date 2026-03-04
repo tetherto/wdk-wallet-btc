@@ -8,7 +8,8 @@ on:
 
 env:
   NODE_VERSION: 22
-  ELECTRS_VERSION_TAG: 0.10.10
+  ELECTRS_VERSION_TAG: 0.10.10 # Don't use preserved ELECTRS_VERSION
+  BITCOIND_VERSION_TAG: 29.0
 
 jobs:
   build:
@@ -33,13 +34,13 @@ jobs:
           curl https://sh.rustup.rs -sSf | sh -s -- -y
           source $HOME/.cargo/env
 
-      - name: Install Bitcoin Core 29.0
+      - name: Install bitcoind ${{ env.BITCOIND_VERSION_TAG }}
         run: |
-          wget https://bitcoincore.org/bin/bitcoin-core-29.0/bitcoin-29.0-x86_64-linux-gnu.tar.gz
-          tar -xzf bitcoin-29.0-x86_64-linux-gnu.tar.gz
-          sudo install -m 0755 -o root -g root -t /usr/local/bin bitcoin-29.0/bin/*
+          wget https://bitcoincore.org/bin/bitcoin-core-${{ env.BITCOIND_VERSION_TAG }}/bitcoin-${{ env.BITCOIND_VERSION_TAG }}-x86_64-linux-gnu.tar.gz
+          tar -xzf bitcoin-${{ env.BITCOIND_VERSION_TAG }}-x86_64-linux-gnu.tar.gz
+          sudo install -m 0755 -o root -g root -t /usr/local/bin bitcoin-${{ env.BITCOIND_VERSION_TAG }}/bin/*
 
-      - name: Install electrs
+      - name: Install electrs ${{ env.ELECTRS_VERSION_TAG }}
         run: |
           wget https://github.com/romanz/electrs/archive/refs/tags/v${{ env.ELECTRS_VERSION_TAG }}.tar.gz
           tar -xzf v${{ env.ELECTRS_VERSION_TAG }}.tar.gz
