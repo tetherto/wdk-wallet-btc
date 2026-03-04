@@ -2,9 +2,9 @@ name: build
 
 on:
   push:
-    branches: [main, develop, ci/test-env]
+    branches: [main, develop]
   pull_request:
-    branches: [main, develop, ci/test-env]
+    branches: [main, develop]
 
 env:
   NODE_VERSION: "22"
