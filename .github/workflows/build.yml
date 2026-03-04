@@ -2,20 +2,23 @@ name: build
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, ci/test-env]
   pull_request:
-    branches: [main, develop]
+    branches: [main, develop, ci/test-env]
+
+env:
+  NODE_VERSION: 22
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps: 
-      - uses: actions/checkout@v3
-      - name: Set up Node 22.19.0
+      - uses: actions/checkout@v4
+      - name: Set up Node ${{ env.NODE_VERSION }}
         uses: actions/setup-node@v4
         with:
-          node-version: '22.19.0'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           registry-url: 'https://registry.npmjs.org'
       
@@ -26,3 +29,6 @@ jobs:
       
       - name: Lint code with standard
         run: npm run lint
+
+      - name: Run tests
+        run: npm test
