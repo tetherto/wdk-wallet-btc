@@ -42,7 +42,7 @@ jobs:
       - name: Install electrs
         run: |
           wget https://github.com/romanz/electrs/archive/refs/tags/v${{ env.ELECTRS_VERSION }}.tar.gz
-          tar -xzf electrs-${{ env.ELECTRS_VERSION }}.tar.gz
+          tar -xzf v${{ env.ELECTRS_VERSION }}.tar.gz
           cd electrs-${{ env.ELECTRS_VERSION }}
           cargo build --locked --release
       - name: Install electrs
