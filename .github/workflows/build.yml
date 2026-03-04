@@ -48,6 +48,7 @@ jobs:
       - name: Install electrs
         run: |
           sudo install -m0755 electrs-${{ env.ELECTRS_VERSION }}/target/release/electrs /usr/local/bin/
+          electrs --version
 
       - name: Install dependencies
         run: npm clean-install
