@@ -8,7 +8,7 @@ on:
 
 env:
   NODE_VERSION: "22"
-  ELECTRS_VERSION_TAG: "0.10.10" # Don't use preserved ELECTRS_VERSION
+  ELECTRS_VERSION_TAG: "0.10.10" # Don't use the reserved var name ELECTRS_VERSION
   BITCOIND_VERSION_TAG: "29.0"
 
 jobs:
