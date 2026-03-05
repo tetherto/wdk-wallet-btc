@@ -7,8 +7,8 @@ import { BitcoinCli, Waiter } from './helpers/index.js'
 import { WalletAccountReadOnlyBtc } from '../index.js'
 
 const ADDRESSES = {
-  44: 'mfXn8RBVY9dNiggLAX8oFdjbYk8UNZi8La',
-  84: 'bcrt1q56sfepv68sf2xfm2kgk3ea2mdjzswljl3r3tdx'
+  44: 'mjsVx6s5oH9VqwmhfjCyVo6t7APRGY6T8o',
+  84: 'bcrt1q8dqnpagwt9rtl7k38nuaa2ahf690avzkm74nhn'
 }
 
 const MESSAGE = 'Dummy message to sign.'
