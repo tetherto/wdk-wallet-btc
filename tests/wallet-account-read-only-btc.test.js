@@ -7,15 +7,17 @@ import { BitcoinCli, Waiter } from './helpers/index.js'
 import { WalletAccountReadOnlyBtc } from '../index.js'
 
 const ADDRESSES = {
-  44: 'mjsVx6s5oH9VqwmhfjCyVo6t7APRGY6T8o',
-  84: 'bcrt1q8dqnpagwt9rtl7k38nuaa2ahf690avzkm74nhn'
+  // 0'/0/1
+  44: 'mgaunRvd1o9Qs2CQfBfTUfCv4bbk4WvykV',
+  // 0'/0/1
+  84: 'bcrt1qkr67mkl07s5slnjzsesza3g75qhu4rx62nnzx0'
 }
 
 const MESSAGE = 'Dummy message to sign.'
 
 const SIGNATURES = {
-  44: 'H4RwJWJzRmVkgQDqmTgX0qCbSONLQjvjfXH7ZdKZs5S3BWbpfjqbGdIJQXy/+ppW4Lvaw0wZ/UaDOLhMw5TIDuk=',
-  84: 'KAVgsxrQT5V4Mhfnk6taeCN1/j8p/sa8S9iNsbsgRb8zbfNOOPXV1w3dQQV0IjboJrlxYuDJnHw5a/E6vRJ+0Ek='
+  44: 'IFvEBw61yyovfDy6fFShEyKiR+3bp3sRBbLFupcT+PVadva1tz9vi/cNCrsX6xvh9SM2opXSsHdkpfXJZoXxspo=',
+  84: 'KFwdN9s17ddVQMxAB2+sAKyHXR82k6eAca3rBvBQBkluOBRp14VDnITT7y7KgABpU//j8Wjb2dy056bKrYALeQ0='
 }
 
 export const FEES = {
