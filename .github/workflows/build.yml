@@ -46,7 +46,7 @@ jobs:
           tar -xzf v${{ env.ELECTRS_VERSION_TAG }}.tar.gz
           cd electrs-${{ env.ELECTRS_VERSION_TAG }}
           cargo build --locked --release
-          sudo install -m0755 electrs-${{ env.ELECTRS_VERSION_TAG }}/target/release/electrs /usr/local/bin/
+          sudo install -m0755 target/release/electrs /usr/local/bin/
 
       - name: Install dependencies
         run: npm clean-install
