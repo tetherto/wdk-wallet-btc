@@ -6,19 +6,48 @@ on:
   pull_request:
     branches: [main, develop]
 
+env:
+  NODE_VERSION: "22"
+  ELECTRS_VERSION_TAG: "0.10.10" # Don't use the reserved var name ELECTRS_VERSION
+  BITCOIND_VERSION_TAG: "29.0"
+
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps: 
-      - uses: actions/checkout@v3
-      - name: Set up Node 22.19.0
+      - uses: actions/checkout@v4
+      - name: Set up Node ${{ env.NODE_VERSION }}
         uses: actions/setup-node@v4
         with:
-          node-version: '22.19.0'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           registry-url: 'https://registry.npmjs.org'
-      
+
+      - name: Install LLVM dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y llvm-dev libclang-dev clang pkg-config
+
+      - name: Install Rust
+        run: |
+          curl https://sh.rustup.rs -sSf | sh -s -- -y
+          source $HOME/.cargo/env
+
+      - name: Install bitcoind ${{ env.BITCOIND_VERSION_TAG }}
+        run: |
+          wget https://bitcoincore.org/bin/bitcoin-core-${{ env.BITCOIND_VERSION_TAG }}/bitcoin-${{ env.BITCOIND_VERSION_TAG }}-x86_64-linux-gnu.tar.gz
+          tar -xzf bitcoin-${{ env.BITCOIND_VERSION_TAG }}-x86_64-linux-gnu.tar.gz
+          sudo install -m 0755 -o root -g root -t /usr/local/bin bitcoin-${{ env.BITCOIND_VERSION_TAG }}/bin/*
+
+      - name: Install electrs ${{ env.ELECTRS_VERSION_TAG }}
+        run: |
+          wget https://github.com/romanz/electrs/archive/refs/tags/v${{ env.ELECTRS_VERSION_TAG }}.tar.gz
+          tar -xzf v${{ env.ELECTRS_VERSION_TAG }}.tar.gz
+          cd electrs-${{ env.ELECTRS_VERSION_TAG }}
+          cargo build --locked --release
+          sudo install -m0755 target/release/electrs /usr/local/bin/
+
       - name: Install dependencies
         run: npm clean-install
         env:
@@ -26,3 +55,6 @@ jobs:
       
       - name: Lint code with standard
         run: npm run lint
+
+      - name: Run tests
+        run: npm test
