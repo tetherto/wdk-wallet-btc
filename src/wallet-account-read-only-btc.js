@@ -87,6 +87,60 @@ const DUST_LIMIT = {
   86: 330n
 }
 
+// Logging bridge: Attempt to surface worklet logs to main thread
+// Note: In bare-rpc worklets, console.log runs in a separate context and may not
+// automatically appear in the main React Native thread. To view these logs:
+// 1. Use adb logcat with broader filters: adb logcat | grep -i 'wallet\|worklet'
+// 2. Or use: adb logcat ReactNativeJS:V ReactNative:V chromium:V console:V *:S
+// 3. Worklet logs may appear in the device's native log output
+//
+// This override attempts to forward logs but may not work in all worklet environments
+try {
+  const originalLog = console.log
+  const originalError = console.error
+  const originalWarn = console.warn
+
+  // Enhanced logging that includes worklet context
+  console.log = function (...args) {
+    originalLog.apply(console, ['[WORKLET]', ...args])
+    // Try to surface via error (which React Native catches)
+    // This is a fallback - errors are more likely to be forwarded
+    try {
+      if (typeof global !== 'undefined' && global.__wdkLog) {
+        global.__wdkLog('log', args)
+      }
+    } catch (e) {
+      // Silently fail
+    }
+  }
+
+  console.error = function (...args) {
+    originalError.apply(console, ['[WORKLET ERROR]', ...args])
+    // Errors are more likely to be forwarded by React Native
+    try {
+      if (typeof global !== 'undefined' && global.__wdkLog) {
+        global.__wdkLog('error', args)
+      }
+    } catch (e) {
+      // Silently fail
+    }
+  }
+
+  console.warn = function (...args) {
+    originalWarn.apply(console, ['[WORKLET WARN]', ...args])
+    try {
+      if (typeof global !== 'undefined' && global.__wdkLog) {
+        global.__wdkLog('warn', args)
+      }
+    } catch (e) {
+      // Silently fail
+    }
+  }
+} catch (e) {
+  // If override fails, continue with original console
+  console.warn('[wallet-account-read-only-btc] Logging bridge setup failed:', e.message)
+}
+
 // TEST: Module-level log to verify local package is loaded
 console.log('🚀🚀🚀 [wdk-wallet-btc] LOCAL PACKAGE LOADED - wallet-account-read-only-btc.js module executed 🚀🚀🚀')
 
@@ -117,7 +171,32 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @protected
      * @type {Network}
      */
-    this._network = networks[this._config.network] || networks.bitcoin
+    // Validate network configuration and ensure it matches the address format
+    const configNetwork = this._config.network
+    if (configNetwork && !networks[configNetwork]) {
+      console.warn(`[wallet-account-read-only-btc] Invalid network "${configNetwork}", defaulting to bitcoin. Valid networks: ${Object.keys(networks).join(', ')}`)
+    }
+    this._network = networks[configNetwork] || networks.bitcoin
+    
+    // Validate that the network matches the address format
+    const addressLower = address.toLowerCase()
+    const isTestnetAddress = addressLower.startsWith('tb1') || addressLower.startsWith('m') || addressLower.startsWith('n')
+    const isMainnetAddress = addressLower.startsWith('bc1') || addressLower.startsWith('1') || addressLower.startsWith('3')
+    
+    if (isTestnetAddress && this._network === networks.bitcoin) {
+      console.warn(`[wallet-account-read-only-btc] Testnet address detected but network is set to bitcoin. Address: ${address}, Config network: ${configNetwork}`)
+      // Auto-correct: use testnet network for testnet addresses
+      this._network = networks.testnet
+      console.log(`[wallet-account-read-only-btc] Auto-corrected network to testnet`)
+    } else if (isMainnetAddress && this._network === networks.testnet) {
+      console.warn(`[wallet-account-read-only-btc] Mainnet address detected but network is set to testnet. Address: ${address}, Config network: ${configNetwork}`)
+      // Auto-correct: use bitcoin network for mainnet addresses
+      this._network = networks.bitcoin
+      console.log(`[wallet-account-read-only-btc] Auto-corrected network to bitcoin`)
+    }
+    
+    const resolvedNetworkName = this._network === networks.testnet ? 'testnet' : this._network === networks.bitcoin ? 'bitcoin' : this._network === networks.regtest ? 'regtest' : 'unknown'
+    console.log(`[wallet-account-read-only-btc] Network configuration: config.network="${configNetwork}", resolved network="${resolvedNetworkName}"`)
 
     /**
      * An electrum client to interact with the bitcoin node.
@@ -125,10 +204,40 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @protected
      * @type {ElectrumClient}
      */
+    const electrumHost = config.host || 'electrum.blockstream.info'
+    const electrumPort = config.port || 50_001
+    const electrumProtocol = config.protocol || 'tcp'
+    
+    // Calculate and log the script hash for the address immediately
+    let scriptHashForLogging = 'not calculated yet'
+    try {
+      const script = btcAddress.toOutputScript(address, this._network)
+      const hash = crypto.sha256(script)
+      const buffer = Buffer.from(hash).reverse()
+      scriptHashForLogging = buffer.toString('hex')
+      console.log(`[wallet-account-read-only-btc] ===== ADDRESS AND SCRIPT HASH =====`)
+      console.log(`[wallet-account-read-only-btc] Address: ${address}`)
+      console.log(`[wallet-account-read-only-btc] Script Hash: ${scriptHashForLogging}`)
+      console.log(`[wallet-account-read-only-btc] Network: ${resolvedNetworkName}`)
+      console.log(`[wallet-account-read-only-btc] Script (hex): ${script.toString('hex')}`)
+      console.log(`[wallet-account-read-only-btc] ====================================`)
+    } catch (error) {
+      console.error(`[wallet-account-read-only-btc] Failed to calculate script hash during initialization:`, error.message)
+    }
+    
+    console.log(`[wallet-account-read-only-btc] Electrum server configuration:`, {
+      host: electrumHost,
+      port: electrumPort,
+      protocol: electrumProtocol,
+      network: resolvedNetworkName,
+      address: address,
+      scriptHash: scriptHashForLogging
+    })
+    
     this._electrumClient = new ElectrumClient(
-      config.port || 50_001,
-      config.host || 'electrum.blockstream.info',
-      config.protocol || 'tcp',
+      electrumPort,
+      electrumHost,
+      electrumProtocol,
       { retryPeriod: 1_000, maxRetry: 2, pingPeriod: 120_000, callback: null }
     )
 
@@ -152,11 +261,28 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
   async getBalance () {
     // TEST: Verify local package is being used
     console.log('🚀 [wdk-wallet-btc] LOCAL VERSION - getBalance called (local package active)')
+    const address = await this.getAddress()
+    console.log('[wallet-account-read-only-btc] getBalance - Address:', address)
+    console.log('[wallet-account-read-only-btc] getBalance - Network:', this._network === networks.testnet ? 'testnet' : this._network === networks.bitcoin ? 'bitcoin' : 'unknown')
+    
     const scriptHash = await this._getScriptHash()
+    console.log('[wallet-account-read-only-btc] getBalance - Script hash:', scriptHash)
+    console.log('[wallet-account-read-only-btc] getBalance - Calling blockchainScripthash_getBalance...')
 
-    const { confirmed } = await this._electrumClient.blockchainScripthash_getBalance(scriptHash)
-
-    return BigInt(confirmed)
+    try {
+      const balanceResult = await this._electrumClient.blockchainScripthash_getBalance(scriptHash)
+      console.log('[wallet-account-read-only-btc] getBalance - Raw balance result:', JSON.stringify(balanceResult))
+      console.log('[wallet-account-read-only-btc] getBalance - Confirmed balance:', balanceResult.confirmed, 'sats')
+      console.log('[wallet-account-read-only-btc] getBalance - Unconfirmed balance:', balanceResult.unconfirmed || 0, 'sats')
+      
+      const confirmed = BigInt(balanceResult.confirmed || 0)
+      console.log('[wallet-account-read-only-btc] getBalance - Returning confirmed balance:', confirmed.toString(), 'sats')
+      return confirmed
+    } catch (error) {
+      console.error('[wallet-account-read-only-btc] getBalance - ERROR:', error.message)
+      console.error('[wallet-account-read-only-btc] getBalance - Error stack:', error.stack)
+      throw error
+    }
   }
 
   /**
@@ -288,12 +414,30 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    */
   async getMaxSpendable () {
     const fromAddress = await this.getAddress()
+    console.log('[wallet-account-read-only-btc] getMaxSpendable - Address:', fromAddress)
+    console.log('[wallet-account-read-only-btc] getMaxSpendable - Network:', this._network === networks.testnet ? 'testnet' : this._network === networks.bitcoin ? 'bitcoin' : 'unknown')
+    
     const feeRateRaw = await this._electrumClient.blockchainEstimatefee(1)
     const feeRate = Math.max(Number(feeRateRaw) * 100_000, 1)
+    console.log('[wallet-account-read-only-btc] getMaxSpendable - Fee rate:', feeRate, 'sats/vB')
 
     const scriptHash = await this._getScriptHash()
-    const unspent = await this._electrumClient.blockchainScripthash_listunspent(scriptHash)
+    console.log('[wallet-account-read-only-btc] getMaxSpendable - Script hash:', scriptHash)
+    console.log('[wallet-account-read-only-btc] getMaxSpendable - Calling blockchainScripthash_listunspent...')
+    
+    let unspent
+    try {
+      unspent = await this._electrumClient.blockchainScripthash_listunspent(scriptHash)
+      console.log('[wallet-account-read-only-btc] getMaxSpendable - blockchainScripthash_listunspent result:', JSON.stringify(unspent, null, 2))
+      console.log('[wallet-account-read-only-btc] getMaxSpendable - UTXO count:', Array.isArray(unspent) ? unspent.length : 'N/A')
+    } catch (error) {
+      console.error('[wallet-account-read-only-btc] getMaxSpendable - ERROR:', error.message)
+      console.error('[wallet-account-read-only-btc] getMaxSpendable - Error stack:', error.stack)
+      throw error
+    }
+    
     if (!unspent || unspent.length === 0) {
+      console.warn('[wallet-account-read-only-btc] getMaxSpendable - No UTXOs found')
       return { amount: 0n, fee: 0n, changeValue: 0n }
     }
 
@@ -356,15 +500,47 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    */
   async _getScriptHash () {
     const address = await this.getAddress()
+    const networkName = this._network === networks.testnet ? 'testnet' : this._network === networks.bitcoin ? 'bitcoin' : this._network === networks.regtest ? 'regtest' : 'unknown'
     console.log('[wallet-account-read-only-btc] _getScriptHash called with address:', address)
+    console.log('[wallet-account-read-only-btc] _getScriptHash using network:', networkName)
+    console.log('[wallet-account-read-only-btc] _getScriptHash network object:', {
+      messagePrefix: this._network.messagePrefix,
+      bech32: this._network.bech32,
+      pubKeyHash: this._network.pubKeyHash,
+      scriptHash: this._network.scriptHash
+    })
+    
     // toOutputScript automatically handles both Bech32 (P2WPKH) and Bech32m (P2TR) addresses
-    const script = btcAddress.toOutputScript(address, this._network)
+    let script
+    try {
+      script = btcAddress.toOutputScript(address, this._network)
+    } catch (error) {
+      console.error(`[wallet-account-read-only-btc] _getScriptHash ERROR: Failed to convert address to script. Address: ${address}, Network: ${this._network === networks.testnet ? 'testnet' : this._network === networks.bitcoin ? 'bitcoin' : 'unknown'}, Error: ${error.message}`)
+      // If conversion fails, try to auto-detect and use the correct network
+      const addressLower = address.toLowerCase()
+      if (addressLower.startsWith('tb1') || addressLower.startsWith('m') || addressLower.startsWith('n')) {
+        console.log('[wallet-account-read-only-btc] _getScriptHash: Retrying with testnet network')
+        this._network = networks.testnet
+        script = btcAddress.toOutputScript(address, this._network)
+      } else if (addressLower.startsWith('bc1') || addressLower.startsWith('1') || addressLower.startsWith('3')) {
+        console.log('[wallet-account-read-only-btc] _getScriptHash: Retrying with bitcoin network')
+        this._network = networks.bitcoin
+        script = btcAddress.toOutputScript(address, this._network)
+      } else {
+        throw error
+      }
+    }
+    
     const hash = crypto.sha256(script)
-    console.log('[wallet-account-read-only-btc] _getScriptHash returning hash:', hash.toString('hex'))
+    const scriptHashHex = hash.toString('hex')
+    console.log('[wallet-account-read-only-btc] _getScriptHash script (hex):', script.toString('hex'))
+    console.log('[wallet-account-read-only-btc] _getScriptHash SHA256 hash (hex):', scriptHashHex)
 
     const buffer = Buffer.from(hash).reverse()
+    const scriptHash = buffer.toString('hex')
+    console.log('[wallet-account-read-only-btc] _getScriptHash returning script hash (reversed):', scriptHash)
 
-    return buffer.toString('hex')
+    return scriptHash
   }
 
   /** @private */
@@ -411,18 +587,76 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     console.log('[wallet-account-read-only-btc] _planSpend scriptHash:', scriptHash)
     console.log('[wallet-account-read-only-btc] _planSpend fromAddress:', fromAddress)
     console.log('[wallet-account-read-only-btc] _planSpend network:', network)
+    console.log('[wallet-account-read-only-btc] _planSpend network name:', network === networks.testnet ? 'testnet' : network === networks.bitcoin ? 'bitcoin' : 'unknown')
+    console.log('[wallet-account-read-only-btc] _planSpend - About to call blockchainScripthash_listunspent with scriptHash:', scriptHash)
 
-    const unspent = await this._electrumClient.blockchainScripthash_listunspent(scriptHash)
-    console.log('[wallet-account-read-only-btc] _planSpend unspent result:', JSON.stringify(unspent))
+    let unspent
+    try {
+      unspent = await this._electrumClient.blockchainScripthash_listunspent(scriptHash)
+      console.log('[wallet-account-read-only-btc] _planSpend - blockchainScripthash_listunspent SUCCESS')
+      console.log('[wallet-account-read-only-btc] _planSpend unspent result type:', typeof unspent, Array.isArray(unspent) ? 'array' : 'not array')
+      console.log('[wallet-account-read-only-btc] _planSpend unspent result length:', Array.isArray(unspent) ? unspent.length : 'N/A')
+      console.log('[wallet-account-read-only-btc] _planSpend unspent result:', JSON.stringify(unspent, null, 2))
+      
+      if (Array.isArray(unspent) && unspent.length > 0) {
+        console.log('[wallet-account-read-only-btc] _planSpend - Found', unspent.length, 'UTXOs:')
+        unspent.forEach((utxo, index) => {
+          console.log(`[wallet-account-read-only-btc] _planSpend - UTXO ${index + 1}:`, {
+            tx_hash: utxo.tx_hash,
+            tx_pos: utxo.tx_pos,
+            value: utxo.value,
+            height: utxo.height
+          })
+        })
+      } else {
+        console.warn('[wallet-account-read-only-btc] _planSpend - No UTXOs found or empty result')
+      }
+    } catch (error) {
+      console.error('[wallet-account-read-only-btc] _planSpend - ERROR calling blockchainScripthash_listunspent:', error.message)
+      console.error('[wallet-account-read-only-btc] _planSpend - Error stack:', error.stack)
+      console.error('[wallet-account-read-only-btc] _planSpend - Script hash used:', scriptHash)
+      console.error('[wallet-account-read-only-btc] _planSpend - Address:', fromAddress)
+      console.error('[wallet-account-read-only-btc] _planSpend - Network:', network === networks.testnet ? 'testnet' : network === networks.bitcoin ? 'bitcoin' : 'unknown')
+      throw error
+    }
 
     if (!unspent || unspent.length === 0) {
+      console.warn('[wallet-account-read-only-btc] _planSpend - No UTXOs found, attempting diagnostic checks...')
+      
       // Try to get balance to see if address has funds
       try {
         const balance = await this._electrumClient.blockchainScripthash_getBalance(scriptHash)
-        console.error('[wallet-account-read-only-btc] _planSpend - No UTXOs but balance check:', JSON.stringify(balance))
+        console.error('[wallet-account-read-only-btc] _planSpend - No UTXOs but balance check result:', JSON.stringify(balance, null, 2))
+        console.error('[wallet-account-read-only-btc] _planSpend - Balance confirmed:', balance.confirmed, 'sats')
+        console.error('[wallet-account-read-only-btc] _planSpend - Balance unconfirmed:', balance.unconfirmed || 0, 'sats')
+        
+        if (balance.confirmed > 0 || (balance.unconfirmed && balance.unconfirmed > 0)) {
+          console.error('[wallet-account-read-only-btc] _planSpend - WARNING: Balance exists but no UTXOs returned! This may indicate an electrum server issue.')
+        }
       } catch (balanceError) {
-        console.error('[wallet-account-read-only-btc] _planSpend - Balance check failed:', balanceError)
+        console.error('[wallet-account-read-only-btc] _planSpend - Balance check failed:', balanceError.message)
+        console.error('[wallet-account-read-only-btc] _planSpend - Balance check error stack:', balanceError.stack)
       }
+      
+      // Try to get history to see if there are any transactions
+      try {
+        const history = await this._electrumClient.blockchainScripthash_getHistory(scriptHash)
+        console.error('[wallet-account-read-only-btc] _planSpend - History check result:', JSON.stringify(history, null, 2))
+        console.error('[wallet-account-read-only-btc] _planSpend - History length:', Array.isArray(history) ? history.length : 'N/A')
+      } catch (historyError) {
+        console.error('[wallet-account-read-only-btc] _planSpend - History check failed:', historyError.message)
+      }
+      
+      // Log diagnostic information
+      console.error('[wallet-account-read-only-btc] _planSpend - DIAGNOSTIC INFO:', {
+        address: fromAddress,
+        scriptHash: scriptHash,
+        network: network === networks.testnet ? 'testnet' : network === networks.bitcoin ? 'bitcoin' : 'unknown',
+        configNetwork: this._config.network,
+        configHost: this._config.host || 'electrum.blockstream.info',
+        configPort: this._config.port || 50001
+      })
+      
       throw new Error(`🚀🚀🚀 LOCAL PACKAGE ACTIVE - No unspent outputs available for address ${fromAddress} (scriptHash: ${scriptHash}). 🚀🚀🚀`)
     }
 
@@ -625,19 +859,77 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     console.log('[wallet-account-read-only-btc] _planSpendWithMemo scriptHash:', scriptHash)
     console.log('[wallet-account-read-only-btc] _planSpendWithMemo fromAddress:', fromAddress)
     console.log('[wallet-account-read-only-btc] _planSpendWithMemo network:', network)
+    console.log('[wallet-account-read-only-btc] _planSpendWithMemo network name:', network === networks.testnet ? 'testnet' : network === networks.bitcoin ? 'bitcoin' : 'unknown')
     console.log('=== _planSpendWithMemo scriptHash obtained ===')
+    console.log('[wallet-account-read-only-btc] _planSpendWithMemo - About to call blockchainScripthash_listunspent with scriptHash:', scriptHash)
 
-    const unspent = await this._electrumClient.blockchainScripthash_listunspent(scriptHash)
-    console.log('[wallet-account-read-only-btc] _planSpendWithMemo unspent result:', JSON.stringify(unspent))
+    let unspent
+    try {
+      unspent = await this._electrumClient.blockchainScripthash_listunspent(scriptHash)
+      console.log('[wallet-account-read-only-btc] _planSpendWithMemo - blockchainScripthash_listunspent SUCCESS')
+      console.log('[wallet-account-read-only-btc] _planSpendWithMemo unspent result type:', typeof unspent, Array.isArray(unspent) ? 'array' : 'not array')
+      console.log('[wallet-account-read-only-btc] _planSpendWithMemo unspent result length:', Array.isArray(unspent) ? unspent.length : 'N/A')
+      console.log('[wallet-account-read-only-btc] _planSpendWithMemo unspent result:', JSON.stringify(unspent, null, 2))
+      
+      if (Array.isArray(unspent) && unspent.length > 0) {
+        console.log('[wallet-account-read-only-btc] _planSpendWithMemo - Found', unspent.length, 'UTXOs:')
+        unspent.forEach((utxo, index) => {
+          console.log(`[wallet-account-read-only-btc] _planSpendWithMemo - UTXO ${index + 1}:`, {
+            tx_hash: utxo.tx_hash,
+            tx_pos: utxo.tx_pos,
+            value: utxo.value,
+            height: utxo.height
+          })
+        })
+      } else {
+        console.warn('[wallet-account-read-only-btc] _planSpendWithMemo - No UTXOs found or empty result')
+      }
+    } catch (error) {
+      console.error('[wallet-account-read-only-btc] _planSpendWithMemo - ERROR calling blockchainScripthash_listunspent:', error.message)
+      console.error('[wallet-account-read-only-btc] _planSpendWithMemo - Error stack:', error.stack)
+      console.error('[wallet-account-read-only-btc] _planSpendWithMemo - Script hash used:', scriptHash)
+      console.error('[wallet-account-read-only-btc] _planSpendWithMemo - Address:', fromAddress)
+      console.error('[wallet-account-read-only-btc] _planSpendWithMemo - Network:', network === networks.testnet ? 'testnet' : network === networks.bitcoin ? 'bitcoin' : 'unknown')
+      throw error
+    }
 
     if (!unspent || unspent.length === 0) {
+      console.warn('[wallet-account-read-only-btc] _planSpendWithMemo - No UTXOs found, attempting diagnostic checks...')
+      
       // Try to get balance to see if address has funds
       try {
         const balance = await this._electrumClient.blockchainScripthash_getBalance(scriptHash)
-        console.error('[wallet-account-read-only-btc] _planSpendWithMemo - No UTXOs but balance check:', JSON.stringify(balance))
+        console.error('[wallet-account-read-only-btc] _planSpendWithMemo - No UTXOs but balance check result:', JSON.stringify(balance, null, 2))
+        console.error('[wallet-account-read-only-btc] _planSpendWithMemo - Balance confirmed:', balance.confirmed, 'sats')
+        console.error('[wallet-account-read-only-btc] _planSpendWithMemo - Balance unconfirmed:', balance.unconfirmed || 0, 'sats')
+        
+        if (balance.confirmed > 0 || (balance.unconfirmed && balance.unconfirmed > 0)) {
+          console.error('[wallet-account-read-only-btc] _planSpendWithMemo - WARNING: Balance exists but no UTXOs returned! This may indicate an electrum server issue.')
+        }
       } catch (balanceError) {
-        console.error('[wallet-account-read-only-btc] _planSpendWithMemo - Balance check failed:', balanceError)
+        console.error('[wallet-account-read-only-btc] _planSpendWithMemo - Balance check failed:', balanceError.message)
+        console.error('[wallet-account-read-only-btc] _planSpendWithMemo - Balance check error stack:', balanceError.stack)
       }
+      
+      // Try to get history to see if there are any transactions
+      try {
+        const history = await this._electrumClient.blockchainScripthash_getHistory(scriptHash)
+        console.error('[wallet-account-read-only-btc] _planSpendWithMemo - History check result:', JSON.stringify(history, null, 2))
+        console.error('[wallet-account-read-only-btc] _planSpendWithMemo - History length:', Array.isArray(history) ? history.length : 'N/A')
+      } catch (historyError) {
+        console.error('[wallet-account-read-only-btc] _planSpendWithMemo - History check failed:', historyError.message)
+      }
+      
+      // Log diagnostic information
+      console.error('[wallet-account-read-only-btc] _planSpendWithMemo - DIAGNOSTIC INFO:', {
+        address: fromAddress,
+        scriptHash: scriptHash,
+        network: network === networks.testnet ? 'testnet' : network === networks.bitcoin ? 'bitcoin' : 'unknown',
+        configNetwork: this._config.network,
+        configHost: this._config.host || 'electrum.blockstream.info',
+        configPort: this._config.port || 50001
+      })
+      
       throw new Error(`🚀🚀🚀 LOCAL PACKAGE ACTIVE - No unspent outputs available for address ${fromAddress} (scriptHash: ${scriptHash}). 🚀🚀🚀`)
     }
 

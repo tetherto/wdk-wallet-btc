@@ -2,3 +2,4 @@ node_modules
 coverage
 db
 .bitcoin
+.DS_Store
