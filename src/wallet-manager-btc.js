@@ -49,7 +49,7 @@ export default class WalletManagerBtc extends WalletManager {
      */
     this._electrumClient = this._config.client ?? this._createClient({ host, port, protocol })
   }
-  
+
   /**
    * Creates a default Electrum client based on config options.
    *
