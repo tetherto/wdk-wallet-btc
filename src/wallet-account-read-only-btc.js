@@ -456,7 +456,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
   }
 
   /**
-   * Close the connection with the electrum server.
+   * Closes any internal connection with the electrum server.
    */
   dispose () {
     if (!this._config.client) {

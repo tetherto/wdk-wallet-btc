@@ -104,7 +104,9 @@ export default class WalletManagerBtc extends WalletManager {
    * Disposes all the wallet accounts, erasing their private keys from the memory and closing all internal connections.
    */
   dispose () {
-    this._electrumClient.close()
+    if (!this._config.client) {
+      this._electrumClient.close()
+    }
     super.dispose()
   }
 }
