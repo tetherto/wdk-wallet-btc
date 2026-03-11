@@ -17,9 +17,15 @@ import WalletManager from '@tetherto/wdk-wallet'
 
 import WalletAccountBtc from './wallet-account-btc.js'
 
+import { ElectrumTcp, ElectrumSsl, ElectrumTls } from './transports/index.js'
+
 /** @typedef {import('@tetherto/wdk-wallet').FeeRates} FeeRates */
 
 /** @typedef {import('./wallet-account-btc.js').BtcWalletConfig} BtcWalletConfig */
+
+/** @typedef {import('./transports/index.js').MempoolElectrumConfig} MempoolElectrumConfig */
+/** @typedef {import('./transports/index.js').MempoolElectrumClient} MempoolElectrumClient */
+/** @typedef {import('./transports/index.js').IElectrumClient} IElectrumClient */
 
 const MEMPOOL_SPACE_URL = 'https://mempool.space'
 
@@ -32,6 +38,43 @@ export default class WalletManagerBtc extends WalletManager {
    */
   constructor (seed, config = {}) {
     super(seed, config)
+
+    const { host, port, protocol } = this._config
+
+    /**
+     * An electrum client to interact with the bitcoin node.
+     *
+     * @private
+     * @type {IElectrumClient}
+     */
+    this._electrumClient = this._config.client ?? this._createClient({ host, port, protocol })
+  }
+  
+  /**
+   * Creates a default Electrum client based on config options.
+   *
+   * @private
+   * @param {MempoolElectrumConfig} config - The configuration object.
+   * @returns {MempoolElectrumClient} The created client.
+   */
+  _createClient (config) {
+    const protocol = config.protocol || 'tcp'
+
+    const transportConfig = {
+      ...config,
+      host: config.host || 'electrum.blockstream.info',
+      port: config.port || 50_001
+    }
+
+    switch (protocol) {
+      case 'tls':
+        return new ElectrumTls(transportConfig)
+      case 'ssl':
+        return new ElectrumSsl(transportConfig)
+      case 'tcp':
+      default:
+        return new ElectrumTcp(transportConfig)
+    }
   }
 
   /**
@@ -62,7 +105,7 @@ export default class WalletManagerBtc extends WalletManager {
    */
   async getAccountByPath (path) {
     if (!this._accounts[path]) {
-      const account = new WalletAccountBtc(this._seed, path, this._config)
+      const account = new WalletAccountBtc(this._seed, path, { client: this._electrumClient, ...this._config })
 
       this._accounts[path] = account
     }
@@ -84,5 +127,13 @@ export default class WalletManagerBtc extends WalletManager {
       normal: BigInt(hourFee),
       fast: BigInt(fastestFee)
     }
+  }
+
+  /**
+   * Disposes all the wallet accounts, erasing their private keys from the memory, and close all connections.
+   */
+  dispose () {
+    this._electrumClient.close()
+    super.dispose()
   }
 }
