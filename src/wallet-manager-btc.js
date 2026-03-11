@@ -17,7 +17,7 @@ import WalletManager from '@tetherto/wdk-wallet'
 
 import WalletAccountBtc from './wallet-account-btc.js'
 
-import { ElectrumTcp, ElectrumSsl, ElectrumTls } from './transports/index.js'
+import WalletAccountReadOnlyBtc from './wallet-account-read-only-btc.js'
 
 /** @typedef {import('@tetherto/wdk-wallet').FeeRates} FeeRates */
 
@@ -47,34 +47,7 @@ export default class WalletManagerBtc extends WalletManager {
      * @private
      * @type {IElectrumClient}
      */
-    this._electrumClient = this._config.client ?? this._createClient({ host, port, protocol })
-  }
-
-  /**
-   * Creates a default Electrum client based on config options.
-   *
-   * @private
-   * @param {MempoolElectrumConfig} config - The configuration object.
-   * @returns {MempoolElectrumClient} The created client.
-   */
-  _createClient (config) {
-    const protocol = config.protocol || 'tcp'
-
-    const transportConfig = {
-      ...config,
-      host: config.host || 'electrum.blockstream.info',
-      port: config.port || 50_001
-    }
-
-    switch (protocol) {
-      case 'tls':
-        return new ElectrumTls(transportConfig)
-      case 'ssl':
-        return new ElectrumSsl(transportConfig)
-      case 'tcp':
-      default:
-        return new ElectrumTcp(transportConfig)
-    }
+    this._electrumClient = this._config.client ?? WalletAccountReadOnlyBtc._createClient({ host, port, protocol })
   }
 
   /**
@@ -130,7 +103,7 @@ export default class WalletManagerBtc extends WalletManager {
   }
 
   /**
-   * Disposes all the wallet accounts, erasing their private keys from the memory, and close all connections.
+   * Disposes all the wallet accounts, erasing their private keys from the memory and closing all internal connections.
    */
   dispose () {
     this._electrumClient.close()

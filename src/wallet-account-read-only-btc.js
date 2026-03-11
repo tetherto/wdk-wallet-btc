@@ -119,7 +119,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @protected
      * @type {IElectrumClient}
      */
-    this._electrumClient = config.client ?? this._createClient({ host, port, protocol })
+    this._electrumClient = config.client ?? WalletAccountReadOnlyBtc._createClient({ host, port, protocol })
 
     const prefix = Object.keys(BIP_BY_ADDRESS_PREFIX).find(p => address.startsWith(p))
     const bip = BIP_BY_ADDRESS_PREFIX[prefix] || 44
@@ -308,11 +308,11 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
   /**
    * Creates a default Electrum client based on config options.
    *
-   * @private
+   * @protected
    * @param {MempoolElectrumConfig} config - The configuration object.
    * @returns {MempoolElectrumClient} The created client.
    */
-  _createClient (config) {
+  static _createClient (config) {
     const protocol = config.protocol || 'tcp'
 
     const transportConfig = {
@@ -326,7 +326,6 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
         return new ElectrumTls(transportConfig)
       case 'ssl':
         return new ElectrumSsl(transportConfig)
-      case 'tcp':
       default:
         return new ElectrumTcp(transportConfig)
     }
@@ -460,7 +459,8 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * Close the connection with the electrum server.
    */
   dispose () {
-    // Only close its owned connections
-    if (!this._config.client) this._electrumClient.close()
+    if (!this._config.client) {
+      this._electrumClient.close()
+    }
   }
 }
