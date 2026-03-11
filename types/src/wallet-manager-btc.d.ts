@@ -7,6 +7,13 @@ export default class WalletManagerBtc extends WalletManager {
      */
     constructor(seed: string | Uint8Array, config?: BtcWalletConfig);
     /**
+     * An electrum client to interact with the bitcoin node.
+     *
+     * @private
+     * @type {IElectrumClient}
+     */
+    private _electrumClient;
+    /**
      * Returns the wallet account at a specific index (defaults to [BIP-84](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki); set config.bip=44 for [BIP-44](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)).
      *
      * @example
@@ -39,5 +46,6 @@ export default class WalletManagerBtc extends WalletManager {
 }
 export type FeeRates = import("@tetherto/wdk-wallet").FeeRates;
 export type BtcWalletConfig = import("./wallet-account-btc.js").BtcWalletConfig;
+export type IElectrumClient = import("./transports/index.js").IElectrumClient;
 import WalletManager from '@tetherto/wdk-wallet';
 import WalletAccountBtc from './wallet-account-btc.js';

@@ -23,8 +23,6 @@ import WalletAccountReadOnlyBtc from './wallet-account-read-only-btc.js'
 
 /** @typedef {import('./wallet-account-btc.js').BtcWalletConfig} BtcWalletConfig */
 
-/** @typedef {import('./transports/index.js').MempoolElectrumConfig} MempoolElectrumConfig */
-/** @typedef {import('./transports/index.js').MempoolElectrumClient} MempoolElectrumClient */
 /** @typedef {import('./transports/index.js').IElectrumClient} IElectrumClient */
 
 const MEMPOOL_SPACE_URL = 'https://mempool.space'
