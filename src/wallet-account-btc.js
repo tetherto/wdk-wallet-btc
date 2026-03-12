@@ -407,9 +407,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
       get: () => null
     })
 
-    if (!this._config.client) {
-      this._electrumClient.close()
-    }
+    super.dispose()
   }
 
   /** @private */

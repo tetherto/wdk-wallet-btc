@@ -17,8 +17,6 @@ import WalletManager from '@tetherto/wdk-wallet'
 
 import WalletAccountBtc from './wallet-account-btc.js'
 
-import WalletAccountReadOnlyBtc from './wallet-account-read-only-btc.js'
-
 /** @typedef {import('@tetherto/wdk-wallet').FeeRates} FeeRates */
 
 /** @typedef {import('./wallet-account-btc.js').BtcWalletConfig} BtcWalletConfig */
@@ -45,7 +43,7 @@ export default class WalletManagerBtc extends WalletManager {
      * @private
      * @type {IElectrumClient}
      */
-    this._electrumClient = this._config.client ?? WalletAccountReadOnlyBtc._createClient({ host, port, protocol })
+    this._electrumClient = this._config.client ?? WalletAccountBtc._createClient({ host, port, protocol })
   }
 
   /**

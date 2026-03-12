@@ -137,6 +137,10 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @returns {Promise<boolean>} True if the signature is valid.
      */
     verify(message: string, signature: string): Promise<boolean>;
+    /**
+     * Closes any internal connection with the electrum server..
+     */
+    dispose(): void;
 }
 export type MempoolElectrumConfig = import("./transports/index.js").MempoolElectrumConfig;
 export type MempoolElectrumClient = import("./transports/index.js").MempoolElectrumClient;
