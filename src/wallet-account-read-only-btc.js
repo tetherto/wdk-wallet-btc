@@ -296,13 +296,30 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
   }
 
   /**
-   * Ensures the electrum client is connected.
+   * Verifies a message's signature.
    *
-   * @protected
-   * @returns {Promise<void>}
+   * @param {string} message - The original message.
+   * @param {string} signature - The signature to verify.
+   * @returns {Promise<boolean>} True if the signature is valid.
    */
-  async _ensureConnected () {
-    await this._electrumClient.connect()
+  async verify (message, signature) {
+    return bitcoinMessage
+      .verify(
+        message,
+        await this.getAddress(),
+        signature,
+        null,
+        true
+      )
+  }
+
+  /**
+   * Closes any internal connection with the electrum server.
+   */
+  dispose () {
+    if (!this._config.client) {
+      this._electrumClient.close()
+    }
   }
 
   /**
@@ -329,6 +346,16 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
       default:
         return new ElectrumTcp(transportConfig)
     }
+  }
+
+  /**
+   * Ensures the electrum client is connected.
+   *
+   * @protected
+   * @returns {Promise<void>}
+   */
+  async _ensureConnected () {
+    await this._electrumClient.connect()
   }
 
   /**
@@ -435,32 +462,5 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     }
 
     return { utxos, fee, changeValue }
-  }
-
-  /**
-   * Verifies a message's signature.
-   *
-   * @param {string} message - The original message.
-   * @param {string} signature - The signature to verify.
-   * @returns {Promise<boolean>} True if the signature is valid.
-   */
-  async verify (message, signature) {
-    return bitcoinMessage
-      .verify(
-        message,
-        await this.getAddress(),
-        signature,
-        null,
-        true
-      )
-  }
-
-  /**
-   * Closes any internal connection with the electrum server.
-   */
-  dispose () {
-    if (!this._config.client) {
-      this._electrumClient.close()
-    }
   }
 }
