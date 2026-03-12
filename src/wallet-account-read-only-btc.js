@@ -119,7 +119,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @protected
      * @type {IElectrumClient}
      */
-    this._electrumClient = config.client ?? this._createClient({ host, port, protocol })
+    this._electrumClient = config.client ?? WalletAccountReadOnlyBtc._createClient({ host, port, protocol })
 
     const prefix = Object.keys(BIP_BY_ADDRESS_PREFIX).find(p => address.startsWith(p))
     const bip = BIP_BY_ADDRESS_PREFIX[prefix] || 44
@@ -296,23 +296,40 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
   }
 
   /**
-   * Ensures the electrum client is connected.
+   * Verifies a message's signature.
    *
-   * @protected
-   * @returns {Promise<void>}
+   * @param {string} message - The original message.
+   * @param {string} signature - The signature to verify.
+   * @returns {Promise<boolean>} True if the signature is valid.
    */
-  async _ensureConnected () {
-    await this._electrumClient.connect()
+  async verify (message, signature) {
+    return bitcoinMessage
+      .verify(
+        message,
+        await this.getAddress(),
+        signature,
+        null,
+        true
+      )
+  }
+
+  /**
+   * Closes any internal connection with the electrum server.
+   */
+  dispose () {
+    if (!this._config.client) {
+      this._electrumClient.close()
+    }
   }
 
   /**
    * Creates a default Electrum client based on config options.
    *
-   * @private
+   * @protected
    * @param {MempoolElectrumConfig} config - The configuration object.
    * @returns {MempoolElectrumClient} The created client.
    */
-  _createClient (config) {
+  static _createClient (config) {
     const protocol = config.protocol || 'tcp'
 
     const transportConfig = {
@@ -326,10 +343,19 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
         return new ElectrumTls(transportConfig)
       case 'ssl':
         return new ElectrumSsl(transportConfig)
-      case 'tcp':
       default:
         return new ElectrumTcp(transportConfig)
     }
+  }
+
+  /**
+   * Ensures the electrum client is connected.
+   *
+   * @protected
+   * @returns {Promise<void>}
+   */
+  async _ensureConnected () {
+    await this._electrumClient.connect()
   }
 
   /**
@@ -436,23 +462,5 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     }
 
     return { utxos, fee, changeValue }
-  }
-
-  /**
-   * Verifies a message's signature.
-   *
-   * @param {string} message - The original message.
-   * @param {string} signature - The signature to verify.
-   * @returns {Promise<boolean>} True if the signature is valid.
-   */
-  async verify (message, signature) {
-    return bitcoinMessage
-      .verify(
-        message,
-        await this.getAddress(),
-        signature,
-        null,
-        true
-      )
   }
 }

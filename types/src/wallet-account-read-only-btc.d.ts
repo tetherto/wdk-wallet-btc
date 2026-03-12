@@ -90,11 +90,11 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     /**
      * Creates a default Electrum client based on config options.
      *
-     * @private
+     * @protected
      * @param {MempoolElectrumConfig} config - The configuration object.
      * @returns {MempoolElectrumClient} The created client.
      */
-    private _createClient;
+    protected static _createClient(config: MempoolElectrumConfig): MempoolElectrumClient;
     /**
      * Computes the sha-256 hash of the output script for this wallet's address, reverses the byte order,
      * and returns it as a hex string.
@@ -137,6 +137,10 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @returns {Promise<boolean>} True if the signature is valid.
      */
     verify(message: string, signature: string): Promise<boolean>;
+    /**
+     * Closes any internal connection with the electrum server..
+     */
+    dispose(): void;
 }
 export type MempoolElectrumConfig = import("./transports/index.js").MempoolElectrumConfig;
 export type MempoolElectrumClient = import("./transports/index.js").MempoolElectrumClient;

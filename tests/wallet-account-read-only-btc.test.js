@@ -7,15 +7,17 @@ import { BitcoinCli, Waiter } from './helpers/index.js'
 import { WalletAccountReadOnlyBtc } from '../index.js'
 
 const ADDRESSES = {
-  44: 'mfXn8RBVY9dNiggLAX8oFdjbYk8UNZi8La',
-  84: 'bcrt1q56sfepv68sf2xfm2kgk3ea2mdjzswljl3r3tdx'
+  // 0'/0/404
+  44: 'mpAchHfVmLYViwscV2FSUC9s5U7bKkGfui',
+  // 0'/0/404
+  84: 'bcrt1qruhppa4atdlgj5cq5vxwe7aqym6aa8su82099f'
 }
 
 const MESSAGE = 'Dummy message to sign.'
 
 const SIGNATURES = {
-  44: 'H4RwJWJzRmVkgQDqmTgX0qCbSONLQjvjfXH7ZdKZs5S3BWbpfjqbGdIJQXy/+ppW4Lvaw0wZ/UaDOLhMw5TIDuk=',
-  84: 'KAVgsxrQT5V4Mhfnk6taeCN1/j8p/sa8S9iNsbsgRb8zbfNOOPXV1w3dQQV0IjboJrlxYuDJnHw5a/E6vRJ+0Ek='
+  44: 'ILWuWH2g27UaXIsSw0UFLQYwfUOWfvRNXvScHE4BCk8aNm4KMm3JkscALgNhispNXVRrSOPRAJUM57ZhOHwZQSI=',
+  84: 'JwLv90xAF4LXLArn6IAnYoitRukE9bxa0PdCu1IzPB9dIb6A6/PLXSunegUReDy6UoyvVodVHAtBbMnETP9hqf4='
 }
 
 export const FEES = {
@@ -57,7 +59,7 @@ describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
   })
 
   afterAll(async () => {
-    account._electrumClient.close()
+    account.dispose()
   })
 
   describe('getBalance', () => {
