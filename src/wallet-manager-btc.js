@@ -21,6 +21,8 @@ import WalletAccountBtc from './wallet-account-btc.js'
 
 /** @typedef {import('./wallet-account-btc.js').BtcWalletConfig} BtcWalletConfig */
 
+/** @typedef {import('./transports/index.js').IElectrumClient} IElectrumClient */
+
 const MEMPOOL_SPACE_URL = 'https://mempool.space'
 
 export default class WalletManagerBtc extends WalletManager {
@@ -32,6 +34,16 @@ export default class WalletManagerBtc extends WalletManager {
    */
   constructor (seed, config = {}) {
     super(seed, config)
+
+    const { host, port, protocol } = this._config
+
+    /**
+     * An electrum client to interact with the bitcoin node.
+     *
+     * @private
+     * @type {IElectrumClient}
+     */
+    this._electrumClient = this._config.client ?? WalletAccountBtc._createClient({ host, port, protocol })
   }
 
   /**
@@ -62,7 +74,7 @@ export default class WalletManagerBtc extends WalletManager {
    */
   async getAccountByPath (path) {
     if (!this._accounts[path]) {
-      const account = new WalletAccountBtc(this._seed, path, this._config)
+      const account = new WalletAccountBtc(this._seed, path, { client: this._electrumClient, ...this._config })
 
       this._accounts[path] = account
     }
@@ -84,5 +96,15 @@ export default class WalletManagerBtc extends WalletManager {
       normal: BigInt(hourFee),
       fast: BigInt(fastestFee)
     }
+  }
+
+  /**
+   * Disposes all the wallet accounts, erasing their private keys from the memory and closing all internal connections.
+   */
+  dispose () {
+    if (!this._config.client) {
+      this._electrumClient.close()
+    }
+    super.dispose()
   }
 }

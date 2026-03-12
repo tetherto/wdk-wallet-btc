@@ -59,7 +59,7 @@ describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
   })
 
   afterAll(async () => {
-    account._electrumClient.close()
+    account.dispose()
   })
 
   describe('getBalance', () => {
