@@ -18,10 +18,10 @@
  * @property {string} url - The WebSocket URL (e.g., 'wss://electrum.example.com:50004').
  */
 
-/** @typedef {import('./electrum-client.js').default} IElectrumClient */
-/** @typedef {import('./electrum-client.js').ElectrumBalance} ElectrumBalance */
-/** @typedef {import('./electrum-client.js').ElectrumUtxo} ElectrumUtxo */
-/** @typedef {import('./electrum-client.js').ElectrumHistoryItem} ElectrumHistoryItem */
+/** @typedef {import('./btc-client.js').default} IBtcClient */
+/** @typedef {import('./btc-client.js').BtcBalance} BtcBalance */
+/** @typedef {import('./btc-client.js').BtcUtxo} BtcUtxo */
+/** @typedef {import('./btc-client.js').BtcHistoryItem} BtcHistoryItem */
 
 const isNodeOrBare =
   typeof Bare !== 'undefined' ||
@@ -45,7 +45,7 @@ async function getWebSocket () {
  * Compatible with browser environments where TCP sockets are not available.
  * Requires an Electrum server that supports WebSocket connections.
  *
- * @implements {IElectrumClient}
+ * @implements {IBtcClient}
  */
 export default class ElectrumWs {
   /**
@@ -231,7 +231,7 @@ export default class ElectrumWs {
    * Returns the balance for a script hash.
    *
    * @param {string} scripthash - The script hash.
-   * @returns {Promise<ElectrumBalance>} The balance information.
+   * @returns {Promise<BtcBalance>} The balance information.
    * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-get-balance
    */
   async getBalance (scripthash) {
@@ -242,7 +242,7 @@ export default class ElectrumWs {
    * Returns unspent transaction outputs for a script hash.
    *
    * @param {string} scripthash - The script hash.
-   * @returns {Promise<ElectrumUtxo[]>} List of UTXOs.
+   * @returns {Promise<BtcUtxo[]>} List of UTXOs.
    * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-listunspent
    */
   async listUnspent (scripthash) {
@@ -253,7 +253,7 @@ export default class ElectrumWs {
    * Returns transaction history for a script hash.
    *
    * @param {string} scripthash - The script hash.
-   * @returns {Promise<ElectrumHistoryItem[]>} List of transactions.
+   * @returns {Promise<BtcHistoryItem[]>} List of transactions.
    * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-get-history
    */
   async getHistory (scripthash) {

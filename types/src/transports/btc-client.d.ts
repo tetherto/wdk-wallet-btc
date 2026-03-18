@@ -1,26 +1,26 @@
 /**
- * @typedef {Object} ElectrumClientConfig
+ * @typedef {Object} BtcClientConfig
  * @property {number} [timeout] - Connection timeout in milliseconds (default: 15_000).
  */
 /**
- * @typedef {Object} ElectrumBalance
+ * @typedef {Object} BtcBalance
  * @property {number} confirmed - Confirmed balance in satoshis.
  * @property {number} [unconfirmed] - Unconfirmed balance in satoshis.
  */
 /**
- * @typedef {Object} ElectrumUtxo
+ * @typedef {Object} BtcUtxo
  * @property {string} tx_hash - The transaction hash containing this UTXO.
  * @property {number} tx_pos - The output index within the transaction.
  * @property {number} value - The UTXO value in satoshis.
  * @property {number} [height] - The block height (0 if unconfirmed).
  */
 /**
- * @typedef {Object} ElectrumHistoryItem
+ * @typedef {Object} BtcHistoryItem
  * @property {string} tx_hash - The transaction hash.
  * @property {number} height - The block height (0 or negative if unconfirmed).
  */
 /** @interface */
-export default interface IElectrumClient {
+export default interface IBtcClient {
     /**
      * Closes the connection.
      *
@@ -43,26 +43,26 @@ export default interface IElectrumClient {
      * Returns the balance for a script hash.
      *
      * @param {string} scripthash - The script hash.
-     * @returns {Promise<ElectrumBalance>} The balance information.
+     * @returns {Promise<BtcBalance>} The balance information.
      * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-get-balance
      */
-    getBalance(scripthash: string): Promise<ElectrumBalance>;
+    getBalance(scripthash: string): Promise<BtcBalance>;
     /**
      * Returns unspent transaction outputs for a script hash.
      *
      * @param {string} scripthash - The script hash.
-     * @returns {Promise<ElectrumUtxo[]>} List of UTXOs.
+     * @returns {Promise<BtcUtxo[]>} List of UTXOs.
      * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-listunspent
      */
-    listUnspent(scripthash: string): Promise<ElectrumUtxo[]>;
+    listUnspent(scripthash: string): Promise<BtcUtxo[]>;
     /**
      * Returns transaction history for a script hash.
      *
      * @param {string} scripthash - The script hash.
-     * @returns {Promise<ElectrumHistoryItem[]>} List of transactions.
+     * @returns {Promise<BtcHistoryItem[]>} List of transactions.
      * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-get-history
      */
-    getHistory(scripthash: string): Promise<ElectrumHistoryItem[]>;
+    getHistory(scripthash: string): Promise<BtcHistoryItem[]>;
     /**
      * Returns a raw transaction.
      *
@@ -88,13 +88,13 @@ export default interface IElectrumClient {
      */
     estimateFee(blocks: number): Promise<number>;
 }
-export type ElectrumClientConfig = {
+export type BtcClientConfig = {
     /**
      * - Connection timeout in milliseconds (default: 15_000).
      */
     timeout?: number;
 };
-export type ElectrumBalance = {
+export type BtcBalance = {
     /**
      * - Confirmed balance in satoshis.
      */
@@ -104,7 +104,7 @@ export type ElectrumBalance = {
      */
     unconfirmed?: number;
 };
-export type ElectrumUtxo = {
+export type BtcUtxo = {
     /**
      * - The transaction hash containing this UTXO.
      */
@@ -122,7 +122,7 @@ export type ElectrumUtxo = {
      */
     height?: number;
 };
-export type ElectrumHistoryItem = {
+export type BtcHistoryItem = {
     /**
      * - The transaction hash.
      */

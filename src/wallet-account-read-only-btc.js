@@ -28,7 +28,7 @@ const bitcoinMessage = bitcoinMessageModule.default ?? bitcoinMessageModule
 
 /** @typedef {import('./transports/index.js').MempoolElectrumConfig} MempoolElectrumConfig */
 /** @typedef {import('./transports/index.js').MempoolElectrumClient} MempoolElectrumClient */
-/** @typedef {import('./transports/index.js').IElectrumClient} IElectrumClient */
+/** @typedef {import('./transports/index.js').IBtcClient} IBtcClient */
 
 /** @typedef {import('@bitcoinerlab/coinselect').OutputWithValue} OutputWithValue */
 /** @typedef {import('bitcoinjs-lib').Network} Network */
@@ -48,7 +48,7 @@ const bitcoinMessage = bitcoinMessageModule.default ?? bitcoinMessageModule
 
 /**
  * @typedef {Object} BtcWalletConfig
- * @property {IElectrumClient} [client] - Electrum client instance. If provided, host/port/protocol are ignored.
+ * @property {IBtcClient} [client] - BTC client instance. If provided, host/port/protocol are ignored.
  * @property {string} [host] - The electrum server's hostname (default: "electrum.blockstream.info"). Ignored if client is provided.
  * @property {number} [port] - The electrum server's port (default: 50001). Ignored if client is provided.
  * @property {"tcp" | "tls" | "ssl"} [protocol] - The transport protocol to use (default: "tcp"). Ignored if client is provided.
@@ -114,10 +114,10 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     const { host, port, protocol } = config
 
     /**
-     * An electrum client to interact with the bitcoin node.
+     * A client to interact with the bitcoin network.
      *
      * @protected
-     * @type {IElectrumClient}
+     * @type {IBtcClient}
      */
     this._electrumClient = config.client ?? WalletAccountReadOnlyBtc._createClient({ host, port, protocol })
 

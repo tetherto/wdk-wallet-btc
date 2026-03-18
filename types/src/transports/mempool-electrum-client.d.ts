@@ -8,16 +8,16 @@
  * @property {number} [pingPeriod] - Delay between keep-alive pings in milliseconds (default: 120000).
  * @property {(err: Error | null) => void} [callback] - Called when all retries are exhausted.
  */
-/** @typedef {import('./electrum-client.js').default} IElectrumClient */
-/** @typedef {import('./electrum-client.js').ElectrumBalance} ElectrumBalance */
-/** @typedef {import('./electrum-client.js').ElectrumUtxo} ElectrumUtxo */
-/** @typedef {import('./electrum-client.js').ElectrumHistoryItem} ElectrumHistoryItem */
+/** @typedef {import('./btc-client.js').default} IBtcClient */
+/** @typedef {import('./btc-client.js').BtcBalance} BtcBalance */
+/** @typedef {import('./btc-client.js').BtcUtxo} BtcUtxo */
+/** @typedef {import('./btc-client.js').BtcHistoryItem} BtcHistoryItem */
 /**
  * Electrum client using @mempool/electrum-client.
  *
- * @implements {IElectrumClient}
+ * @implements {IBtcClient}
  */
-export default class MempoolElectrumClient implements IElectrumClient {
+export default class MempoolElectrumClient implements IBtcClient {
     /**
      * Creates a new Mempool Electrum client.
      *
@@ -71,26 +71,26 @@ export default class MempoolElectrumClient implements IElectrumClient {
      * Returns the balance for a script hash.
      *
      * @param {string} scripthash - The script hash.
-     * @returns {Promise<ElectrumBalance>} The balance information.
+     * @returns {Promise<BtcBalance>} The balance information.
      * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-get-balance
      */
-    getBalance(scripthash: string): Promise<ElectrumBalance>;
+    getBalance(scripthash: string): Promise<BtcBalance>;
     /**
      * Returns unspent transaction outputs for a script hash.
      *
      * @param {string} scripthash - The script hash.
-     * @returns {Promise<ElectrumUtxo[]>} List of UTXOs.
+     * @returns {Promise<BtcUtxo[]>} List of UTXOs.
      * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-listunspent
      */
-    listUnspent(scripthash: string): Promise<ElectrumUtxo[]>;
+    listUnspent(scripthash: string): Promise<BtcUtxo[]>;
     /**
      * Returns transaction history for a script hash.
      *
      * @param {string} scripthash - The script hash.
-     * @returns {Promise<ElectrumHistoryItem[]>} List of transactions.
+     * @returns {Promise<BtcHistoryItem[]>} List of transactions.
      * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-get-history
      */
-    getHistory(scripthash: string): Promise<ElectrumHistoryItem[]>;
+    getHistory(scripthash: string): Promise<BtcHistoryItem[]>;
     /**
      * Returns a raw transaction.
      *
@@ -146,7 +146,7 @@ export type MempoolElectrumConfig = {
      */
     callback?: (err: Error | null) => void;
 };
-export type IElectrumClient = import("./electrum-client.js").default;
-export type ElectrumBalance = import("./electrum-client.js").ElectrumBalance;
-export type ElectrumUtxo = import("./electrum-client.js").ElectrumUtxo;
-export type ElectrumHistoryItem = import("./electrum-client.js").ElectrumHistoryItem;
+export type IBtcClient = import("./btc-client.js").default;
+export type BtcBalance = import("./btc-client.js").BtcBalance;
+export type BtcUtxo = import("./btc-client.js").BtcUtxo;
+export type BtcHistoryItem = import("./btc-client.js").BtcHistoryItem;

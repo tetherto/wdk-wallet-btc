@@ -21,12 +21,12 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      */
     protected _network: Network;
     /**
-     * An electrum client to interact with the bitcoin node.
+     * A client to interact with the bitcoin network.
      *
      * @protected
-     * @type {IElectrumClient}
+     * @type {IBtcClient}
      */
-    protected _electrumClient: IElectrumClient;
+    protected _electrumClient: IBtcClient;
     /**
      * The dust limit in satoshis based on the BIP type.
      *
@@ -144,7 +144,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 }
 export type MempoolElectrumConfig = import("./transports/index.js").MempoolElectrumConfig;
 export type MempoolElectrumClient = import("./transports/index.js").MempoolElectrumClient;
-export type IElectrumClient = import("./transports/index.js").IElectrumClient;
+export type IBtcClient = import("./transports/index.js").IBtcClient;
 export type OutputWithValue = import("@bitcoinerlab/coinselect").OutputWithValue;
 export type Network = import("bitcoinjs-lib").Network;
 export type BtcTransactionReceipt = import("bitcoinjs-lib").Transaction;
@@ -171,9 +171,9 @@ export type BtcTransaction = {
 };
 export type BtcWalletConfig = {
     /**
-     * - Electrum client instance. If provided, host/port/protocol are ignored.
+     * - BTC client instance. If provided, host/port/protocol are ignored.
      */
-    client?: IElectrumClient;
+    client?: IBtcClient;
     /**
      * - The electrum server's hostname (default: "electrum.blockstream.info"). Ignored if client is provided.
      */

@@ -1,11 +1,11 @@
-export { default as IElectrumClient } from "./electrum-client.js";
+export { default as IBtcClient } from "./btc-client.js";
 export { default as MempoolElectrumClient } from "./mempool-electrum-client.js";
 export { default as ElectrumTcp } from "./tcp.js";
 export { default as ElectrumTls } from "./tls.js";
 export { default as ElectrumSsl } from "./ssl.js";
 export { default as ElectrumWs } from "./ws.js";
-export type ElectrumClientConfig = import("./electrum-client.js").ElectrumClientConfig;
-export type ElectrumBalance = import("./electrum-client.js").ElectrumBalance;
-export type ElectrumUtxo = import("./electrum-client.js").ElectrumUtxo;
-export type ElectrumHistoryItem = import("./electrum-client.js").ElectrumHistoryItem;
+export type BtcClientConfig = import("./btc-client.js").BtcClientConfig;
+export type BtcBalance = import("./btc-client.js").BtcBalance;
+export type BtcUtxo = import("./btc-client.js").BtcUtxo;
+export type BtcHistoryItem = import("./btc-client.js").BtcHistoryItem;
 export type MempoolElectrumConfig = import("./mempool-electrum-client.js").MempoolElectrumConfig;

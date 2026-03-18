@@ -26,15 +26,15 @@ import MempoolClient from '@mempool/electrum-client'
  * @property {(err: Error | null) => void} [callback] - Called when all retries are exhausted.
  */
 
-/** @typedef {import('./electrum-client.js').default} IElectrumClient */
-/** @typedef {import('./electrum-client.js').ElectrumBalance} ElectrumBalance */
-/** @typedef {import('./electrum-client.js').ElectrumUtxo} ElectrumUtxo */
-/** @typedef {import('./electrum-client.js').ElectrumHistoryItem} ElectrumHistoryItem */
+/** @typedef {import('./btc-client.js').default} IBtcClient */
+/** @typedef {import('./btc-client.js').BtcBalance} BtcBalance */
+/** @typedef {import('./btc-client.js').BtcUtxo} BtcUtxo */
+/** @typedef {import('./btc-client.js').BtcHistoryItem} BtcHistoryItem */
 
 /**
  * Electrum client using @mempool/electrum-client.
  *
- * @implements {IElectrumClient}
+ * @implements {IBtcClient}
  */
 export default class MempoolElectrumClient {
   /**
@@ -135,7 +135,7 @@ export default class MempoolElectrumClient {
    * Returns the balance for a script hash.
    *
    * @param {string} scripthash - The script hash.
-   * @returns {Promise<ElectrumBalance>} The balance information.
+   * @returns {Promise<BtcBalance>} The balance information.
    * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-get-balance
    */
   async getBalance (scripthash) {
@@ -146,7 +146,7 @@ export default class MempoolElectrumClient {
    * Returns unspent transaction outputs for a script hash.
    *
    * @param {string} scripthash - The script hash.
-   * @returns {Promise<ElectrumUtxo[]>} List of UTXOs.
+   * @returns {Promise<BtcUtxo[]>} List of UTXOs.
    * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-listunspent
    */
   async listUnspent (scripthash) {
@@ -157,7 +157,7 @@ export default class MempoolElectrumClient {
    * Returns transaction history for a script hash.
    *
    * @param {string} scripthash - The script hash.
-   * @returns {Promise<ElectrumHistoryItem[]>} List of transactions.
+   * @returns {Promise<BtcHistoryItem[]>} List of transactions.
    * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-get-history
    */
   async getHistory (scripthash) {

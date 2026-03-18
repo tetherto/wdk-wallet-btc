@@ -16,18 +16,18 @@
 import { NotImplementedError } from '@tetherto/wdk-wallet'
 
 /**
- * @typedef {Object} ElectrumClientConfig
+ * @typedef {Object} BtcClientConfig
  * @property {number} [timeout] - Connection timeout in milliseconds (default: 15_000).
  */
 
 /**
- * @typedef {Object} ElectrumBalance
+ * @typedef {Object} BtcBalance
  * @property {number} confirmed - Confirmed balance in satoshis.
  * @property {number} [unconfirmed] - Unconfirmed balance in satoshis.
  */
 
 /**
- * @typedef {Object} ElectrumUtxo
+ * @typedef {Object} BtcUtxo
  * @property {string} tx_hash - The transaction hash containing this UTXO.
  * @property {number} tx_pos - The output index within the transaction.
  * @property {number} value - The UTXO value in satoshis.
@@ -35,13 +35,13 @@ import { NotImplementedError } from '@tetherto/wdk-wallet'
  */
 
 /**
- * @typedef {Object} ElectrumHistoryItem
+ * @typedef {Object} BtcHistoryItem
  * @property {string} tx_hash - The transaction hash.
  * @property {number} height - The block height (0 or negative if unconfirmed).
  */
 
 /** @interface */
-export default class IElectrumClient {
+export default class IBtcClient {
   /**
    * Closes the connection.
    *
@@ -73,7 +73,7 @@ export default class IElectrumClient {
    * Returns the balance for a script hash.
    *
    * @param {string} scripthash - The script hash.
-   * @returns {Promise<ElectrumBalance>} The balance information.
+   * @returns {Promise<BtcBalance>} The balance information.
    * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-get-balance
    */
   async getBalance (scripthash) {
@@ -84,7 +84,7 @@ export default class IElectrumClient {
    * Returns unspent transaction outputs for a script hash.
    *
    * @param {string} scripthash - The script hash.
-   * @returns {Promise<ElectrumUtxo[]>} List of UTXOs.
+   * @returns {Promise<BtcUtxo[]>} List of UTXOs.
    * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-listunspent
    */
   async listUnspent (scripthash) {
@@ -95,7 +95,7 @@ export default class IElectrumClient {
    * Returns transaction history for a script hash.
    *
    * @param {string} scripthash - The script hash.
-   * @returns {Promise<ElectrumHistoryItem[]>} List of transactions.
+   * @returns {Promise<BtcHistoryItem[]>} List of transactions.
    * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-get-history
    */
   async getHistory (scripthash) {

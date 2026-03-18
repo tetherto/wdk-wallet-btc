@@ -21,7 +21,7 @@ import WalletAccountBtc from './wallet-account-btc.js'
 
 /** @typedef {import('./wallet-account-btc.js').BtcWalletConfig} BtcWalletConfig */
 
-/** @typedef {import('./transports/index.js').IElectrumClient} IElectrumClient */
+/** @typedef {import('./transports/index.js').IBtcClient} IBtcClient */
 
 const MEMPOOL_SPACE_URL = 'https://mempool.space'
 
@@ -38,10 +38,10 @@ export default class WalletManagerBtc extends WalletManager {
     const { host, port, protocol } = this._config
 
     /**
-     * An electrum client to interact with the bitcoin node.
+     * A client to interact with the bitcoin network.
      *
      * @private
-     * @type {IElectrumClient}
+     * @type {IBtcClient}
      */
     this._electrumClient = this._config.client ?? WalletAccountBtc._createClient({ host, port, protocol })
   }

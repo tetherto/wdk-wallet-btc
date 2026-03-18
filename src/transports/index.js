@@ -13,13 +13,13 @@
 // limitations under the License.
 'use strict'
 
-/** @typedef {import('./electrum-client.js').ElectrumClientConfig} ElectrumClientConfig */
-/** @typedef {import('./electrum-client.js').ElectrumBalance} ElectrumBalance */
-/** @typedef {import('./electrum-client.js').ElectrumUtxo} ElectrumUtxo */
-/** @typedef {import('./electrum-client.js').ElectrumHistoryItem} ElectrumHistoryItem */
+/** @typedef {import('./btc-client.js').BtcClientConfig} BtcClientConfig */
+/** @typedef {import('./btc-client.js').BtcBalance} BtcBalance */
+/** @typedef {import('./btc-client.js').BtcUtxo} BtcUtxo */
+/** @typedef {import('./btc-client.js').BtcHistoryItem} BtcHistoryItem */
 /** @typedef {import('./mempool-electrum-client.js').MempoolElectrumConfig} MempoolElectrumConfig */
 
-export { default as IElectrumClient } from './electrum-client.js'
+export { default as IBtcClient } from './btc-client.js'
 export { default as MempoolElectrumClient } from './mempool-electrum-client.js'
 
 export { default as ElectrumTcp } from './tcp.js'
