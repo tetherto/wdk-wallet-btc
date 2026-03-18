@@ -475,7 +475,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
 
       expect(await readOnlyAccount.getAddress()).toBe(ACCOUNTS[bip].address)
 
-      readOnlyAccount._electrumClient.close()
+      readOnlyAccount._client.close()
     })
   })
 })

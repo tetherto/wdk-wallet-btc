@@ -26,7 +26,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @protected
      * @type {IBtcClient}
      */
-    protected _electrumClient: IBtcClient;
+    protected _client: IBtcClient;
     /**
      * The dust limit in satoshis based on the BIP type.
      *

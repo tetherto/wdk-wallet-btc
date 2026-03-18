@@ -41,7 +41,7 @@ export default class WalletManagerBtc extends WalletManager {
      * @private
      * @type {IBtcClient}
      */
-    this._electrumClient = this._config.client ?? WalletAccountBtc._createClient(this._config)
+    this._client = this._config.client ?? WalletAccountBtc._createClient(this._config)
   }
 
   /**
@@ -72,7 +72,7 @@ export default class WalletManagerBtc extends WalletManager {
    */
   async getAccountByPath (path) {
     if (!this._accounts[path]) {
-      const account = new WalletAccountBtc(this._seed, path, { client: this._electrumClient, ...this._config })
+      const account = new WalletAccountBtc(this._seed, path, { client: this._client, ...this._config })
 
       this._accounts[path] = account
     }
@@ -101,7 +101,7 @@ export default class WalletManagerBtc extends WalletManager {
    */
   dispose () {
     if (!this._config.client) {
-      this._electrumClient.close()
+      this._client.close()
     }
     super.dispose()
   }

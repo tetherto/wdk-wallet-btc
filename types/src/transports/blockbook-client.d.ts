@@ -1,6 +1,6 @@
 /**
  * @typedef {Object} BlockbookClientConfig
- * @property {string} url - The Blockbook server base URL (e.g., 'https://btc1.trezor.io').
+ * @property {string} url - The Blockbook server base URL (e.g., 'https://btc1.trezor.io/api').
  */
 /** @typedef {import('./btc-client.js').default} IBtcClient */
 /** @typedef {import('./btc-client.js').BtcBalance} BtcBalance */
@@ -88,7 +88,7 @@ export default class BlockbookClient implements IBtcClient {
 }
 export type BlockbookClientConfig = {
     /**
-     * - The Blockbook server base URL (e.g., 'https://btc1.trezor.io').
+     * - The Blockbook server base URL (e.g., 'https://btc1.trezor.io/api').
      */
     url: string;
 };

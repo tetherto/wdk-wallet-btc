@@ -50,7 +50,7 @@ const client = new ElectrumTcp({ host: 'electrum.blockstream.info', port: 50001 
 //
 // Or use a Blockbook REST backend:
 // import { BlockbookClient } from '@tetherto/wdk-wallet-btc'
-// const client = new BlockbookClient({ url: 'https://btc1.trezor.io' })
+// const client = new BlockbookClient({ url: 'https://btc1.trezor.io/api' })
 //
 // Or implement your own by extending IBtcClient:
 // import { IBtcClient } from '@tetherto/wdk-wallet-btc'
@@ -240,7 +240,7 @@ new WalletManagerBtc(seed, config)
 - `seed` (string | Uint8Array): BIP-39 mnemonic seed phrase or seed bytes
 - `config` (object, optional): Configuration object
   - `client` (IBtcClient, optional): BTC client instance (recommended). If provided, all other connection options are ignored.
-  - `blockbookUrl` (string, optional): Blockbook server URL (e.g., 'https://btc1.trezor.io'). If provided, host/port/protocol are ignored.
+  - `blockbookUrl` (string, optional): Blockbook server URL (e.g., 'https://btc1.trezor.io/api'). If provided, host/port/protocol are ignored.
   - `network` (string, optional): "bitcoin", "testnet", or "regtest" (default: "bitcoin")
   - `bip` (number, optional): BIP address type - 44 (legacy) or 84 (native SegWit) (default: 84)
   - `host` (string, optional): Electrum server hostname (default: "electrum.blockstream.info"). Ignored if client or blockbookUrl is provided.
@@ -342,7 +342,7 @@ new WalletAccountBtc(seed, path, config)
 - `path` (string): Derivation path suffix (e.g., "0'/0/0")
 - `config` (object, optional): Configuration object
   - `client` (IBtcClient, optional): BTC client instance (recommended). If provided, all other connection options are ignored.
-  - `blockbookUrl` (string, optional): Blockbook server URL (e.g., 'https://btc1.trezor.io'). If provided, host/port/protocol are ignored.
+  - `blockbookUrl` (string, optional): Blockbook server URL (e.g., 'https://btc1.trezor.io/api'). If provided, host/port/protocol are ignored.
   - `network` (string, optional): "bitcoin", "testnet", or "regtest" (default: "bitcoin")
   - `bip` (number, optional): BIP address type - 44 (legacy) or 84 (native SegWit) (default: 84)
   - `host` (string, optional): Electrum server hostname (default: "electrum.blockstream.info"). Ignored if client or blockbookUrl is provided.
@@ -561,7 +561,7 @@ new WalletAccountReadOnlyBtc(address, config)
 - `address` (string): The account's Bitcoin address
 - `config` (object, optional): Configuration object
   - `client` (IBtcClient, optional): BTC client instance (if provided, all other connection options are ignored)
-  - `blockbookUrl` (string, optional): Blockbook server URL (e.g., 'https://btc1.trezor.io'). If provided, host/port/protocol are ignored.
+  - `blockbookUrl` (string, optional): Blockbook server URL (e.g., 'https://btc1.trezor.io/api'). If provided, host/port/protocol are ignored.
   - `host` (string, optional): Electrum server hostname (default: "electrum.blockstream.info"). Ignored if client or blockbookUrl is provided.
   - `port` (number, optional): Electrum server port (default: 50001). Ignored if client or blockbookUrl is provided.
   - `protocol` (string, optional): Transport protocol - "tcp", "tls", or "ssl" (default: "tcp"). Ignored if client or blockbookUrl is provided.

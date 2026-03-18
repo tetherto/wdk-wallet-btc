@@ -49,7 +49,7 @@ const bitcoinMessage = bitcoinMessageModule.default ?? bitcoinMessageModule
 /**
  * @typedef {Object} BtcWalletConfig
  * @property {IBtcClient} [client] - BTC client instance. If provided, all other connection options are ignored.
- * @property {string} [blockbookUrl] - Blockbook server URL. If provided, host/port/protocol are ignored.
+ * @property {string} [blockbookUrl] - Blockbook server API base URL (e.g., 'https://btc1.trezor.io/api'). If provided, host/port/protocol are ignored.
  * @property {string} [host] - The electrum server's hostname (default: "electrum.blockstream.info"). Ignored if client or blockbookUrl is provided.
  * @property {number} [port] - The electrum server's port (default: 50001). Ignored if client or blockbookUrl is provided.
  * @property {"tcp" | "tls" | "ssl"} [protocol] - The transport protocol to use (default: "tcp"). Ignored if client or blockbookUrl is provided.
@@ -118,7 +118,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @protected
      * @type {IBtcClient}
      */
-    this._electrumClient = config.client ?? WalletAccountReadOnlyBtc._createClient(config)
+    this._client = config.client ?? WalletAccountReadOnlyBtc._createClient(config)
 
     const prefix = Object.keys(BIP_BY_ADDRESS_PREFIX).find(p => address.startsWith(p))
     const bip = BIP_BY_ADDRESS_PREFIX[prefix] || 44
@@ -142,7 +142,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
     const address = await this.getAddress()
 
-    const { confirmed } = await this._electrumClient.getBalance(address)
+    const { confirmed } = await this._client.getBalance(address)
 
     return BigInt(confirmed)
   }
@@ -169,7 +169,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     const address = await this.getAddress()
 
     if (!feeRate) {
-      const feeEstimate = await this._electrumClient.estimateFee(confirmationTarget)
+      const feeEstimate = await this._client.estimateFee(confirmationTarget)
       feeRate = this._toBigInt(Math.max(feeEstimate * 100_000, 1))
     }
 
@@ -207,14 +207,14 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     await this._ensureConnected()
 
     const address = await this.getAddress()
-    const history = await this._electrumClient.getHistory(address)
+    const history = await this._client.getHistory(address)
     const item = Array.isArray(history) ? history.find(h => h?.tx_hash === hash) : null
 
     if (!item || !item.height || item.height <= 0) {
       return null
     }
 
-    const hex = await this._electrumClient.getTransaction(hash)
+    const hex = await this._client.getTransaction(hash)
 
     const transaction = Transaction.fromHex(hex)
 
@@ -236,10 +236,10 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     await this._ensureConnected()
 
     const fromAddress = await this.getAddress()
-    const feeRateRaw = await this._electrumClient.estimateFee(1)
+    const feeRateRaw = await this._client.estimateFee(1)
     const feeRate = Math.max(Math.round(Number(feeRateRaw) * 100_000), 1)
 
-    const unspent = await this._electrumClient.listUnspent(fromAddress)
+    const unspent = await this._client.listUnspent(fromAddress)
     if (!unspent || unspent.length === 0) {
       return { amount: 0n, fee: 0n, changeValue: 0n }
     }
@@ -316,7 +316,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    */
   dispose () {
     if (!this._config.client) {
-      this._electrumClient.close()
+      this._client.close()
     }
   }
 
@@ -357,7 +357,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * @returns {Promise<void>}
    */
   async _ensureConnected () {
-    await this._electrumClient.connect()
+    await this._client.connect()
   }
 
   /** @private */
@@ -392,7 +392,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     const fromAddressOutput = new Output({ descriptor: `addr(${fromAddress})`, network })
     const toAddressOutput = new Output({ descriptor: `addr(${toAddress})`, network })
 
-    const unspent = await this._electrumClient.listUnspent(fromAddress)
+    const unspent = await this._client.listUnspent(fromAddress)
 
     if (!unspent || unspent.length === 0) {
       throw new Error('No unspent outputs available.')

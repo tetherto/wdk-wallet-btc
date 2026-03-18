@@ -134,7 +134,7 @@ describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
         changeValue: 0n
       })
 
-      tmpAccount._electrumClient.close()
+      tmpAccount._client.close()
     })
   })
 

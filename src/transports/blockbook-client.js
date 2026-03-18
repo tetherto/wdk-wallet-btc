@@ -22,7 +22,7 @@ const MEMPOOL_SPACE_URL = 'https://mempool.space'
 
 /**
  * @typedef {Object} BlockbookClientConfig
- * @property {string} url - The Blockbook server base URL (e.g., 'https://btc1.trezor.io').
+ * @property {string} url - The Blockbook server API base URL (e.g., 'https://btc1.trezor.io/api').
  */
 
 /**
@@ -74,7 +74,7 @@ export default class BlockbookClient {
    * @returns {Promise<BtcBalance>} The balance information.
    */
   async getBalance (address) {
-    const data = await this._get(`/api/v2/address/${address}?details=basic`)
+    const data = await this._get(`/v2/address/${address}?details=basic`)
 
     return {
       confirmed: Number(data.balance),
@@ -89,7 +89,7 @@ export default class BlockbookClient {
    * @returns {Promise<BtcUtxo[]>} List of UTXOs.
    */
   async listUnspent (address) {
-    const data = await this._get(`/api/v2/utxo/${address}`)
+    const data = await this._get(`/v2/utxo/${address}`)
 
     return data.map(u => ({
       tx_hash: u.txid,
@@ -110,7 +110,7 @@ export default class BlockbookClient {
     let page = 1
 
     while (true) {
-      const data = await this._get(`/api/v2/address/${address}?details=txslight&pageSize=1000&page=${page}`)
+      const data = await this._get(`/v2/address/${address}?details=txslight&pageSize=1000&page=${page}`)
       const txs = data.transactions || []
 
       for (const tx of txs) {
@@ -134,7 +134,7 @@ export default class BlockbookClient {
    * @returns {Promise<string>} Hex-encoded raw transaction.
    */
   async getTransaction (txHash) {
-    const data = await this._get(`/api/v2/tx/${txHash}`)
+    const data = await this._get(`/v2/tx/${txHash}`)
 
     if (!data.hex) {
       throw new Error(`Transaction ${txHash} has no hex data`)
@@ -150,7 +150,7 @@ export default class BlockbookClient {
    * @returns {Promise<string>} Transaction hash if successful.
    */
   async broadcast (rawTx) {
-    const data = await this._get(`/api/v2/sendtx/${rawTx}`)
+    const data = await this._get(`/v2/sendtx/${rawTx}`)
 
     if (data.error) {
       throw new Error(data.error)
