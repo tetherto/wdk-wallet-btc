@@ -35,15 +35,13 @@ export default class WalletManagerBtc extends WalletManager {
   constructor (seed, config = {}) {
     super(seed, config)
 
-    const { host, port, protocol } = this._config
-
     /**
      * A client to interact with the bitcoin network.
      *
      * @private
      * @type {IBtcClient}
      */
-    this._electrumClient = this._config.client ?? WalletAccountBtc._createClient({ host, port, protocol })
+    this._electrumClient = this._config.client ?? WalletAccountBtc._createClient(this._config)
   }
 
   /**

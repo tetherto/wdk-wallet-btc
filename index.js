@@ -38,4 +38,4 @@ export { default as WalletAccountReadOnlyBtc } from './src/wallet-account-read-o
 
 export { default as WalletAccountBtc } from './src/wallet-account-btc.js'
 
-export { IBtcClient, MempoolElectrumClient, ElectrumTcp, ElectrumSsl, ElectrumTls, ElectrumWs } from './src/transports/index.js'
+export { IBtcClient, BlockbookClient, MempoolElectrumClient, ElectrumTcp, ElectrumSsl, ElectrumTls, ElectrumWs } from './src/transports/index.js'

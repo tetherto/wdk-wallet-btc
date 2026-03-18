@@ -70,36 +70,33 @@ export default class IBtcClient {
   }
 
   /**
-   * Returns the balance for a script hash.
+   * Returns the balance for an address.
    *
-   * @param {string} scripthash - The script hash.
+   * @param {string} address - The bitcoin address.
    * @returns {Promise<BtcBalance>} The balance information.
-   * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-get-balance
    */
-  async getBalance (scripthash) {
-    throw new NotImplementedError('getBalance(scripthash)')
+  async getBalance (address) {
+    throw new NotImplementedError('getBalance(address)')
   }
 
   /**
-   * Returns unspent transaction outputs for a script hash.
+   * Returns unspent transaction outputs for an address.
    *
-   * @param {string} scripthash - The script hash.
+   * @param {string} address - The bitcoin address.
    * @returns {Promise<BtcUtxo[]>} List of UTXOs.
-   * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-listunspent
    */
-  async listUnspent (scripthash) {
-    throw new NotImplementedError('listUnspent(scripthash)')
+  async listUnspent (address) {
+    throw new NotImplementedError('listUnspent(address)')
   }
 
   /**
-   * Returns transaction history for a script hash.
+   * Returns transaction history for an address.
    *
-   * @param {string} scripthash - The script hash.
+   * @param {string} address - The bitcoin address.
    * @returns {Promise<BtcHistoryItem[]>} List of transactions.
-   * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-get-history
    */
-  async getHistory (scripthash) {
-    throw new NotImplementedError('getHistory(scripthash)')
+  async getHistory (address) {
+    throw new NotImplementedError('getHistory(address)')
   }
 
   /**

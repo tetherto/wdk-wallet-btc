@@ -13,9 +13,12 @@
 // limitations under the License.
 'use strict'
 
+import { address as btcAddress, crypto, networks } from 'bitcoinjs-lib'
+
 /**
  * @typedef {Object} ElectrumWsConfig
  * @property {string} url - The WebSocket URL (e.g., 'wss://electrum.example.com:50004').
+ * @property {"bitcoin" | "regtest" | "testnet"} [network] - The network name (default: 'bitcoin').
  */
 
 /** @typedef {import('./btc-client.js').default} IBtcClient */
@@ -54,7 +57,13 @@ export default class ElectrumWs {
    * @param {ElectrumWsConfig} config - Configuration options.
    */
   constructor (config) {
-    const { url } = config
+    const { url, network = 'bitcoin' } = config
+
+    /**
+     * @private
+     * @type {import('bitcoinjs-lib').Network}
+     */
+    this._network = networks[network] || networks.bitcoin
 
     /**
      * @private
@@ -228,36 +237,33 @@ export default class ElectrumWs {
   }
 
   /**
-   * Returns the balance for a script hash.
+   * Returns the balance for an address.
    *
-   * @param {string} scripthash - The script hash.
+   * @param {string} address - The bitcoin address.
    * @returns {Promise<BtcBalance>} The balance information.
-   * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-get-balance
    */
-  async getBalance (scripthash) {
-    return this._request('blockchain.scripthash.get_balance', [scripthash])
+  async getBalance (address) {
+    return this._request('blockchain.scripthash.get_balance', [this._toScriptHash(address)])
   }
 
   /**
-   * Returns unspent transaction outputs for a script hash.
+   * Returns unspent transaction outputs for an address.
    *
-   * @param {string} scripthash - The script hash.
+   * @param {string} address - The bitcoin address.
    * @returns {Promise<BtcUtxo[]>} List of UTXOs.
-   * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-listunspent
    */
-  async listUnspent (scripthash) {
-    return this._request('blockchain.scripthash.listunspent', [scripthash])
+  async listUnspent (address) {
+    return this._request('blockchain.scripthash.listunspent', [this._toScriptHash(address)])
   }
 
   /**
-   * Returns transaction history for a script hash.
+   * Returns transaction history for an address.
    *
-   * @param {string} scripthash - The script hash.
+   * @param {string} address - The bitcoin address.
    * @returns {Promise<BtcHistoryItem[]>} List of transactions.
-   * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-get-history
    */
-  async getHistory (scripthash) {
-    return this._request('blockchain.scripthash.get_history', [scripthash])
+  async getHistory (address) {
+    return this._request('blockchain.scripthash.get_history', [this._toScriptHash(address)])
   }
 
   /**
@@ -291,5 +297,16 @@ export default class ElectrumWs {
    */
   async estimateFee (blocks) {
     return this._request('blockchain.estimatefee', [blocks])
+  }
+
+  /**
+   * @private
+   * @param {string} address
+   * @returns {string}
+   */
+  _toScriptHash (address) {
+    const script = btcAddress.toOutputScript(address, this._network)
+    const hash = crypto.sha256(script)
+    return Buffer.from(hash).reverse().toString('hex')
   }
 }

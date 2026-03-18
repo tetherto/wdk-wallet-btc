@@ -20,9 +20,9 @@ import { coinselect } from '@bitcoinerlab/coinselect'
 import { DescriptorsFactory } from '@bitcoinerlab/descriptors'
 import * as ecc from '@bitcoinerlab/secp256k1'
 
-import { address as btcAddress, crypto, networks, Transaction } from 'bitcoinjs-lib'
+import { address as btcAddress, networks, Transaction } from 'bitcoinjs-lib'
 import bitcoinMessageModule from 'bitcoinjs-message'
-import { ElectrumTcp, ElectrumSsl, ElectrumTls } from './transports/index.js'
+import { BlockbookClient, ElectrumTcp, ElectrumSsl, ElectrumTls } from './transports/index.js'
 
 const bitcoinMessage = bitcoinMessageModule.default ?? bitcoinMessageModule
 
@@ -48,10 +48,11 @@ const bitcoinMessage = bitcoinMessageModule.default ?? bitcoinMessageModule
 
 /**
  * @typedef {Object} BtcWalletConfig
- * @property {IBtcClient} [client] - BTC client instance. If provided, host/port/protocol are ignored.
- * @property {string} [host] - The electrum server's hostname (default: "electrum.blockstream.info"). Ignored if client is provided.
- * @property {number} [port] - The electrum server's port (default: 50001). Ignored if client is provided.
- * @property {"tcp" | "tls" | "ssl"} [protocol] - The transport protocol to use (default: "tcp"). Ignored if client is provided.
+ * @property {IBtcClient} [client] - BTC client instance. If provided, all other connection options are ignored.
+ * @property {string} [blockbookUrl] - Blockbook server URL. If provided, host/port/protocol are ignored.
+ * @property {string} [host] - The electrum server's hostname (default: "electrum.blockstream.info"). Ignored if client or blockbookUrl is provided.
+ * @property {number} [port] - The electrum server's port (default: 50001). Ignored if client or blockbookUrl is provided.
+ * @property {"tcp" | "tls" | "ssl"} [protocol] - The transport protocol to use (default: "tcp"). Ignored if client or blockbookUrl is provided.
  * @property {"bitcoin" | "regtest" | "testnet"} [network] - The name of the network to use (default: "bitcoin").
  * @property {44 | 84} [bip] - The BIP address type used for key and address derivation.
  *   - 44: [BIP-44 (P2PKH / legacy)](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)
@@ -111,15 +112,13 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      */
     this._network = networks[this._config.network] || networks.bitcoin
 
-    const { host, port, protocol } = config
-
     /**
      * A client to interact with the bitcoin network.
      *
      * @protected
      * @type {IBtcClient}
      */
-    this._electrumClient = config.client ?? WalletAccountReadOnlyBtc._createClient({ host, port, protocol })
+    this._electrumClient = config.client ?? WalletAccountReadOnlyBtc._createClient(config)
 
     const prefix = Object.keys(BIP_BY_ADDRESS_PREFIX).find(p => address.startsWith(p))
     const bip = BIP_BY_ADDRESS_PREFIX[prefix] || 44
@@ -141,9 +140,9 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
   async getBalance () {
     await this._ensureConnected()
 
-    const scriptHash = await this._getScriptHash()
+    const address = await this.getAddress()
 
-    const { confirmed } = await this._electrumClient.getBalance(scriptHash)
+    const { confirmed } = await this._electrumClient.getBalance(address)
 
     return BigInt(confirmed)
   }
@@ -207,8 +206,8 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
     await this._ensureConnected()
 
-    const scriptHash = await this._getScriptHash()
-    const history = await this._electrumClient.getHistory(scriptHash)
+    const address = await this.getAddress()
+    const history = await this._electrumClient.getHistory(address)
     const item = Array.isArray(history) ? history.find(h => h?.tx_hash === hash) : null
 
     if (!item || !item.height || item.height <= 0) {
@@ -240,8 +239,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     const feeRateRaw = await this._electrumClient.estimateFee(1)
     const feeRate = Math.max(Math.round(Number(feeRateRaw) * 100_000), 1)
 
-    const scriptHash = await this._getScriptHash()
-    const unspent = await this._electrumClient.listUnspent(scriptHash)
+    const unspent = await this._electrumClient.listUnspent(fromAddress)
     if (!unspent || unspent.length === 0) {
       return { amount: 0n, fee: 0n, changeValue: 0n }
     }
@@ -330,6 +328,10 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * @returns {MempoolElectrumClient} The created client.
    */
   static _createClient (config) {
+    if (config.blockbookUrl) {
+      return new BlockbookClient({ url: config.blockbookUrl })
+    }
+
     const protocol = config.protocol || 'tcp'
 
     const transportConfig = {
@@ -356,23 +358,6 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    */
   async _ensureConnected () {
     await this._electrumClient.connect()
-  }
-
-  /**
-   * Computes the sha-256 hash of the output script for this wallet's address, reverses the byte order,
-   * and returns it as a hex string.
-   *
-   * @protected
-   * @returns {Promise<string>} The reversed sha-256 script hash as a hex-encoded string.
-   */
-  async _getScriptHash () {
-    const address = await this.getAddress()
-    const script = btcAddress.toOutputScript(address, this._network)
-    const hash = crypto.sha256(script)
-
-    const buffer = Buffer.from(hash).reverse()
-
-    return buffer.toString('hex')
   }
 
   /** @private */
@@ -407,9 +392,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     const fromAddressOutput = new Output({ descriptor: `addr(${fromAddress})`, network })
     const toAddressOutput = new Output({ descriptor: `addr(${toAddress})`, network })
 
-    const scriptHash = await this._getScriptHash()
-
-    const unspent = await this._electrumClient.listUnspent(scriptHash)
+    const unspent = await this._electrumClient.listUnspent(fromAddress)
 
     if (!unspent || unspent.length === 0) {
       throw new Error('No unspent outputs available.')

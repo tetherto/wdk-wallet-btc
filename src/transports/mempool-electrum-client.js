@@ -14,12 +14,14 @@
 'use strict'
 
 import MempoolClient from '@mempool/electrum-client'
+import { address as btcAddress, crypto, networks } from 'bitcoinjs-lib'
 
 /**
  * @typedef {Object} MempoolElectrumConfig
  * @property {string} host - The Electrum server hostname.
  * @property {number} port - The Electrum server port.
  * @property {'tcp' | 'ssl' | 'tls'} [protocol] - The transport protocol (default: 'tcp').
+ * @property {"bitcoin" | "regtest" | "testnet"} [network] - The network name (default: 'bitcoin').
  * @property {number} [maxRetry] - Maximum reconnection attempts (default: 2).
  * @property {number} [retryPeriod] - Delay between reconnection attempts in milliseconds (default: 1000).
  * @property {number} [pingPeriod] - Delay between keep-alive pings in milliseconds (default: 120000).
@@ -47,11 +49,18 @@ export default class MempoolElectrumClient {
       host,
       port,
       protocol = 'tcp',
+      network = 'bitcoin',
       maxRetry = 2,
       retryPeriod = 1_000,
       pingPeriod = 120_000,
       callback = null
     } = config
+
+    /**
+     * @private
+     * @type {import('bitcoinjs-lib').Network}
+     */
+    this._network = networks[network] || networks.bitcoin
 
     /**
      * @private
@@ -132,36 +141,33 @@ export default class MempoolElectrumClient {
   }
 
   /**
-   * Returns the balance for a script hash.
+   * Returns the balance for an address.
    *
-   * @param {string} scripthash - The script hash.
+   * @param {string} address - The bitcoin address.
    * @returns {Promise<BtcBalance>} The balance information.
-   * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-get-balance
    */
-  async getBalance (scripthash) {
-    return this._client.blockchainScripthash_getBalance(scripthash)
+  async getBalance (address) {
+    return this._client.blockchainScripthash_getBalance(this._toScriptHash(address))
   }
 
   /**
-   * Returns unspent transaction outputs for a script hash.
+   * Returns unspent transaction outputs for an address.
    *
-   * @param {string} scripthash - The script hash.
+   * @param {string} address - The bitcoin address.
    * @returns {Promise<BtcUtxo[]>} List of UTXOs.
-   * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-listunspent
    */
-  async listUnspent (scripthash) {
-    return this._client.blockchainScripthash_listunspent(scripthash)
+  async listUnspent (address) {
+    return this._client.blockchainScripthash_listunspent(this._toScriptHash(address))
   }
 
   /**
-   * Returns transaction history for a script hash.
+   * Returns transaction history for an address.
    *
-   * @param {string} scripthash - The script hash.
+   * @param {string} address - The bitcoin address.
    * @returns {Promise<BtcHistoryItem[]>} List of transactions.
-   * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-get-history
    */
-  async getHistory (scripthash) {
-    return this._client.blockchainScripthash_getHistory(scripthash)
+  async getHistory (address) {
+    return this._client.blockchainScripthash_getHistory(this._toScriptHash(address))
   }
 
   /**
@@ -195,5 +201,18 @@ export default class MempoolElectrumClient {
    */
   async estimateFee (blocks) {
     return this._client.blockchainEstimatefee(blocks)
+  }
+
+  /**
+   * Converts a bitcoin address to the reversed SHA-256 script hash used by the Electrum protocol.
+   *
+   * @private
+   * @param {string} address
+   * @returns {string}
+   */
+  _toScriptHash (address) {
+    const script = btcAddress.toOutputScript(address, this._network)
+    const hash = crypto.sha256(script)
+    return Buffer.from(hash).reverse().toString('hex')
   }
 }

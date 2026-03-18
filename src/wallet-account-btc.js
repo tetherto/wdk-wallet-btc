@@ -252,10 +252,9 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     } = options
 
     const network = this._network
-    const scriptHash = await this._getScriptHash()
-    const history = await this._electrumClient.getHistory(scriptHash)
-
     const address = await this.getAddress()
+    const history = await this._electrumClient.getHistory(address)
+
     const myScript = btcAddress.toOutputScript(address, network)
 
     const txCache = new LRUCache({ max: MAX_CACHE_ENTRIES })

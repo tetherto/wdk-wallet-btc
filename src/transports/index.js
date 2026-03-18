@@ -20,6 +20,7 @@
 /** @typedef {import('./mempool-electrum-client.js').MempoolElectrumConfig} MempoolElectrumConfig */
 
 export { default as IBtcClient } from './btc-client.js'
+export { default as BlockbookClient } from './blockbook-client.js'
 export { default as MempoolElectrumClient } from './mempool-electrum-client.js'
 
 export { default as ElectrumTcp } from './tcp.js'
