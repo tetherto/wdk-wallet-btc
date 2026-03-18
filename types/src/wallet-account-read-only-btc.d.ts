@@ -88,21 +88,13 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      */
     protected _ensureConnected(): Promise<void>;
     /**
-     * Creates a default Electrum client based on config options.
+     * Creates a default client based on config options.
      *
      * @protected
-     * @param {MempoolElectrumConfig} config - The configuration object.
-     * @returns {MempoolElectrumClient} The created client.
+     * @param {BtcWalletConfig} config - The configuration object.
+     * @returns {IBtcClient} The created client.
      */
-    protected static _createClient(config: MempoolElectrumConfig): MempoolElectrumClient;
-    /**
-     * Computes the sha-256 hash of the output script for this wallet's address, reverses the byte order,
-     * and returns it as a hex string.
-     *
-     * @protected
-     * @returns {Promise<string>} The reversed sha-256 script hash as a hex-encoded string.
-     */
-    protected _getScriptHash(): Promise<string>;
+    protected static _createClient(config: BtcWalletConfig): IBtcClient;
     /** @private */
     private _toBigInt;
     /**
@@ -171,19 +163,23 @@ export type BtcTransaction = {
 };
 export type BtcWalletConfig = {
     /**
-     * - BTC client instance. If provided, host/port/protocol are ignored.
+     * - BTC client instance. If provided, all other connection options are ignored.
      */
     client?: IBtcClient;
     /**
-     * - The electrum server's hostname (default: "electrum.blockstream.info"). Ignored if client is provided.
+     * - Blockbook server URL. If provided, host/port/protocol are ignored.
+     */
+    blockbookUrl?: string;
+    /**
+     * - The electrum server's hostname (default: "electrum.blockstream.info"). Ignored if client or blockbookUrl is provided.
      */
     host?: string;
     /**
-     * - The electrum server's port (default: 50001). Ignored if client is provided.
+     * - The electrum server's port (default: 50001). Ignored if client or blockbookUrl is provided.
      */
     port?: number;
     /**
-     * - The transport protocol to use (default: "tcp"). Ignored if client is provided.
+     * - The transport protocol to use (default: "tcp"). Ignored if client or blockbookUrl is provided.
      */
     protocol?: "tcp" | "tls" | "ssl";
     /**

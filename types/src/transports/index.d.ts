@@ -1,4 +1,5 @@
 export { default as IBtcClient } from "./btc-client.js";
+export { default as BlockbookClient } from "./blockbook-client.js";
 export { default as MempoolElectrumClient } from "./mempool-electrum-client.js";
 export { default as ElectrumTcp } from "./tcp.js";
 export { default as ElectrumTls } from "./tls.js";
@@ -8,4 +9,5 @@ export type BtcClientConfig = import("./btc-client.js").BtcClientConfig;
 export type BtcBalance = import("./btc-client.js").BtcBalance;
 export type BtcUtxo = import("./btc-client.js").BtcUtxo;
 export type BtcHistoryItem = import("./btc-client.js").BtcHistoryItem;
+export type BlockbookClientConfig = import("./blockbook-client.js").BlockbookClientConfig;
 export type MempoolElectrumConfig = import("./mempool-electrum-client.js").MempoolElectrumConfig;

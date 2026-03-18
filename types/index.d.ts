@@ -16,4 +16,4 @@ export type BtcBalance = import("./src/transports/index.js").BtcBalance;
 export type BtcUtxo = import("./src/transports/index.js").BtcUtxo;
 export type BtcHistoryItem = import("./src/transports/index.js").BtcHistoryItem;
 export type MempoolElectrumConfig = import("./src/transports/index.js").MempoolElectrumConfig;
-export { IBtcClient, MempoolElectrumClient, ElectrumTcp, ElectrumSsl, ElectrumTls, ElectrumWs } from "./src/transports/index.js";
+export { IBtcClient, BlockbookClient, MempoolElectrumClient, ElectrumTcp, ElectrumSsl, ElectrumTls, ElectrumWs } from "./src/transports/index.js";

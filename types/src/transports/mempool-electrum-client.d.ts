@@ -26,6 +26,11 @@ export default class MempoolElectrumClient implements IBtcClient {
     constructor(config: MempoolElectrumConfig);
     /**
      * @private
+     * @type {import('bitcoinjs-lib').Network}
+     */
+    private _network;
+    /**
+     * @private
      * @type {MempoolClient}
      */
     private _client;
@@ -68,29 +73,26 @@ export default class MempoolElectrumClient implements IBtcClient {
      */
     reconnect(): Promise<void>;
     /**
-     * Returns the balance for a script hash.
+     * Returns the balance for an address.
      *
-     * @param {string} scripthash - The script hash.
+     * @param {string} address - The bitcoin address.
      * @returns {Promise<BtcBalance>} The balance information.
-     * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-get-balance
      */
-    getBalance(scripthash: string): Promise<BtcBalance>;
+    getBalance(address: string): Promise<BtcBalance>;
     /**
-     * Returns unspent transaction outputs for a script hash.
+     * Returns unspent transaction outputs for an address.
      *
-     * @param {string} scripthash - The script hash.
+     * @param {string} address - The bitcoin address.
      * @returns {Promise<BtcUtxo[]>} List of UTXOs.
-     * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-listunspent
      */
-    listUnspent(scripthash: string): Promise<BtcUtxo[]>;
+    listUnspent(address: string): Promise<BtcUtxo[]>;
     /**
-     * Returns transaction history for a script hash.
+     * Returns transaction history for an address.
      *
-     * @param {string} scripthash - The script hash.
+     * @param {string} address - The bitcoin address.
      * @returns {Promise<BtcHistoryItem[]>} List of transactions.
-     * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-get-history
      */
-    getHistory(scripthash: string): Promise<BtcHistoryItem[]>;
+    getHistory(address: string): Promise<BtcHistoryItem[]>;
     /**
      * Returns a raw transaction.
      *
@@ -115,6 +117,8 @@ export default class MempoolElectrumClient implements IBtcClient {
      * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-estimatefee
      */
     estimateFee(blocks: number): Promise<number>;
+    /** @private */
+    private _toScriptHash;
 }
 export type MempoolElectrumConfig = {
     /**
@@ -129,6 +133,10 @@ export type MempoolElectrumConfig = {
      * - The transport protocol (default: 'tcp').
      */
     protocol?: "tcp" | "ssl" | "tls";
+    /**
+     * - The network name (default: 'bitcoin').
+     */
+    network?: "bitcoin" | "regtest" | "testnet";
     /**
      * - Maximum reconnection attempts (default: 2).
      */

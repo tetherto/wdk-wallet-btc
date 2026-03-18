@@ -23,6 +23,11 @@ export default class ElectrumWs implements IBtcClient {
     constructor(config: ElectrumWsConfig);
     /**
      * @private
+     * @type {import('bitcoinjs-lib').Network}
+     */
+    private _network;
+    /**
+     * @private
      * @type {string}
      */
     private _url;
@@ -76,29 +81,26 @@ export default class ElectrumWs implements IBtcClient {
      */
     reconnect(): Promise<void>;
     /**
-     * Returns the balance for a script hash.
+     * Returns the balance for an address.
      *
-     * @param {string} scripthash - The script hash.
+     * @param {string} address - The bitcoin address.
      * @returns {Promise<BtcBalance>} The balance information.
-     * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-get-balance
      */
-    getBalance(scripthash: string): Promise<BtcBalance>;
+    getBalance(address: string): Promise<BtcBalance>;
     /**
-     * Returns unspent transaction outputs for a script hash.
+     * Returns unspent transaction outputs for an address.
      *
-     * @param {string} scripthash - The script hash.
+     * @param {string} address - The bitcoin address.
      * @returns {Promise<BtcUtxo[]>} List of UTXOs.
-     * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-listunspent
      */
-    listUnspent(scripthash: string): Promise<BtcUtxo[]>;
+    listUnspent(address: string): Promise<BtcUtxo[]>;
     /**
-     * Returns transaction history for a script hash.
+     * Returns transaction history for an address.
      *
-     * @param {string} scripthash - The script hash.
+     * @param {string} address - The bitcoin address.
      * @returns {Promise<BtcHistoryItem[]>} List of transactions.
-     * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-get-history
      */
-    getHistory(scripthash: string): Promise<BtcHistoryItem[]>;
+    getHistory(address: string): Promise<BtcHistoryItem[]>;
     /**
      * Returns a raw transaction.
      *
@@ -123,12 +125,18 @@ export default class ElectrumWs implements IBtcClient {
      * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-estimatefee
      */
     estimateFee(blocks: number): Promise<number>;
+    /** @private */
+    private _toScriptHash;
 }
 export type ElectrumWsConfig = {
     /**
      * - The WebSocket URL (e.g., 'wss://electrum.example.com:50004').
      */
     url: string;
+    /**
+     * - The network name (default: 'bitcoin').
+     */
+    network?: "bitcoin" | "regtest" | "testnet";
 };
 export type IBtcClient = import("./btc-client.js").default;
 export type BtcBalance = import("./btc-client.js").BtcBalance;
