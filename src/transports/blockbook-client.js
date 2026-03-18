@@ -18,6 +18,8 @@
 /** @typedef {import('./btc-client.js').BtcUtxo} BtcUtxo */
 /** @typedef {import('./btc-client.js').BtcHistoryItem} BtcHistoryItem */
 
+const MEMPOOL_SPACE_URL = 'https://mempool.space'
+
 /**
  * @typedef {Object} BlockbookClientConfig
  * @property {string} url - The Blockbook server base URL (e.g., 'https://btc1.trezor.io').
@@ -158,13 +160,31 @@ export default class BlockbookClient {
   }
 
   /**
-   * Not supported by BlockbookClient.
+   * Returns the estimated fee rate via mempool.space.
    *
-   * @param {number} _blocks - The confirmation target in blocks.
-   * @returns {Promise<number>}
+   * @param {number} blocks - The confirmation target in blocks.
+   * @returns {Promise<number>} Fee rate in BTC/kB, or -1 if estimation fails.
    */
-  async estimateFee (_blocks) {
-    throw new Error("The 'estimateFee' method is not supported by BlockbookClient.")
+  async estimateFee (blocks) {
+    try {
+      const response = await fetch(`${MEMPOOL_SPACE_URL}/api/v1/fees/recommended`)
+
+      if (!response.ok) return -1
+
+      const data = await response.json()
+
+      let satPerVB
+      if (blocks <= 1) satPerVB = data.fastestFee
+      else if (blocks <= 3) satPerVB = data.halfHourFee
+      else if (blocks <= 6) satPerVB = data.hourFee
+      else satPerVB = data.economyFee
+
+      if (!satPerVB || satPerVB <= 0) return -1
+
+      return satPerVB / 100_000
+    } catch {
+      return -1
+    }
   }
 
   /** @private */
