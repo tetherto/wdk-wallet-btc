@@ -81,7 +81,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      */
     getMaxSpendable(): Promise<BtcMaxSpendableResult>;
     /**
-     * Ensures the electrum client is connected.
+     * Ensures the client is connected.
      *
      * @protected
      * @returns {Promise<void>}
@@ -130,7 +130,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      */
     verify(message: string, signature: string): Promise<boolean>;
     /**
-     * Closes any internal connection with the electrum server..
+     * Closes any internal connection with the server.
      */
     dispose(): void;
 }

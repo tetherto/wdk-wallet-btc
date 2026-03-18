@@ -312,7 +312,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
   }
 
   /**
-   * Closes any internal connection with the electrum server.
+   * Closes any internal connection with the server.
    */
   dispose () {
     if (!this._config.client) {
@@ -351,7 +351,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
   }
 
   /**
-   * Ensures the electrum client is connected.
+   * Ensures the client is connected.
    *
    * @protected
    * @returns {Promise<void>}
