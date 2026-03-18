@@ -30,22 +30,46 @@
  */
 export default class BlockbookClient {
   /**
-   * @param {BlockbookClientConfig} config
+   * Creates a new Blockbook REST client.
+   *
+   * @param {BlockbookClientConfig} config - Configuration options.
    */
   constructor (config) {
-    /** @private */
-    this._baseUrl = config.url.replace(/\/+$/, '')
+    const { url } = config
+
+    /**
+     * @private
+     * @type {string}
+     */
+    this._baseUrl = url.replace(/\/+$/, '')
   }
 
+  /**
+   * No-op — Blockbook is a stateless REST API.
+   *
+   * @returns {Promise<void>}
+   */
   async connect () {}
 
+  /**
+   * No-op — Blockbook is a stateless REST API.
+   *
+   * @returns {Promise<void>}
+   */
   async close () {}
 
+  /**
+   * No-op — Blockbook is a stateless REST API.
+   *
+   * @returns {Promise<void>}
+   */
   async reconnect () {}
 
   /**
-   * @param {string} address
-   * @returns {Promise<BtcBalance>}
+   * Returns the balance for an address.
+   *
+   * @param {string} address - The bitcoin address.
+   * @returns {Promise<BtcBalance>} The balance information.
    */
   async getBalance (address) {
     const data = await this._get(`/api/v2/address/${address}?details=basic`)
@@ -57,8 +81,10 @@ export default class BlockbookClient {
   }
 
   /**
-   * @param {string} address
-   * @returns {Promise<BtcUtxo[]>}
+   * Returns unspent transaction outputs for an address.
+   *
+   * @param {string} address - The bitcoin address.
+   * @returns {Promise<BtcUtxo[]>} List of UTXOs.
    */
   async listUnspent (address) {
     const data = await this._get(`/api/v2/utxo/${address}`)
@@ -72,8 +98,10 @@ export default class BlockbookClient {
   }
 
   /**
-   * @param {string} address
-   * @returns {Promise<BtcHistoryItem[]>}
+   * Returns transaction history for an address.
+   *
+   * @param {string} address - The bitcoin address.
+   * @returns {Promise<BtcHistoryItem[]>} List of transactions.
    */
   async getHistory (address) {
     const items = []
@@ -98,7 +126,9 @@ export default class BlockbookClient {
   }
 
   /**
-   * @param {string} txHash
+   * Returns a raw transaction.
+   *
+   * @param {string} txHash - The transaction hash.
    * @returns {Promise<string>} Hex-encoded raw transaction.
    */
   async getTransaction (txHash) {
@@ -112,8 +142,10 @@ export default class BlockbookClient {
   }
 
   /**
-   * @param {string} rawTx - Hex-encoded raw transaction.
-   * @returns {Promise<string>} Transaction hash.
+   * Broadcasts a raw transaction to the network.
+   *
+   * @param {string} rawTx - The raw transaction hex.
+   * @returns {Promise<string>} Transaction hash if successful.
    */
   async broadcast (rawTx) {
     const data = await this._get(`/api/v2/sendtx/${rawTx}`)
@@ -126,16 +158,18 @@ export default class BlockbookClient {
   }
 
   /**
-   * @param {number} _blocks
+   * Not supported by BlockbookClient.
+   *
+   * @param {number} _blocks - The confirmation target in blocks.
    * @returns {Promise<number>}
    */
   async estimateFee (_blocks) {
-    throw new Error('estimateFee is not supported by BlockbookClient')
+    throw new Error("The 'estimateFee' method is not supported by BlockbookClient.")
   }
 
   /**
    * @private
-   * @param {string} path
+   * @param {string} path - The API path to request.
    * @returns {Promise<any>}
    */
   async _get (path) {
