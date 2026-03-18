@@ -167,11 +167,7 @@ export default class BlockbookClient {
     throw new Error("The 'estimateFee' method is not supported by BlockbookClient.")
   }
 
-  /**
-   * @private
-   * @param {string} path - The API path to request.
-   * @returns {Promise<any>}
-   */
+  /** @private */
   async _get (path) {
     const url = `${this._baseUrl}${path}`
     const response = await fetch(url)

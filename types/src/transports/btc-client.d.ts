@@ -34,7 +34,7 @@ export default interface IBtcClient {
      */
     reconnect(): Promise<void>;
     /**
-     * Establishes the connection to the Electrum server.
+     * Establishes the connection to the server.
      *
      * @returns {Promise<void>}
      */

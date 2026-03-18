@@ -299,11 +299,7 @@ export default class ElectrumWs {
     return this._request('blockchain.estimatefee', [blocks])
   }
 
-  /**
-   * @private
-   * @param {string} address
-   * @returns {string}
-   */
+  /** @private */
   _toScriptHash (address) {
     const script = btcAddress.toOutputScript(address, this._network)
     const hash = crypto.sha256(script)

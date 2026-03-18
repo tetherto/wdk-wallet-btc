@@ -203,13 +203,7 @@ export default class MempoolElectrumClient {
     return this._client.blockchainEstimatefee(blocks)
   }
 
-  /**
-   * Converts a bitcoin address to the reversed SHA-256 script hash used by the Electrum protocol.
-   *
-   * @private
-   * @param {string} address
-   * @returns {string}
-   */
+  /** @private */
   _toScriptHash (address) {
     const script = btcAddress.toOutputScript(address, this._network)
     const hash = crypto.sha256(script)

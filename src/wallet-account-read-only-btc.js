@@ -321,11 +321,11 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
   }
 
   /**
-   * Creates a default Electrum client based on config options.
+   * Creates a default client based on config options.
    *
    * @protected
-   * @param {MempoolElectrumConfig} config - The configuration object.
-   * @returns {MempoolElectrumClient} The created client.
+   * @param {BtcWalletConfig} config - The configuration object.
+   * @returns {IBtcClient} The created client.
    */
   static _createClient (config) {
     if (config.blockbookUrl) {

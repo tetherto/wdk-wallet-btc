@@ -61,7 +61,7 @@ export default class IBtcClient {
   }
 
   /**
-   * Establishes the connection to the Electrum server.
+   * Establishes the connection to the server.
    *
    * @returns {Promise<void>}
    */
