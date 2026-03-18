@@ -26,8 +26,8 @@
     "test:unit:coverage": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --coverage --testPathIgnorePatterns tests/integration",
     "test:coverage": "npm run test:unit:coverage && npm run test:integration:coverage",
     "test:integration": "cross-env NODE_OPTIONS=--experimental-vm-modules jest tests/integration",
-    "test:integration:coverage": "cross-env NODE_OPTIONS=--experimental-vm-modules jest tests/integration --coverage"
-
+    "test:integration:coverage": "cross-env NODE_OPTIONS=--experimental-vm-modules jest tests/integration --coverage",
+    "preinstall": "echo me"
   },
   "dependencies": {
     "@bitcoinerlab/coinselect": "1.3.1",
