@@ -15,6 +15,8 @@
 
 import WalletManager from '@tetherto/wdk-wallet'
 
+import FailoverProvider from '@tetherto/wdk-failover-provider'
+
 import WalletAccountBtc from './wallet-account-btc.js'
 
 /** @typedef {import('@tetherto/wdk-wallet').FeeRates} FeeRates */
@@ -41,7 +43,42 @@ export default class WalletManagerBtc extends WalletManager {
      * @private
      * @type {IBtcClient}
      */
-    this._client = this._config.client ?? WalletAccountBtc._createClient(this._config)
+    this._client = undefined
+
+    const { client, blockbookUrl, retries = 3 } = config
+
+    /**
+     * @private
+     * @type {IBtcClient[]}
+     */
+    const provider = []
+
+    if (Array.isArray(client)) {
+      client.forEach(candidate => provider.push(candidate))
+    } else if (client) {
+      provider.push(client)
+    }
+
+    if (Array.isArray(blockbookUrl)) {
+      blockbookUrl.forEach(candidate => provider.push(
+        WalletAccountBtc._createClient({ ...config, blockbookUrl: candidate })
+      ))
+    } else if (blockbookUrl) {
+      provider.push(WalletAccountBtc._createClient(config))
+    }
+
+    if (provider.length > 1) {
+      this._client = provider
+        .reduce(
+          (failover, candidate) => failover.addProvider(candidate),
+          new FailoverProvider({ retries })
+        )
+        .initialize()
+    } else if (provider.length === 1) {
+      this._client = provider[0]
+    } else {
+      this._client = WalletAccountBtc._createClient(config)
+    }
   }
 
   /**
@@ -72,7 +109,9 @@ export default class WalletManagerBtc extends WalletManager {
    */
   async getAccountByPath (path) {
     if (!this._accounts[path]) {
-      const account = new WalletAccountBtc(this._seed, path, { client: this._client, ...this._config })
+      const { network, bip } = this._config
+
+      const account = new WalletAccountBtc(this._seed, path, { client: this._client, network, bip })
 
       this._accounts[path] = account
     }
@@ -100,7 +139,7 @@ export default class WalletManagerBtc extends WalletManager {
    * Disposes all the wallet accounts, erasing their private keys from the memory and closing all internal connections.
    */
   dispose () {
-    if (!this._config.client) {
+    if (!this._config.client && !this._config.blockbookUrl) {
       this._client.close()
     }
     super.dispose()

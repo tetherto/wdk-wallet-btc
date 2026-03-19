@@ -22,6 +22,9 @@ import * as ecc from '@bitcoinerlab/secp256k1'
 
 import { address as btcAddress, networks, Transaction } from 'bitcoinjs-lib'
 import bitcoinMessageModule from 'bitcoinjs-message'
+
+import FailoverProvider from '@tetherto/wdk-failover-provider'
+
 import { BlockbookClient, ElectrumTcp, ElectrumSsl, ElectrumTls } from './transports/index.js'
 
 const bitcoinMessage = bitcoinMessageModule.default ?? bitcoinMessageModule
@@ -44,12 +47,12 @@ const bitcoinMessage = bitcoinMessageModule.default ?? bitcoinMessageModule
  * @property {number | bigint} value - The amount of bitcoins to send to the recipient (in satoshis).
  * @property {number} [confirmationTarget] - Optional confirmation target in blocks (default: 1).
  * @property {number | bigint} [feeRate] - Optional fee rate in satoshis per virtual byte. If provided, this value overrides the fee rate estimated from the blockchain (default: undefined).
- * */
+ */
 
 /**
  * @typedef {Object} BtcWalletConfig
- * @property {IBtcClient} [client] - BTC client instance. If provided, all other connection options are ignored.
- * @property {string} [blockbookUrl] - Blockbook server API base URL (e.g., 'https://btc1.trezor.io/api'). If provided, host/port/protocol are ignored.
+ * @property {IBtcClient | IBtcClient[]} [client] - BTC client instance. If provided, all other connection options are ignored.
+ * @property {string | string[]} [blockbookUrl] - Blockbook server API base URL (e.g., 'https://btc1.trezor.io/api'). If provided, host/port/protocol are ignored.
  * @property {string} [host] - The electrum server's hostname (default: "electrum.blockstream.info"). Ignored if client or blockbookUrl is provided.
  * @property {number} [port] - The electrum server's port (default: 50001). Ignored if client or blockbookUrl is provided.
  * @property {"tcp" | "tls" | "ssl"} [protocol] - The transport protocol to use (default: "tcp"). Ignored if client or blockbookUrl is provided.
@@ -58,7 +61,8 @@ const bitcoinMessage = bitcoinMessageModule.default ?? bitcoinMessageModule
  *   - 44: [BIP-44 (P2PKH / legacy)](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)
  *   - 84: [BIP-84 (P2WPKH / native SegWit)](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki)
  *   - Default: 84 (P2WPKH).
- * */
+ * @property {number} [retries] - The number of retries in the failover mechanism.
+ */
 
 /**
  * @typedef {Object} BtcMaxSpendableResult
@@ -118,7 +122,42 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @protected
      * @type {IBtcClient}
      */
-    this._client = config.client ?? WalletAccountReadOnlyBtc._createClient(config)
+    this._client = undefined
+
+    const { client, blockbookUrl, retries = 3 } = config
+
+    /**
+     * @private
+     * @type {IBtcClient[]}
+     */
+    const provider = []
+
+    if (Array.isArray(client)) {
+      client.forEach(candidate => provider.push(candidate))
+    } else if (client) {
+      provider.push(client)
+    }
+
+    if (Array.isArray(blockbookUrl)) {
+      blockbookUrl.forEach(candidate => provider.push(
+        WalletAccountReadOnlyBtc._createClient({ ...config, blockbookUrl: candidate })
+      ))
+    } else if (blockbookUrl) {
+      provider.push(WalletAccountReadOnlyBtc._createClient(config))
+    }
+
+    if (provider.length > 1) {
+      this._client = provider
+        .reduce(
+          (failover, candidate) => failover.addProvider(candidate),
+          new FailoverProvider({ retries })
+        )
+        .initialize()
+    } else if (provider.length === 1) {
+      this._client = provider[0]
+    } else {
+      this._client = WalletAccountReadOnlyBtc._createClient(config)
+    }
 
     const prefix = Object.keys(BIP_BY_ADDRESS_PREFIX).find(p => address.startsWith(p))
     const bip = BIP_BY_ADDRESS_PREFIX[prefix] || 44
@@ -315,7 +354,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * Closes any internal connection with the server.
    */
   dispose () {
-    if (!this._config.client) {
+    if (!this._config.client && !this._config.blockbookUrl) {
       this._client.close()
     }
   }
