@@ -125,8 +125,8 @@ export default class IBtcClient {
    * Returns the estimated fee rate.
    *
    * @param {number} blocks - The confirmation target in blocks.
-   * @returns {Promise<number>} Fee rate in BTC/kB.
-   * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-estimatefee
+   * @returns {Promise<number>} Fee rate in BTC/kB, or -1 if estimation is unavailable.
+   * @see https://electrumx.readthedocs.io/en/latest/protocol-methods.html#blockchain-estimatefee
    */
   async estimateFee (blocks) {
     throw new NotImplementedError('estimateFee(blocks)')
