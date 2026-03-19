@@ -14,7 +14,8 @@
 'use strict'
 
 import MempoolClient from '@mempool/electrum-client'
-import { address as btcAddress, crypto, networks } from 'bitcoinjs-lib'
+import { networks } from 'bitcoinjs-lib'
+import { toScriptHash } from './btc-client.js'
 
 /**
  * @typedef {Object} MempoolElectrumConfig
@@ -144,7 +145,7 @@ export default class MempoolElectrumClient {
    * @returns {Promise<BtcBalance>} The balance information.
    */
   async getBalance (address) {
-    return this._client.blockchainScripthash_getBalance(this._toScriptHash(address))
+    return this._client.blockchainScripthash_getBalance(toScriptHash(address, this._network))
   }
 
   /**
@@ -154,7 +155,7 @@ export default class MempoolElectrumClient {
    * @returns {Promise<BtcUtxo[]>} List of UTXOs.
    */
   async listUnspent (address) {
-    return this._client.blockchainScripthash_listunspent(this._toScriptHash(address))
+    return this._client.blockchainScripthash_listunspent(toScriptHash(address, this._network))
   }
 
   /**
@@ -164,7 +165,7 @@ export default class MempoolElectrumClient {
    * @returns {Promise<BtcHistoryItem[]>} List of transactions.
    */
   async getHistory (address) {
-    return this._client.blockchainScripthash_getHistory(this._toScriptHash(address))
+    return this._client.blockchainScripthash_getHistory(toScriptHash(address, this._network))
   }
 
   /**
@@ -201,12 +202,5 @@ export default class MempoolElectrumClient {
     const rate = await this._client.blockchainEstimatefee(blocks)
     if (rate === -1) throw new Error('Fee estimation is unavailable')
     return rate
-  }
-
-  /** @private */
-  _toScriptHash (address) {
-    const script = btcAddress.toOutputScript(address, this._network)
-    const hash = crypto.sha256(script)
-    return Buffer.from(hash).reverse().toString('hex')
   }
 }

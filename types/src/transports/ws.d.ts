@@ -126,8 +126,6 @@ export default class ElectrumWs implements IBtcClient {
      * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-estimatefee
      */
     estimateFee(blocks: number): Promise<number>;
-    /** @private */
-    private _toScriptHash;
 }
 export type ElectrumWsConfig = {
     /**
