@@ -163,13 +163,45 @@ export default class BlockbookClient {
   }
 
   /**
-   * Returns the estimated fee rate via mempool.space.
+   * Returns the estimated fee rate.
+   *
+   * Tries the Blockbook v1 fee estimation endpoint first. If that fails,
+   * falls back to mempool.space.
    *
    * @param {number} blocks - The confirmation target in blocks.
    * @returns {Promise<number>} Fee rate in BTC/kB.
-   * @throws {Error} If fee estimation is unavailable.
+   * @throws {Error} If fee estimation is unavailable from both sources.
    */
   async estimateFee (blocks) {
+    const blockbookRate = await this._estimateFeeFromBlockbook(blocks)
+    if (blockbookRate !== null) return blockbookRate
+
+    return this._estimateFeeFromMempool(blocks)
+  }
+
+  /**
+   * @private
+   * @param {number} blocks
+   * @returns {Promise<number | null>} Fee rate in BTC/kB, or null if unavailable.
+   */
+  async _estimateFeeFromBlockbook (blocks) {
+    try {
+      const data = await this._get(`/v1/estimatefee/${blocks}`)
+      const rate = Number(data.result ?? data)
+      if (rate > 0) return rate
+      return null
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * @private
+   * @param {number} blocks
+   * @returns {Promise<number>} Fee rate in BTC/kB.
+   * @throws {Error} If fee estimation is unavailable.
+   */
+  async _estimateFeeFromMempool (blocks) {
     const response = await fetch(`${MEMPOOL_SPACE_URL}/api/v1/fees/recommended`)
 
     if (!response.ok) {
