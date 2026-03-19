@@ -59,11 +59,8 @@ export default class ElectrumWs {
   constructor (config) {
     const { url, network = 'bitcoin' } = config
 
-    /**
-     * @private
-     * @type {import('bitcoinjs-lib').Network}
-     */
-    this._network = networks[network] || networks.bitcoin
+    /** @private */
+    this._network = networks[network]
 
     /**
      * @private

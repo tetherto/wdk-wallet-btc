@@ -56,11 +56,8 @@ export default class MempoolElectrumClient {
       callback = null
     } = config
 
-    /**
-     * @private
-     * @type {import('bitcoinjs-lib').Network}
-     */
-    this._network = networks[network] || networks.bitcoin
+    /** @private */
+    this._network = networks[network]
 
     /**
      * @private
