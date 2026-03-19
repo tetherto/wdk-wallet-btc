@@ -230,14 +230,22 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * Wallets holding more than this limit cannot spend their full balance in a
    * single transaction. There will likely be some satoshis left over as change.
    *
+   * @param {Object} [opts] - Options.
+   * @param {number | bigint} [opts.feeRate] - Fee rate in sat/vB. If omitted, estimated via the client.
    * @returns {Promise<BtcMaxSpendableResult>} The estimated maximum spendable result.
    */
-  async getMaxSpendable () {
+  async getMaxSpendable (opts = {}) {
     await this._ensureConnected()
 
     const fromAddress = await this.getAddress()
-    const feeRateRaw = await this._client.estimateFee(1)
-    const feeRate = Math.max(Math.round(Number(feeRateRaw) * 100_000), 1)
+
+    let feeRate
+    if (opts.feeRate) {
+      feeRate = Number(opts.feeRate)
+    } else {
+      const feeRateRaw = await this._client.estimateFee(1)
+      feeRate = Math.max(Math.round(Number(feeRateRaw) * 100_000), 1)
+    }
 
     const unspent = await this._client.listUnspent(fromAddress)
     if (!unspent || unspent.length === 0) {

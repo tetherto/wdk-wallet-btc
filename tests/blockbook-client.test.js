@@ -73,20 +73,16 @@ describe('BlockbookClient', () => {
       expect(rate).toBe(0.001)
     })
 
-    test('should return -1 when fetch fails', async () => {
+    test('should throw when fetch fails', async () => {
       fetchMock.mockRejectedValue(new Error('Network error'))
 
-      const rate = await client.estimateFee(1)
-
-      expect(rate).toBe(-1)
+      await expect(client.estimateFee(1)).rejects.toThrow('Network error')
     })
 
-    test('should return -1 when response is not ok', async () => {
+    test('should throw when response is not ok', async () => {
       fetchMock.mockResolvedValue({ ok: false })
 
-      const rate = await client.estimateFee(1)
-
-      expect(rate).toBe(-1)
+      await expect(client.estimateFee(1)).rejects.toThrow('Fee estimation request failed')
     })
   })
 })

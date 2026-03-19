@@ -149,7 +149,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
 
   describe('sendTransaction', () => {
     test('should successfully send a transaction', async () => {
-      const TRANSACTION = { to: recipient, value: 1_000 }
+      const TRANSACTION = { to: recipient, value: 1_000, feeRate: 1 }
 
       const { hash, fee } = await account.sendTransaction(TRANSACTION)
 
@@ -167,7 +167,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     })
 
     test('should successfully send a transaction (bigint)', async () => {
-      const TRANSACTION = { to: recipient, value: 1000n }
+      const TRANSACTION = { to: recipient, value: 1000n, feeRate: 1 }
 
       const { hash, fee } = await account.sendTransaction(TRANSACTION)
 
@@ -185,7 +185,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     })
 
     test('should successfully send a transaction with confirmation target', async () => {
-      const TRANSACTION = { to: recipient, value: 1_000, confirmationTarget: 5 }
+      const TRANSACTION = { to: recipient, value: 1_000, feeRate: 1, confirmationTarget: 5 }
 
       const { hash, fee } = await account.sendTransaction(TRANSACTION)
 
@@ -239,7 +239,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     })
 
     test('should create a change output when leftover > dust limit', async () => {
-      const TRANSACTION = { to: recipient, value: 500_000 }
+      const TRANSACTION = { to: recipient, value: 500_000, feeRate: 1 }
 
       const account = new WalletAccountBtc(SEED_PHRASE, "0'/0/1", CONFIGURATION)
       const address = await account.getAddress()
@@ -270,13 +270,13 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
 
       const balance = await account.getBalance()
       const nearMaxAmount = Math.max(1, Number(balance) - 2_000)
-      const { fee: feeEstimate } = await account.quoteSendTransaction({ to: recipient, value: nearMaxAmount })
+      const { fee: feeEstimate } = await account.quoteSendTransaction({ to: recipient, value: nearMaxAmount, feeRate: 1 })
 
       const dustLimit = account._dustLimit
       let spend = balance - feeEstimate - dustLimit + 1n
       if (spend < 1n) spend = 1n
 
-      const { hash, fee } = await account.sendTransaction({ to: recipient, value: spend })
+      const { hash, fee } = await account.sendTransaction({ to: recipient, value: spend, feeRate: 1 })
       await waiter.mine()
 
       const rawTransaction = bitcoin.getRawTransaction(hash)
@@ -294,19 +294,19 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
 
     test('should throw if value is less than the dust limit', async () => {
       const value = Math.floor(Number(account._dustLimit) / 2)
-      await expect(account.sendTransaction({ to: recipient, value }))
+      await expect(account.sendTransaction({ to: recipient, value, feeRate: 1 }))
         .rejects.toThrow('The amount must be bigger than the dust limit')
     })
 
     test('should throw if the account balance does not cover the transaction costs', async () => {
-      await expect(account.sendTransaction({ to: recipient, value: 1_000_000_000_000 }))
+      await expect(account.sendTransaction({ to: recipient, value: 1_000_000_000_000, feeRate: 1 }))
         .rejects.toThrow('Insufficient balance to send the transaction')
     })
 
     test('should throw if there an no utxos available', async () => {
       const account = new WalletAccountBtc(SEED_PHRASE, "0'/0/2", CONFIGURATION)
 
-      await expect(account.sendTransaction({ to: recipient, value: 1_000 }))
+      await expect(account.sendTransaction({ to: recipient, value: 1_000, feeRate: 1 }))
         .rejects.toThrow('No unspent outputs available')
 
       account.dispose()
@@ -322,7 +322,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
 
   describe('getTransactionReceipt', () => {
     test('should return the correct transaction receipt', async () => {
-      const TRANSACTION = { to: recipient, value: 1_000 }
+      const TRANSACTION = { to: recipient, value: 1_000, feeRate: 1 }
 
       const account = new WalletAccountBtc(SEED_PHRASE, "0'/0/4", CONFIGURATION)
       const address = await account.getAddress()
@@ -401,7 +401,8 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
 
       const { hash, fee } = await account.sendTransaction({
         to: recipient,
-        value: 100_000
+        value: 100_000,
+        feeRate: 1
       })
 
       await waiter.mine()

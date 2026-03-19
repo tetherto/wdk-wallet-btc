@@ -83,7 +83,8 @@ export default class BlockbookClient implements IBtcClient {
      * Returns the estimated fee rate via mempool.space.
      *
      * @param {number} blocks - The confirmation target in blocks.
-     * @returns {Promise<number>} Fee rate in BTC/kB, or -1 if estimation fails.
+     * @returns {Promise<number>} Fee rate in BTC/kB.
+     * @throws {Error} If fee estimation is unavailable.
      */
     estimateFee(blocks: number): Promise<number>;
     /** @private */

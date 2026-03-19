@@ -166,28 +166,29 @@ export default class BlockbookClient {
    * Returns the estimated fee rate via mempool.space.
    *
    * @param {number} blocks - The confirmation target in blocks.
-   * @returns {Promise<number>} Fee rate in BTC/kB, or -1 if estimation fails.
+   * @returns {Promise<number>} Fee rate in BTC/kB.
+   * @throws {Error} If fee estimation is unavailable.
    */
   async estimateFee (blocks) {
-    try {
-      const response = await fetch(`${MEMPOOL_SPACE_URL}/api/v1/fees/recommended`)
+    const response = await fetch(`${MEMPOOL_SPACE_URL}/api/v1/fees/recommended`)
 
-      if (!response.ok) return -1
-
-      const data = await response.json()
-
-      let satPerVB
-      if (blocks <= 1) satPerVB = data.fastestFee
-      else if (blocks <= 3) satPerVB = data.halfHourFee
-      else if (blocks <= 6) satPerVB = data.hourFee
-      else satPerVB = data.economyFee
-
-      if (!satPerVB || satPerVB <= 0) return -1
-
-      return satPerVB / 100_000
-    } catch {
-      return -1
+    if (!response.ok) {
+      throw new Error('Fee estimation request failed')
     }
+
+    const data = await response.json()
+
+    let satPerVB
+    if (blocks <= 1) satPerVB = data.fastestFee
+    else if (blocks <= 3) satPerVB = data.halfHourFee
+    else if (blocks <= 6) satPerVB = data.hourFee
+    else satPerVB = data.economyFee
+
+    if (!satPerVB || satPerVB <= 0) {
+      throw new Error('Fee estimation is unavailable')
+    }
+
+    return satPerVB / 100_000
   }
 
   /** @private */

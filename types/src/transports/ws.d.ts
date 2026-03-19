@@ -121,7 +121,8 @@ export default class ElectrumWs implements IBtcClient {
      * Returns the estimated fee rate.
      *
      * @param {number} blocks - The confirmation target in blocks.
-     * @returns {Promise<number>} Fee rate in BTC/kB, or -1 if estimation is unavailable.
+     * @returns {Promise<number>} Fee rate in BTC/kB.
+     * @throws {Error} If fee estimation is unavailable.
      * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-estimatefee
      */
     estimateFee(blocks: number): Promise<number>;
