@@ -165,39 +165,56 @@ export type BtcTransaction = {
      */
     feeRate?: number | bigint;
 };
-export type BtcWalletConfig = {
-    /**
-     * - BTC client instance. If provided, all other connection options are ignored.
-     */
-    client?: IBtcClient;
-    /**
-     * - Blockbook server URL. If provided, host/port/protocol are ignored.
-     */
-    blockbookUrl?: string;
-    /**
-     * - The electrum server's hostname (default: "electrum.blockstream.info"). Ignored if client or blockbookUrl is provided.
-     */
-    host?: string;
-    /**
-     * - The electrum server's port (default: 50001). Ignored if client or blockbookUrl is provided.
-     */
-    port?: number;
-    /**
-     * - The transport protocol to use (default: "tcp"). Ignored if client or blockbookUrl is provided.
-     */
-    protocol?: "tcp" | "tls" | "ssl";
+export type BtcWalletCommonConfig = {
     /**
      * - The name of the network to use (default: "bitcoin").
      */
     network?: "bitcoin" | "regtest" | "testnet";
     /**
      * - The BIP address type used for key and address derivation.
-     * - 44: [BIP-44 (P2PKH / legacy)](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)
-     * - 84: [BIP-84 (P2WPKH / native SegWit)](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki)
+     * - 44: BIP-44 (P2PKH / legacy)
+     * - 84: BIP-84 (P2WPKH / native SegWit)
      * - Default: 84 (P2WPKH).
      */
     bip?: 44 | 84;
 };
+export type BtcWalletClientConfig = {
+    /**
+     * - A pre-built BTC client instance.
+     */
+    client: IBtcClient;
+};
+export type BtcWalletBlockBookHttpClientConfig = {
+    /**
+     * - Use a Blockbook REST client.
+     */
+    client: 'blockbook-http';
+    /**
+     * - The Blockbook client configuration.
+     */
+    config: import("./transports/blockbook-client.js").BlockbookClientConfig;
+};
+export type BtcWalletElectrumWSClientConfig = {
+    /**
+     * - Use a WebSocket Electrum client.
+     */
+    client: 'electrum-ws';
+    /**
+     * - The WebSocket client configuration.
+     */
+    config: import("./transports/ws.js").ElectrumWsConfig;
+};
+export type BtcWalletElectrumClientConfig = {
+    /**
+     * - Use a TCP/TLS/SSL Electrum client.
+     */
+    client: 'electrum';
+    /**
+     * - The Electrum client configuration.
+     */
+    config: MempoolElectrumConfig;
+};
+export type BtcWalletConfig = BtcWalletCommonConfig & (BtcWalletClientConfig | BtcWalletBlockBookHttpClientConfig | BtcWalletElectrumWSClientConfig | BtcWalletElectrumClientConfig);
 export type BtcMaxSpendableResult = {
     /**
      * - The maximum spendable amount in satoshis.

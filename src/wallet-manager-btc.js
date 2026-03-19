@@ -41,7 +41,8 @@ export default class WalletManagerBtc extends WalletManager {
      * @private
      * @type {IBtcClient}
      */
-    this._client = this._config.client ?? WalletAccountBtc._createClient(this._config)
+    const isClientInstance = this._config.client && typeof this._config.client !== 'string'
+    this._client = isClientInstance ? this._config.client : WalletAccountBtc._createClient(this._config)
   }
 
   /**
@@ -72,7 +73,7 @@ export default class WalletManagerBtc extends WalletManager {
    */
   async getAccountByPath (path) {
     if (!this._accounts[path]) {
-      const account = new WalletAccountBtc(this._seed, path, { client: this._client, ...this._config })
+      const account = new WalletAccountBtc(this._seed, path, { ...this._config, client: this._client })
 
       this._accounts[path] = account
     }
@@ -100,7 +101,8 @@ export default class WalletManagerBtc extends WalletManager {
    * Disposes all the wallet accounts, erasing their private keys from the memory and closing all internal connections.
    */
   dispose () {
-    if (!this._config.client) {
+    const isExternalClient = this._config.client && typeof this._config.client !== 'string'
+    if (!isExternalClient) {
       this._client.close()
     }
     super.dispose()

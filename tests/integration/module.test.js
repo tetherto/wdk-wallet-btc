@@ -58,8 +58,8 @@ const waiter = new Waiter(bitcoin, {
 
 describe.each([44, 84])('@wdk/wallet-btc (BIP %i)', (bip) => {
   const CONFIGURATION = {
-    host: HOST,
-    port: ELECTRUM_PORT,
+    client: 'electrum',
+    config: { host: HOST, port: ELECTRUM_PORT },
     network: 'regtest',
     bip
   }
