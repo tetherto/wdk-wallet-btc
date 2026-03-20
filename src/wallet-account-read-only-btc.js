@@ -65,19 +65,19 @@ const bitcoinMessage = bitcoinMessageModule.default ?? bitcoinMessageModule
 /**
  * @typedef {Object} BtcWalletBlockBookHttpClientConfig
  * @property {'blockbook-http'} client - Use a Blockbook REST client.
- * @property {BlockbookClientConfig} config - The Blockbook client configuration.
+ * @property {BlockbookClientConfig} clientConfig - The Blockbook client configuration.
  */
 
 /**
  * @typedef {Object} BtcWalletElectrumWSClientConfig
  * @property {'electrum-ws'} client - Use a WebSocket Electrum client.
- * @property {ElectrumWsConfig} config - The WebSocket client configuration.
+ * @property {ElectrumWsConfig} clientConfig - The WebSocket client configuration.
  */
 
 /**
  * @typedef {Object} BtcWalletElectrumClientConfig
  * @property {'electrum'} client - Use a TCP/TLS/SSL Electrum client.
- * @property {MempoolElectrumConfig} config - The Electrum client configuration.
+ * @property {MempoolElectrumConfig} clientConfig - The Electrum client configuration.
  */
 
 /**
@@ -142,8 +142,9 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @protected
      * @type {IBtcClient}
      */
-    const isClientInstance = config.client && typeof config.client !== 'string'
-    this._client = isClientInstance ? config.client : WalletAccountReadOnlyBtc._createClient(config)
+    this._client = typeof config.client === 'object'
+      ? config.client
+      : WalletAccountReadOnlyBtc._createClient(config, config.network)
 
     const prefix = Object.keys(BIP_BY_ADDRESS_PREFIX).find(p => address.startsWith(p))
     const bip = BIP_BY_ADDRESS_PREFIX[prefix] || 44
@@ -348,33 +349,32 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * Closes any internal connection with the server.
    */
   dispose () {
-    const isExternalClient = this._config.client && typeof this._config.client !== 'string'
-    if (!isExternalClient) {
+    if (typeof this._config.client !== 'object') {
       this._client.close()
     }
   }
 
   /**
-   * Creates a default client based on config options.
+   * Creates a bitcoin client with the given configuration.
    *
    * @protected
-   * @param {BtcWalletConfig} config - The configuration object.
-   * @returns {IBtcClient} The created client.
+   * @param {BtcWalletBlockBookHttpClientConfig | BtcWalletElectrumWSClientConfig | BtcWalletElectrumClientConfig} config - The configuration object.
+   * @returns {IBtcClient} The bitcoin client.
    */
-  static _createClient (config) {
-    switch (config.client) {
+  static _createClient ({ client, clientConfig }, network) {
+    switch (client) {
       case 'blockbook-http':
-        return new BlockbookClient(config.config)
+        return new BlockbookClient(clientConfig)
       case 'electrum-ws':
-        return new ElectrumWs({ ...config.config, network: config.network })
+        return new ElectrumWs({ ...clientConfig, network })
       case 'electrum': {
         const transportConfig = {
-          ...config.config,
-          network: config.network,
-          host: config.config.host || 'electrum.blockstream.info',
-          port: config.config.port || 50_001
+          ...clientConfig,
+          network,
+          host: clientConfig.host || 'electrum.blockstream.info',
+          port: clientConfig.port || 50_001
         }
-        switch (config.config.protocol) {
+        switch (clientConfig.protocol) {
           case 'tls':
             return new ElectrumTls(transportConfig)
           case 'ssl':

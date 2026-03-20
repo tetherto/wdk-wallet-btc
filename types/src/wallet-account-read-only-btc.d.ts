@@ -192,7 +192,7 @@ export type BtcWalletBlockBookHttpClientConfig = {
     /**
      * - The Blockbook client configuration.
      */
-    config: import("./transports/blockbook-client.js").BlockbookClientConfig;
+    clientConfig: import("./transports/blockbook-client.js").BlockbookClientConfig;
 };
 export type BtcWalletElectrumWSClientConfig = {
     /**
@@ -202,7 +202,7 @@ export type BtcWalletElectrumWSClientConfig = {
     /**
      * - The WebSocket client configuration.
      */
-    config: import("./transports/ws.js").ElectrumWsConfig;
+    clientConfig: import("./transports/ws.js").ElectrumWsConfig;
 };
 export type BtcWalletElectrumClientConfig = {
     /**
@@ -212,7 +212,7 @@ export type BtcWalletElectrumClientConfig = {
     /**
      * - The Electrum client configuration.
      */
-    config: MempoolElectrumConfig;
+    clientConfig: MempoolElectrumConfig;
 };
 export type BtcWalletConfig = BtcWalletCommonConfig & (BtcWalletClientConfig | BtcWalletBlockBookHttpClientConfig | BtcWalletElectrumWSClientConfig | BtcWalletElectrumClientConfig);
 export type BtcMaxSpendableResult = {

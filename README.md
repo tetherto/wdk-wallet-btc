@@ -43,21 +43,21 @@ const seedPhrase = 'test only example nut use this real life secret phrase must 
 // Electrum TCP (default if no client is specified)
 const wallet = new WalletManagerBtc(seedPhrase, {
   client: 'electrum',
-  config: { host: 'electrum.blockstream.info', port: 50001 },
+  clientConfig: { host: 'electrum.blockstream.info', port: 50001 },
   network: 'bitcoin' // 'bitcoin', 'testnet', or 'regtest'
 })
 
 // Blockbook REST
 // const wallet = new WalletManagerBtc(seedPhrase, {
 //   client: 'blockbook-http',
-//   config: { url: 'https://btc1.trezor.io/api' },
+//   clientConfig: { url: 'https://btc1.trezor.io/api' },
 //   network: 'bitcoin'
 // })
 
 // WebSocket Electrum
 // const wallet = new WalletManagerBtc(seedPhrase, {
 //   client: 'electrum-ws',
-//   config: { url: 'wss://electrum.example.com:50004' },
+//   clientConfig: { url: 'wss://electrum.example.com:50004' },
 //   network: 'bitcoin'
 // })
 
@@ -247,15 +247,15 @@ new WalletManagerBtc(seed, config)
   - `bip` (number, optional): BIP address type - 44 (legacy) or 84 (native SegWit) (default: 84)
   - `client` — one of:
     - An `IBtcClient` instance (pre-built client)
-    - `'electrum'` with `config: { host, port, protocol? }` — TCP/TLS/SSL Electrum
-    - `'blockbook-http'` with `config: { url }` — Blockbook REST
-    - `'electrum-ws'` with `config: { url }` — WebSocket Electrum
+    - `'electrum'` with `clientConfig: { host, port, protocol? }` — TCP/TLS/SSL Electrum
+    - `'blockbook-http'` with `clientConfig: { url }` — Blockbook REST
+    - `'electrum-ws'` with `clientConfig: { url }` — WebSocket Electrum
 
 **Example:**
 ```javascript
 const wallet = new WalletManagerBtc(seedPhrase, {
   client: 'electrum',
-  config: { host: 'electrum.blockstream.info', port: 50001 },
+  clientConfig: { host: 'electrum.blockstream.info', port: 50001 },
   network: 'bitcoin'
 })
 ```

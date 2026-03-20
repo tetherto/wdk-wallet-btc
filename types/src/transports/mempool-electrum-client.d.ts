@@ -133,10 +133,6 @@ export type MempoolElectrumConfig = {
      */
     protocol?: "tcp" | "ssl" | "tls";
     /**
-     * - The network name (default: 'bitcoin').
-     */
-    network?: "bitcoin" | "regtest" | "testnet";
-    /**
      * - Maximum reconnection attempts (default: 2).
      */
     maxRetry?: number;

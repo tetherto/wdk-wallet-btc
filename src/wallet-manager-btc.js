@@ -41,8 +41,9 @@ export default class WalletManagerBtc extends WalletManager {
      * @private
      * @type {IBtcClient}
      */
-    const isClientInstance = this._config.client && typeof this._config.client !== 'string'
-    this._client = isClientInstance ? this._config.client : WalletAccountBtc._createClient(this._config)
+    this._client = typeof this._config.client === 'object'
+      ? this._config.client
+      : WalletAccountBtc._createClient(this._config, this._config.network)
   }
 
   /**
@@ -101,8 +102,7 @@ export default class WalletManagerBtc extends WalletManager {
    * Disposes all the wallet accounts, erasing their private keys from the memory and closing all internal connections.
    */
   dispose () {
-    const isExternalClient = this._config.client && typeof this._config.client !== 'string'
-    if (!isExternalClient) {
+    if (typeof this._config.client !== 'object') {
       this._client.close()
     }
     super.dispose()
