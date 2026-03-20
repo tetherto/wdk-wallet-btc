@@ -171,7 +171,7 @@ export type BtcWalletConfig = {
      */
     client?: IBtcClient | IBtcClient[];
     /**
-     * - Blockbook server URL. If provided, host/port/protocol are ignored. If it's a list of strings, the provider failover strategy will be enabled.
+     * - Blockbook server URL. If provided, host/port/protocol are ignored. If it's a list of urls, the provider failover strategy will be enabled.
      */
     blockbookUrl?: string | string[];
     /**

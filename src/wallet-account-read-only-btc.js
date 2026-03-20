@@ -52,7 +52,7 @@ const bitcoinMessage = bitcoinMessageModule.default ?? bitcoinMessageModule
 /**
  * @typedef {Object} BtcWalletConfig
  * @property {IBtcClient | IBtcClient[]} [client] - BTC client instance. If provided, all other connection options are ignored. If it's a list of instances, the provider failover strategy will be enabled.
- * @property {string | string[]} [blockbookUrl] - Blockbook server API base URL (e.g., 'https://btc1.trezor.io/api'). If provided, host/port/protocol are ignored. If it's a list of strings, the provider failover strategy will be enabled.
+ * @property {string | string[]} [blockbookUrl] - Blockbook server API base URL (e.g., 'https://btc1.trezor.io/api'). If provided, host/port/protocol are ignored. If it's a list of urls, the provider failover strategy will be enabled.
  * @property {string} [host] - The electrum server's hostname (default: "electrum.blockstream.info"). Ignored if client or blockbookUrl is provided.
  * @property {number} [port] - The electrum server's port (default: 50001). Ignored if client or blockbookUrl is provided.
  * @property {"tcp" | "tls" | "ssl"} [protocol] - The transport protocol to use (default: "tcp"). Ignored if client or blockbookUrl is provided.
