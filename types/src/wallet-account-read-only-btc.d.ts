@@ -21,6 +21,13 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      */
     protected _network: Network;
     /**
+     * A list of all the bitcoin client options.
+     *
+     * @protected
+     * @type {Array<IBtcClient>}
+     */
+    protected _clientList: Array<IBtcClient>;
+    /**
      * A client to interact with the bitcoin network.
      *
      * @protected
@@ -28,12 +35,12 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      */
     protected _client: IBtcClient;
     /**
-     * Whether the client was externally provided (and should not be disposed).
+     * A list that maps each client to a flag that is true only if the client was externally provided.
      *
      * @protected
-     * @type {boolean}
+     * @type {Array<boolean>}
      */
-    protected _isExternalClient: boolean;
+    get _isExternalClient(): Array<boolean>;
     /**
      * The dust limit in satoshis based on the BIP type.
      *
@@ -99,23 +106,14 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      */
     protected _ensureConnected(): Promise<void>;
     /**
-     * Resolves a client option into an IBtcClient instance.
+     * Creates a bitcoin client from a descriptor, or returns the client as-is if already instantiated.
      *
      * @protected
-     * @param {IBtcClient | BtcClientDescriptor | Array<IBtcClient | BtcClientDescriptor>} [client] - The client option.
-     * @param {"bitcoin" | "regtest" | "testnet"} [network] - The network name.
-     * @returns {{ client: IBtcClient, isExternal: boolean }}
-     */
-    protected static _resolveClient(client?: IBtcClient | BtcClientDescriptor | Array<IBtcClient | BtcClientDescriptor>, network?: "bitcoin" | "regtest" | "testnet"): { client: IBtcClient, isExternal: boolean };
-    /**
-     * Creates a bitcoin client from a descriptor.
-     *
-     * @protected
-     * @param {BtcClientDescriptor} descriptor - The client descriptor.
+     * @param {IBtcClient | BtcClientDescriptor} client - The bitcoin client or client descriptor.
      * @param {"bitcoin" | "regtest" | "testnet"} [network] - The network name.
      * @returns {IBtcClient} The bitcoin client.
      */
-    protected static _createClient(descriptor: BtcClientDescriptor, network?: "bitcoin" | "regtest" | "testnet"): IBtcClient;
+    protected static _createClient(client: IBtcClient | BtcClientDescriptor, network?: "bitcoin" | "regtest" | "testnet"): IBtcClient;
     /** @private */
     private _toBigInt;
     /**

@@ -35,21 +35,23 @@ export default class WalletManagerBtc extends WalletManager {
   constructor (seed, config = {}) {
     super(seed, config)
 
-    const { client, isExternal } = WalletAccountBtc._resolveClient(this._config.client, this._config.network)
+    const clientOptions = config.client ? [config.client].flat() : [{ type: 'electrum', clientConfig: { host: 'electrum.blockstream.info', port: 50_001 } }]
+
+    /**
+     * A list of all the bitcoin client options.
+     *
+     * @protected
+     * @type {Array<IBtcClient>}
+     */
+    this._clientList = clientOptions.map(client => WalletAccountBtc._createClient(client, this._config.network))
 
     /**
      * A client to interact with the bitcoin network.
      *
-     * @private
+     * @protected
      * @type {IBtcClient}
      */
-    this._client = client
-
-    /**
-     * @private
-     * @type {boolean}
-     */
-    this._isExternalClient = isExternal
+    this._client = this._clientList[0]
   }
 
   /**
@@ -105,12 +107,26 @@ export default class WalletManagerBtc extends WalletManager {
   }
 
   /**
+   * A list that maps each client to a flag that is true only if the client was externally provided.
+   *
+   * @protected
+   * @type {Array<boolean>}
+   */
+  get _isExternalClient () {
+    if (!this._config.client) return [false]
+    return [this._config.client].flat().map(client => typeof client.connect === 'function')
+  }
+
+  /**
    * Disposes all the wallet accounts, erasing their private keys from the memory and closing all internal connections.
    */
   dispose () {
-    if (!this._isExternalClient) {
-      this._client.close()
+    for (const [i, isExternal] of this._isExternalClient.entries()) {
+      if (!isExternal) {
+        this._clientList[i].close()
+      }
     }
+
     super.dispose()
   }
 }

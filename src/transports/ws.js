@@ -19,6 +19,7 @@ import { toScriptHash } from './btc-client.js'
 /**
  * @typedef {Object} ElectrumWsConfig
  * @property {string} url - The WebSocket URL (e.g., 'wss://electrum.example.com:50004').
+ * @property {"bitcoin" | "regtest" | "testnet"} [network] - The network name (default: 'bitcoin').
  */
 
 /** @typedef {import('./btc-client.js').default} IBtcClient */
