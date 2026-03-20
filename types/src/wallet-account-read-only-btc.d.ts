@@ -167,13 +167,13 @@ export type BtcTransaction = {
 };
 export type BtcWalletConfig = {
     /**
-     * - BTC client instance. If provided, all other connection options are ignored.
+     * - BTC client instance. If provided, all other connection options are ignored. If it's a list of instances, the provider failover strategy will be enabled.
      */
-    client?: IBtcClient;
+    client?: IBtcClient | IBtcClient[];
     /**
-     * - Blockbook server URL. If provided, host/port/protocol are ignored.
+     * - Blockbook server URL. If provided, host/port/protocol are ignored. If it's a list of strings, the provider failover strategy will be enabled.
      */
-    blockbookUrl?: string;
+    blockbookUrl?: string | string[];
     /**
      * - The electrum server's hostname (default: "electrum.blockstream.info"). Ignored if client or blockbookUrl is provided.
      */
@@ -197,6 +197,10 @@ export type BtcWalletConfig = {
      * - Default: 84 (P2WPKH).
      */
     bip?: 44 | 84;
+    /**
+     * - The number of retries in the failover mechanism.
+     */
+    retries?: number
 };
 export type BtcMaxSpendableResult = {
     /**
