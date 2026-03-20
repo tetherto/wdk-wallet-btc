@@ -14,6 +14,7 @@
 'use strict'
 
 import { NotImplementedError } from '@tetherto/wdk-wallet'
+import { address as btcAddress, crypto } from 'bitcoinjs-lib'
 
 /**
  * @typedef {Object} BtcClientConfig
@@ -126,9 +127,22 @@ export default class IBtcClient {
    *
    * @param {number} blocks - The confirmation target in blocks.
    * @returns {Promise<number>} Fee rate in BTC/kB.
-   * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-estimatefee
+   * @throws {Error} If fee estimation is unavailable.
    */
   async estimateFee (blocks) {
     throw new NotImplementedError('estimateFee(blocks)')
   }
+}
+
+/**
+ * Converts a bitcoin address to an Electrum-style script hash.
+ *
+ * @param {string} address - The bitcoin address.
+ * @param {import('bitcoinjs-lib').Network} network - The bitcoin network.
+ * @returns {string} The reversed SHA-256 hash of the output script, hex-encoded.
+ */
+export function toScriptHash (address, network) {
+  const script = btcAddress.toOutputScript(address, network)
+  const hash = crypto.sha256(script)
+  return Buffer.from(hash).reverse().toString('hex')
 }

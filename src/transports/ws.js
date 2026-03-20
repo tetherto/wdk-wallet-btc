@@ -13,7 +13,8 @@
 // limitations under the License.
 'use strict'
 
-import { address as btcAddress, crypto, networks } from 'bitcoinjs-lib'
+import { networks } from 'bitcoinjs-lib'
+import { toScriptHash } from './btc-client.js'
 
 /**
  * @typedef {Object} ElectrumWsConfig
@@ -59,11 +60,8 @@ export default class ElectrumWs {
   constructor (config) {
     const { url, network = 'bitcoin' } = config
 
-    /**
-     * @private
-     * @type {import('bitcoinjs-lib').Network}
-     */
-    this._network = networks[network] || networks.bitcoin
+    /** @private */
+    this._network = networks[network]
 
     /**
      * @private
@@ -243,7 +241,7 @@ export default class ElectrumWs {
    * @returns {Promise<BtcBalance>} The balance information.
    */
   async getBalance (address) {
-    return this._request('blockchain.scripthash.get_balance', [this._toScriptHash(address)])
+    return this._request('blockchain.scripthash.get_balance', [toScriptHash(address, this._network)])
   }
 
   /**
@@ -253,7 +251,7 @@ export default class ElectrumWs {
    * @returns {Promise<BtcUtxo[]>} List of UTXOs.
    */
   async listUnspent (address) {
-    return this._request('blockchain.scripthash.listunspent', [this._toScriptHash(address)])
+    return this._request('blockchain.scripthash.listunspent', [toScriptHash(address, this._network)])
   }
 
   /**
@@ -263,7 +261,7 @@ export default class ElectrumWs {
    * @returns {Promise<BtcHistoryItem[]>} List of transactions.
    */
   async getHistory (address) {
-    return this._request('blockchain.scripthash.get_history', [this._toScriptHash(address)])
+    return this._request('blockchain.scripthash.get_history', [toScriptHash(address, this._network)])
   }
 
   /**
@@ -293,16 +291,12 @@ export default class ElectrumWs {
    *
    * @param {number} blocks - The confirmation target in blocks.
    * @returns {Promise<number>} Fee rate in BTC/kB.
+   * @throws {Error} If fee estimation is unavailable.
    * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-estimatefee
    */
   async estimateFee (blocks) {
-    return this._request('blockchain.estimatefee', [blocks])
-  }
-
-  /** @private */
-  _toScriptHash (address) {
-    const script = btcAddress.toOutputScript(address, this._network)
-    const hash = crypto.sha256(script)
-    return Buffer.from(hash).reverse().toString('hex')
+    const rate = await this._request('blockchain.estimatefee', [blocks])
+    if (rate === -1) throw new Error('Fee estimation is unavailable')
+    return rate
   }
 }

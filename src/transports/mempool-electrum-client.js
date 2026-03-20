@@ -14,7 +14,8 @@
 'use strict'
 
 import MempoolClient from '@mempool/electrum-client'
-import { address as btcAddress, crypto, networks } from 'bitcoinjs-lib'
+import { networks } from 'bitcoinjs-lib'
+import { toScriptHash } from './btc-client.js'
 
 /**
  * @typedef {Object} MempoolElectrumConfig
@@ -56,11 +57,8 @@ export default class MempoolElectrumClient {
       callback = null
     } = config
 
-    /**
-     * @private
-     * @type {import('bitcoinjs-lib').Network}
-     */
-    this._network = networks[network] || networks.bitcoin
+    /** @private */
+    this._network = networks[network]
 
     /**
      * @private
@@ -147,7 +145,7 @@ export default class MempoolElectrumClient {
    * @returns {Promise<BtcBalance>} The balance information.
    */
   async getBalance (address) {
-    return this._client.blockchainScripthash_getBalance(this._toScriptHash(address))
+    return this._client.blockchainScripthash_getBalance(toScriptHash(address, this._network))
   }
 
   /**
@@ -157,7 +155,7 @@ export default class MempoolElectrumClient {
    * @returns {Promise<BtcUtxo[]>} List of UTXOs.
    */
   async listUnspent (address) {
-    return this._client.blockchainScripthash_listunspent(this._toScriptHash(address))
+    return this._client.blockchainScripthash_listunspent(toScriptHash(address, this._network))
   }
 
   /**
@@ -167,7 +165,7 @@ export default class MempoolElectrumClient {
    * @returns {Promise<BtcHistoryItem[]>} List of transactions.
    */
   async getHistory (address) {
-    return this._client.blockchainScripthash_getHistory(this._toScriptHash(address))
+    return this._client.blockchainScripthash_getHistory(toScriptHash(address, this._network))
   }
 
   /**
@@ -197,16 +195,12 @@ export default class MempoolElectrumClient {
    *
    * @param {number} blocks - The confirmation target in blocks.
    * @returns {Promise<number>} Fee rate in BTC/kB.
+   * @throws {Error} If fee estimation is unavailable.
    * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-estimatefee
    */
   async estimateFee (blocks) {
-    return this._client.blockchainEstimatefee(blocks)
-  }
-
-  /** @private */
-  _toScriptHash (address) {
-    const script = btcAddress.toOutputScript(address, this._network)
-    const hash = crypto.sha256(script)
-    return Buffer.from(hash).reverse().toString('hex')
+    const rate = await this._client.blockchainEstimatefee(blocks)
+    if (rate === -1) throw new Error('Fee estimation is unavailable')
+    return rate
   }
 }

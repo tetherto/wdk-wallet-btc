@@ -77,9 +77,13 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * Wallets holding more than this limit cannot spend their full balance in a
      * single transaction.
      *
+     * @param {Object} [opts] - Options.
+     * @param {number | bigint} [opts.feeRate] - Fee rate in sat/vB. If omitted, estimated via the client.
      * @returns {Promise<BtcMaxSpendableResult>} The maximum spendable result.
      */
-    getMaxSpendable(): Promise<BtcMaxSpendableResult>;
+    getMaxSpendable(opts?: {
+        feeRate?: number | bigint;
+    }): Promise<BtcMaxSpendableResult>;
     /**
      * Ensures the client is connected.
      *

@@ -24,19 +24,22 @@ export default class BlockbookClient implements IBtcClient {
      */
     private _baseUrl;
     /**
-     * No-op — Blockbook is a stateless REST API.
+     * Establishes the connection to the server.
+     * Blockbook is a stateless REST API, so clients don't need to call this method.
      *
      * @returns {Promise<void>}
      */
     connect(): Promise<void>;
     /**
-     * No-op — Blockbook is a stateless REST API.
+     * Closes the connection.
+     * Blockbook is a stateless REST API, so this is a no-op.
      *
      * @returns {Promise<void>}
      */
     close(): Promise<void>;
     /**
-     * No-op — Blockbook is a stateless REST API.
+     * Recreates the underlying socket and reinitializes the session.
+     * Blockbook is a stateless REST API, so this is a no-op.
      *
      * @returns {Promise<void>}
      */
@@ -80,7 +83,8 @@ export default class BlockbookClient implements IBtcClient {
      * Returns the estimated fee rate via mempool.space.
      *
      * @param {number} blocks - The confirmation target in blocks.
-     * @returns {Promise<number>} Fee rate in BTC/kB, or -1 if estimation fails.
+     * @returns {Promise<number>} Fee rate in BTC/kB.
+     * @throws {Error} If fee estimation is unavailable.
      */
     estimateFee(blocks: number): Promise<number>;
     /** @private */

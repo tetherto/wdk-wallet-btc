@@ -81,10 +81,18 @@ export default interface IBtcClient {
      *
      * @param {number} blocks - The confirmation target in blocks.
      * @returns {Promise<number>} Fee rate in BTC/kB.
-     * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-estimatefee
+     * @throws {Error} If fee estimation is unavailable.
      */
     estimateFee(blocks: number): Promise<number>;
 }
+/**
+ * Converts a bitcoin address to an Electrum-style script hash.
+ *
+ * @param {string} address - The bitcoin address.
+ * @param {import('bitcoinjs-lib').Network} network - The bitcoin network.
+ * @returns {string} The reversed SHA-256 hash of the output script, hex-encoded.
+ */
+export function toScriptHash(address: string, network: import('bitcoinjs-lib').Network): string;
 export type BtcClientConfig = {
     /**
      * - Connection timeout in milliseconds (default: 15_000).

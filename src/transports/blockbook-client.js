@@ -47,21 +47,24 @@ export default class BlockbookClient {
   }
 
   /**
-   * No-op — Blockbook is a stateless REST API.
+   * Establishes the connection to the server.
+   * Blockbook is a stateless REST API, so clients don't need to call this method.
    *
    * @returns {Promise<void>}
    */
   async connect () {}
 
   /**
-   * No-op — Blockbook is a stateless REST API.
+   * Closes the connection.
+   * Blockbook is a stateless REST API, so this is a no-op.
    *
    * @returns {Promise<void>}
    */
   async close () {}
 
   /**
-   * No-op — Blockbook is a stateless REST API.
+   * Recreates the underlying socket and reinitializes the session.
+   * Blockbook is a stateless REST API, so this is a no-op.
    *
    * @returns {Promise<void>}
    */
@@ -160,31 +163,64 @@ export default class BlockbookClient {
   }
 
   /**
-   * Returns the estimated fee rate via mempool.space.
+   * Returns the estimated fee rate.
+   *
+   * Tries the Blockbook v1 fee estimation endpoint first. If that fails,
+   * falls back to mempool.space.
    *
    * @param {number} blocks - The confirmation target in blocks.
-   * @returns {Promise<number>} Fee rate in BTC/kB, or -1 if estimation fails.
+   * @returns {Promise<number>} Fee rate in BTC/kB.
+   * @throws {Error} If fee estimation is unavailable from both sources.
    */
   async estimateFee (blocks) {
+    const blockbookRate = await this._estimateFeeFromBlockbook(blocks)
+    if (blockbookRate !== null) return blockbookRate
+
+    return this._estimateFeeFromMempool(blocks)
+  }
+
+  /**
+   * @private
+   * @param {number} blocks
+   * @returns {Promise<number | null>} Fee rate in BTC/kB, or null if unavailable.
+   */
+  async _estimateFeeFromBlockbook (blocks) {
     try {
-      const response = await fetch(`${MEMPOOL_SPACE_URL}/api/v1/fees/recommended`)
-
-      if (!response.ok) return -1
-
-      const data = await response.json()
-
-      let satPerVB
-      if (blocks <= 1) satPerVB = data.fastestFee
-      else if (blocks <= 3) satPerVB = data.halfHourFee
-      else if (blocks <= 6) satPerVB = data.hourFee
-      else satPerVB = data.economyFee
-
-      if (!satPerVB || satPerVB <= 0) return -1
-
-      return satPerVB / 100_000
+      const data = await this._get(`/v1/estimatefee/${blocks}`)
+      const rate = Number(data.result ?? data)
+      if (rate > 0) return rate
+      return null
     } catch {
-      return -1
+      return null
     }
+  }
+
+  /**
+   * @private
+   * @param {number} blocks
+   * @returns {Promise<number>} Fee rate in BTC/kB.
+   * @throws {Error} If fee estimation is unavailable.
+   */
+  async _estimateFeeFromMempool (blocks) {
+    const response = await fetch(`${MEMPOOL_SPACE_URL}/api/v1/fees/recommended`)
+
+    if (!response.ok) {
+      throw new Error('Fee estimation request failed')
+    }
+
+    const data = await response.json()
+
+    let satPerVB
+    if (blocks <= 1) satPerVB = data.fastestFee
+    else if (blocks <= 3) satPerVB = data.halfHourFee
+    else if (blocks <= 6) satPerVB = data.hourFee
+    else satPerVB = data.economyFee
+
+    if (!satPerVB || satPerVB <= 0) {
+      throw new Error('Fee estimation is unavailable')
+    }
+
+    return satPerVB / 100_000
   }
 
   /** @private */
@@ -193,7 +229,7 @@ export default class BlockbookClient {
     const response = await fetch(url)
 
     if (!response.ok) {
-      const text = await response.text().catch(() => '')
+      const text = await response.text().catch(() => 'Failed to read response body')
       throw new Error(`Blockbook request failed: ${response.status} ${response.statusText} – ${text}`)
     }
 
