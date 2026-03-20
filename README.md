@@ -42,29 +42,35 @@ const seedPhrase = 'test only example nut use this real life secret phrase must 
 
 // Electrum TCP (default if no client is specified)
 const wallet = new WalletManagerBtc(seedPhrase, {
-  client: 'electrum',
-  clientConfig: { host: 'electrum.blockstream.info', port: 50001 },
+  client: { type: 'electrum', clientConfig: { host: 'electrum.blockstream.info', port: 50001 } },
   network: 'bitcoin' // 'bitcoin', 'testnet', or 'regtest'
 })
 
 // Blockbook REST
 // const wallet = new WalletManagerBtc(seedPhrase, {
-//   client: 'blockbook-http',
-//   clientConfig: { url: 'https://btc1.trezor.io/api' },
+//   client: { type: 'blockbook-http', clientConfig: { url: 'https://btc1.trezor.io/api' } },
 //   network: 'bitcoin'
 // })
 
 // WebSocket Electrum
 // const wallet = new WalletManagerBtc(seedPhrase, {
-//   client: 'electrum-ws',
-//   clientConfig: { url: 'wss://electrum.example.com:50004' },
+//   client: { type: 'electrum-ws', clientConfig: { url: 'wss://electrum.example.com:50004' } },
 //   network: 'bitcoin'
 // })
 
-// Or pass a pre-built client instance:
-// import { ElectrumTcp, BlockbookClient, IBtcClient } from '@tetherto/wdk-wallet-btc'
+// Pre-built client instance
+// import { ElectrumTcp, BlockbookClient } from '@tetherto/wdk-wallet-btc'
 // const client = new ElectrumTcp({ host: '...', port: 50001 })
 // const wallet = new WalletManagerBtc(seedPhrase, { client })
+
+// Failover — array of clients, tries each in order
+// const wallet = new WalletManagerBtc(seedPhrase, {
+//   client: [
+//     { type: 'blockbook-http', clientConfig: { url: 'https://btc1.trezor.io/api' } },
+//     { type: 'electrum', clientConfig: { host: 'electrum.blockstream.info', port: 50001 } },
+//   ],
+//   network: 'bitcoin'
+// })
 
 // Get a full access account (uses BIP-84 derivation path)
 const account = await wallet.getAccount(0)
@@ -247,15 +253,13 @@ new WalletManagerBtc(seed, config)
   - `bip` (number, optional): BIP address type - 44 (legacy) or 84 (native SegWit) (default: 84)
   - `client` — one of:
     - An `IBtcClient` instance (pre-built client)
-    - `'electrum'` with `clientConfig: { host, port, protocol? }` — TCP/TLS/SSL Electrum
-    - `'blockbook-http'` with `clientConfig: { url }` — Blockbook REST
-    - `'electrum-ws'` with `clientConfig: { url }` — WebSocket Electrum
+    - A descriptor `{ type, clientConfig }` where type is `'electrum'`, `'blockbook-http'`, or `'electrum-ws'`
+    - An array of the above (for failover — tries each in order)
 
 **Example:**
 ```javascript
 const wallet = new WalletManagerBtc(seedPhrase, {
-  client: 'electrum',
-  clientConfig: { host: 'electrum.blockstream.info', port: 50001 },
+  client: { type: 'electrum', clientConfig: { host: 'electrum.blockstream.info', port: 50001 } },
   network: 'bitcoin'
 })
 ```

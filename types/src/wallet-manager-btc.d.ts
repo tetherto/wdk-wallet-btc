@@ -13,6 +13,8 @@ export default class WalletManagerBtc extends WalletManager {
      * @type {IBtcClient}
      */
     private _client;
+    /** @private */
+    private _isExternalClient;
     /**
      * Returns the wallet account at a specific index (defaults to [BIP-84](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki); set config.bip=44 for [BIP-44](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)).
      *

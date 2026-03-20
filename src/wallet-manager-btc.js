@@ -35,15 +35,21 @@ export default class WalletManagerBtc extends WalletManager {
   constructor (seed, config = {}) {
     super(seed, config)
 
+    const { client, isExternal } = WalletAccountBtc._resolveClient(this._config.client, this._config.network)
+
     /**
      * A client to interact with the bitcoin network.
      *
      * @private
      * @type {IBtcClient}
      */
-    this._client = typeof this._config.client === 'object'
-      ? this._config.client
-      : WalletAccountBtc._createClient(this._config, this._config.network)
+    this._client = client
+
+    /**
+     * @private
+     * @type {boolean}
+     */
+    this._isExternalClient = isExternal
   }
 
   /**
@@ -102,7 +108,7 @@ export default class WalletManagerBtc extends WalletManager {
    * Disposes all the wallet accounts, erasing their private keys from the memory and closing all internal connections.
    */
   dispose () {
-    if (typeof this._config.client !== 'object') {
+    if (!this._isExternalClient) {
       this._client.close()
     }
     super.dispose()

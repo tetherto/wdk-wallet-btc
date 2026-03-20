@@ -28,6 +28,13 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      */
     protected _client: IBtcClient;
     /**
+     * Whether the client was externally provided (and should not be disposed).
+     *
+     * @protected
+     * @type {boolean}
+     */
+    protected _isExternalClient: boolean;
+    /**
      * The dust limit in satoshis based on the BIP type.
      *
      * @private
@@ -92,13 +99,23 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      */
     protected _ensureConnected(): Promise<void>;
     /**
-     * Creates a default client based on config options.
+     * Resolves a client option into an IBtcClient instance.
      *
      * @protected
-     * @param {BtcWalletConfig} config - The configuration object.
-     * @returns {IBtcClient} The created client.
+     * @param {IBtcClient | BtcClientDescriptor | Array<IBtcClient | BtcClientDescriptor>} [client] - The client option.
+     * @param {"bitcoin" | "regtest" | "testnet"} [network] - The network name.
+     * @returns {{ client: IBtcClient, isExternal: boolean }}
      */
-    protected static _createClient(config: BtcWalletConfig): IBtcClient;
+    protected static _resolveClient(client?: IBtcClient | BtcClientDescriptor | Array<IBtcClient | BtcClientDescriptor>, network?: "bitcoin" | "regtest" | "testnet"): { client: IBtcClient, isExternal: boolean };
+    /**
+     * Creates a bitcoin client from a descriptor.
+     *
+     * @protected
+     * @param {BtcClientDescriptor} descriptor - The client descriptor.
+     * @param {"bitcoin" | "regtest" | "testnet"} [network] - The network name.
+     * @returns {IBtcClient} The bitcoin client.
+     */
+    protected static _createClient(descriptor: BtcClientDescriptor, network?: "bitcoin" | "regtest" | "testnet"): IBtcClient;
     /** @private */
     private _toBigInt;
     /**
@@ -165,56 +182,24 @@ export type BtcTransaction = {
      */
     feeRate?: number | bigint;
 };
-export type BtcWalletCommonConfig = {
+export type BtcClientDescriptor =
+    | { type: 'blockbook-http', clientConfig: import("./transports/blockbook-client.js").BlockbookClientConfig }
+    | { type: 'electrum-ws', clientConfig: import("./transports/ws.js").ElectrumWsConfig }
+    | { type: 'electrum', clientConfig: MempoolElectrumConfig };
+export type BtcWalletConfig = {
+    /**
+     * - The bitcoin client: a pre-built IBtcClient, a descriptor { type, config }, or an array for failover.
+     */
+    client?: IBtcClient | BtcClientDescriptor | Array<IBtcClient | BtcClientDescriptor>;
     /**
      * - The name of the network to use (default: "bitcoin").
      */
     network?: "bitcoin" | "regtest" | "testnet";
     /**
      * - The BIP address type used for key and address derivation.
-     * - 44: BIP-44 (P2PKH / legacy)
-     * - 84: BIP-84 (P2WPKH / native SegWit)
-     * - Default: 84 (P2WPKH).
      */
     bip?: 44 | 84;
 };
-export type BtcWalletClientConfig = {
-    /**
-     * - A pre-built BTC client instance.
-     */
-    client: IBtcClient;
-};
-export type BtcWalletBlockBookHttpClientConfig = {
-    /**
-     * - Use a Blockbook REST client.
-     */
-    client: 'blockbook-http';
-    /**
-     * - The Blockbook client configuration.
-     */
-    clientConfig: import("./transports/blockbook-client.js").BlockbookClientConfig;
-};
-export type BtcWalletElectrumWSClientConfig = {
-    /**
-     * - Use a WebSocket Electrum client.
-     */
-    client: 'electrum-ws';
-    /**
-     * - The WebSocket client configuration.
-     */
-    clientConfig: import("./transports/ws.js").ElectrumWsConfig;
-};
-export type BtcWalletElectrumClientConfig = {
-    /**
-     * - Use a TCP/TLS/SSL Electrum client.
-     */
-    client: 'electrum';
-    /**
-     * - The Electrum client configuration.
-     */
-    clientConfig: MempoolElectrumConfig;
-};
-export type BtcWalletConfig = BtcWalletCommonConfig & (BtcWalletClientConfig | BtcWalletBlockBookHttpClientConfig | BtcWalletElectrumWSClientConfig | BtcWalletElectrumClientConfig);
 export type BtcMaxSpendableResult = {
     /**
      * - The maximum spendable amount in satoshis.
