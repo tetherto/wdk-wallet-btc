@@ -13,15 +13,19 @@
 // limitations under the License.
 'use strict'
 
+import { networks } from 'bitcoinjs-lib'
+import { toScriptHash } from './btc-client.js'
+
 /**
  * @typedef {Object} ElectrumWsConfig
  * @property {string} url - The WebSocket URL (e.g., 'wss://electrum.example.com:50004').
+ * @property {"bitcoin" | "regtest" | "testnet"} [network] - The network name (default: 'bitcoin').
  */
 
-/** @typedef {import('./electrum-client.js').default} IElectrumClient */
-/** @typedef {import('./electrum-client.js').ElectrumBalance} ElectrumBalance */
-/** @typedef {import('./electrum-client.js').ElectrumUtxo} ElectrumUtxo */
-/** @typedef {import('./electrum-client.js').ElectrumHistoryItem} ElectrumHistoryItem */
+/** @typedef {import('./btc-client.js').default} IBtcClient */
+/** @typedef {import('./btc-client.js').BtcBalance} BtcBalance */
+/** @typedef {import('./btc-client.js').BtcUtxo} BtcUtxo */
+/** @typedef {import('./btc-client.js').BtcHistoryItem} BtcHistoryItem */
 
 const isNodeOrBare =
   typeof Bare !== 'undefined' ||
@@ -45,7 +49,7 @@ async function getWebSocket () {
  * Compatible with browser environments where TCP sockets are not available.
  * Requires an Electrum server that supports WebSocket connections.
  *
- * @implements {IElectrumClient}
+ * @implements {IBtcClient}
  */
 export default class ElectrumWs {
   /**
@@ -54,7 +58,10 @@ export default class ElectrumWs {
    * @param {ElectrumWsConfig} config - Configuration options.
    */
   constructor (config) {
-    const { url } = config
+    const { url, network = 'bitcoin' } = config
+
+    /** @private */
+    this._network = networks[network]
 
     /**
      * @private
@@ -228,36 +235,33 @@ export default class ElectrumWs {
   }
 
   /**
-   * Returns the balance for a script hash.
+   * Returns the balance for an address.
    *
-   * @param {string} scripthash - The script hash.
-   * @returns {Promise<ElectrumBalance>} The balance information.
-   * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-get-balance
+   * @param {string} address - The bitcoin address.
+   * @returns {Promise<BtcBalance>} The balance information.
    */
-  async getBalance (scripthash) {
-    return this._request('blockchain.scripthash.get_balance', [scripthash])
+  async getBalance (address) {
+    return this._request('blockchain.scripthash.get_balance', [toScriptHash(address, this._network)])
   }
 
   /**
-   * Returns unspent transaction outputs for a script hash.
+   * Returns unspent transaction outputs for an address.
    *
-   * @param {string} scripthash - The script hash.
-   * @returns {Promise<ElectrumUtxo[]>} List of UTXOs.
-   * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-listunspent
+   * @param {string} address - The bitcoin address.
+   * @returns {Promise<BtcUtxo[]>} List of UTXOs.
    */
-  async listUnspent (scripthash) {
-    return this._request('blockchain.scripthash.listunspent', [scripthash])
+  async listUnspent (address) {
+    return this._request('blockchain.scripthash.listunspent', [toScriptHash(address, this._network)])
   }
 
   /**
-   * Returns transaction history for a script hash.
+   * Returns transaction history for an address.
    *
-   * @param {string} scripthash - The script hash.
-   * @returns {Promise<ElectrumHistoryItem[]>} List of transactions.
-   * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-get-history
+   * @param {string} address - The bitcoin address.
+   * @returns {Promise<BtcHistoryItem[]>} List of transactions.
    */
-  async getHistory (scripthash) {
-    return this._request('blockchain.scripthash.get_history', [scripthash])
+  async getHistory (address) {
+    return this._request('blockchain.scripthash.get_history', [toScriptHash(address, this._network)])
   }
 
   /**
@@ -287,9 +291,12 @@ export default class ElectrumWs {
    *
    * @param {number} blocks - The confirmation target in blocks.
    * @returns {Promise<number>} Fee rate in BTC/kB.
+   * @throws {Error} If fee estimation is unavailable.
    * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-estimatefee
    */
   async estimateFee (blocks) {
-    return this._request('blockchain.estimatefee', [blocks])
+    const rate = await this._request('blockchain.estimatefee', [blocks])
+    if (rate === -1) throw new Error('Fee estimation is unavailable')
+    return rate
   }
 }

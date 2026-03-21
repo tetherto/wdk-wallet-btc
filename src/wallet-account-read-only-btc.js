@@ -20,15 +20,17 @@ import { coinselect } from '@bitcoinerlab/coinselect'
 import { DescriptorsFactory } from '@bitcoinerlab/descriptors'
 import * as ecc from '@bitcoinerlab/secp256k1'
 
-import { address as btcAddress, crypto, networks, Transaction } from 'bitcoinjs-lib'
+import { address as btcAddress, networks, Transaction } from 'bitcoinjs-lib'
 import bitcoinMessageModule from 'bitcoinjs-message'
-import { ElectrumTcp, ElectrumSsl, ElectrumTls } from './transports/index.js'
+import { BlockbookClient, ElectrumTcp, ElectrumSsl, ElectrumTls, ElectrumWs } from './transports/index.js'
 
 const bitcoinMessage = bitcoinMessageModule.default ?? bitcoinMessageModule
 
 /** @typedef {import('./transports/index.js').MempoolElectrumConfig} MempoolElectrumConfig */
 /** @typedef {import('./transports/index.js').MempoolElectrumClient} MempoolElectrumClient */
-/** @typedef {import('./transports/index.js').IElectrumClient} IElectrumClient */
+/** @typedef {import('./transports/index.js').IBtcClient} IBtcClient */
+/** @typedef {import('./transports/blockbook-client.js').BlockbookClientConfig} BlockbookClientConfig */
+/** @typedef {import('./transports/ws.js').ElectrumWsConfig} ElectrumWsConfig */
 
 /** @typedef {import('@bitcoinerlab/coinselect').OutputWithValue} OutputWithValue */
 /** @typedef {import('bitcoinjs-lib').Network} Network */
@@ -47,17 +49,33 @@ const bitcoinMessage = bitcoinMessageModule.default ?? bitcoinMessageModule
  * */
 
 /**
+ * @typedef {BtcBlockbookHttpClientDescriptor | BtcElectrumClientDescriptor | BtcElectrumWsClientDescriptor} BtcClientDescriptor
+ */
+
+/**
+ * @typedef {Object} BtcBlockbookHttpClientDescriptor
+ * @property {'blockbook-http'} type - The client's type.
+ * @property {BlockbookClientConfig} clientConfig - The client's configuration.
+ */
+
+/**
+ * @typedef {Object} BtcElectrumWsClientDescriptor
+ * @property {'electrum-ws'} type - Use a WebSocket Electrum client.
+ * @property {Omit<ElectrumWsConfig, 'network'>} clientConfig - The WebSocket client configuration.
+ */
+
+/**
+ * @typedef {Object} BtcElectrumClientDescriptor
+ * @property {'electrum'} type - Use a TCP/TLS/SSL Electrum client.
+ * @property {Omit<MempoolElectrumConfig, 'network'>} clientConfig - The Electrum client configuration.
+ */
+
+/**
  * @typedef {Object} BtcWalletConfig
- * @property {IElectrumClient} [client] - Electrum client instance. If provided, host/port/protocol are ignored.
- * @property {string} [host] - The electrum server's hostname (default: "electrum.blockstream.info"). Ignored if client is provided.
- * @property {number} [port] - The electrum server's port (default: 50001). Ignored if client is provided.
- * @property {"tcp" | "tls" | "ssl"} [protocol] - The transport protocol to use (default: "tcp"). Ignored if client is provided.
+ * @property {IBtcClient | BtcClientDescriptor | Array<IBtcClient | BtcClientDescriptor>} [client] - The bitcoin client, or a list of bitcoin client options for connection fallback.
  * @property {"bitcoin" | "regtest" | "testnet"} [network] - The name of the network to use (default: "bitcoin").
  * @property {44 | 84} [bip] - The BIP address type used for key and address derivation.
- *   - 44: [BIP-44 (P2PKH / legacy)](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)
- *   - 84: [BIP-84 (P2WPKH / native SegWit)](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki)
- *   - Default: 84 (P2WPKH).
- * */
+ */
 
 /**
  * @typedef {Object} BtcMaxSpendableResult
@@ -111,15 +129,23 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      */
     this._network = networks[this._config.network] || networks.bitcoin
 
-    const { host, port, protocol } = config
+    const clientOptions = config.client ? [config.client].flat() : [{ type: 'electrum', clientConfig: { host: 'electrum.blockstream.info', port: 50_001 } }]
 
     /**
-     * An electrum client to interact with the bitcoin node.
+     * A list of all the bitcoin client options.
      *
      * @protected
-     * @type {IElectrumClient}
+     * @type {Array<IBtcClient>}
      */
-    this._electrumClient = config.client ?? WalletAccountReadOnlyBtc._createClient({ host, port, protocol })
+    this._clientList = clientOptions.map(client => WalletAccountReadOnlyBtc._createClient(client, this._config.network))
+
+    /**
+     * A client to interact with the bitcoin network.
+     *
+     * @protected
+     * @type {IBtcClient}
+     */
+    this._client = this._clientList[0]
 
     const prefix = Object.keys(BIP_BY_ADDRESS_PREFIX).find(p => address.startsWith(p))
     const bip = BIP_BY_ADDRESS_PREFIX[prefix] || 44
@@ -141,9 +167,9 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
   async getBalance () {
     await this._ensureConnected()
 
-    const scriptHash = await this._getScriptHash()
+    const address = await this.getAddress()
 
-    const { confirmed } = await this._electrumClient.getBalance(scriptHash)
+    const { confirmed } = await this._client.getBalance(address)
 
     return BigInt(confirmed)
   }
@@ -170,7 +196,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     const address = await this.getAddress()
 
     if (!feeRate) {
-      const feeEstimate = await this._electrumClient.estimateFee(confirmationTarget)
+      const feeEstimate = await this._client.estimateFee(confirmationTarget)
       feeRate = this._toBigInt(Math.max(feeEstimate * 100_000, 1))
     }
 
@@ -207,15 +233,15 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
     await this._ensureConnected()
 
-    const scriptHash = await this._getScriptHash()
-    const history = await this._electrumClient.getHistory(scriptHash)
+    const address = await this.getAddress()
+    const history = await this._client.getHistory(address)
     const item = Array.isArray(history) ? history.find(h => h?.tx_hash === hash) : null
 
     if (!item || !item.height || item.height <= 0) {
       return null
     }
 
-    const hex = await this._electrumClient.getTransaction(hash)
+    const hex = await this._client.getTransaction(hash)
 
     const transaction = Transaction.fromHex(hex)
 
@@ -231,17 +257,24 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * Wallets holding more than this limit cannot spend their full balance in a
    * single transaction. There will likely be some satoshis left over as change.
    *
+   * @param {Object} [opts] - Options.
+   * @param {number | bigint} [opts.feeRate] - Fee rate in sat/vB. If omitted, estimated via the client.
    * @returns {Promise<BtcMaxSpendableResult>} The estimated maximum spendable result.
    */
-  async getMaxSpendable () {
+  async getMaxSpendable (opts = {}) {
     await this._ensureConnected()
 
     const fromAddress = await this.getAddress()
-    const feeRateRaw = await this._electrumClient.estimateFee(1)
-    const feeRate = Math.max(Math.round(Number(feeRateRaw) * 100_000), 1)
 
-    const scriptHash = await this._getScriptHash()
-    const unspent = await this._electrumClient.listUnspent(scriptHash)
+    let feeRate
+    if (opts.feeRate) {
+      feeRate = Number(opts.feeRate)
+    } else {
+      const feeRateRaw = await this._client.estimateFee(1)
+      feeRate = Math.max(Math.round(Number(feeRateRaw) * 100_000), 1)
+    }
+
+    const unspent = await this._client.listUnspent(fromAddress)
     if (!unspent || unspent.length === 0) {
       return { amount: 0n, fee: 0n, changeValue: 0n }
     }
@@ -314,65 +347,69 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
   }
 
   /**
-   * Closes any internal connection with the electrum server.
-   */
-  dispose () {
-    if (!this._config.client) {
-      this._electrumClient.close()
-    }
-  }
-
-  /**
-   * Creates a default Electrum client based on config options.
+   * A list that maps each client to a flag that is true only if the client was externally provided.
    *
    * @protected
-   * @param {MempoolElectrumConfig} config - The configuration object.
-   * @returns {MempoolElectrumClient} The created client.
+   * @type {Array<boolean>}
    */
-  static _createClient (config) {
-    const protocol = config.protocol || 'tcp'
+  get _isExternalClient () {
+    if (!this._config.client) return [false]
+    return [this._config.client].flat().map(client => typeof client.connect === 'function')
+  }
 
-    const transportConfig = {
-      ...config,
-      host: config.host || 'electrum.blockstream.info',
-      port: config.port || 50_001
-    }
-
-    switch (protocol) {
-      case 'tls':
-        return new ElectrumTls(transportConfig)
-      case 'ssl':
-        return new ElectrumSsl(transportConfig)
-      default:
-        return new ElectrumTcp(transportConfig)
+  /**
+   * Closes any internal connection with the server.
+   */
+  dispose () {
+    for (const [i, isExternal] of this._isExternalClient.entries()) {
+      if (!isExternal) {
+        this._clientList[i].close()
+      }
     }
   }
 
   /**
-   * Ensures the electrum client is connected.
+   * Creates a bitcoin client from a descriptor, or returns the client as-is if already instantiated.
+   *
+   * @protected
+   * @param {IBtcClient | BtcClientDescriptor} client - The bitcoin client or client descriptor.
+   * @param {"bitcoin" | "regtest" | "testnet"} [network] - The network name.
+   * @returns {IBtcClient} The bitcoin client.
+   */
+  static _createClient (client, network) {
+    if (typeof client.connect === 'function') {
+      return client
+    }
+
+    const { type, clientConfig } = client
+
+    switch (type) {
+      case 'blockbook-http':
+        return new BlockbookClient(clientConfig)
+      case 'electrum-ws':
+        return new ElectrumWs({ ...clientConfig, network })
+      case 'electrum': {
+        const transportConfig = { ...clientConfig, network }
+        switch (clientConfig.protocol) {
+          case 'tls':
+            return new ElectrumTls(transportConfig)
+          case 'ssl':
+            return new ElectrumSsl(transportConfig)
+          default:
+            return new ElectrumTcp(transportConfig)
+        }
+      }
+    }
+  }
+
+  /**
+   * Ensures the client is connected.
    *
    * @protected
    * @returns {Promise<void>}
    */
   async _ensureConnected () {
-    await this._electrumClient.connect()
-  }
-
-  /**
-   * Computes the sha-256 hash of the output script for this wallet's address, reverses the byte order,
-   * and returns it as a hex string.
-   *
-   * @protected
-   * @returns {Promise<string>} The reversed sha-256 script hash as a hex-encoded string.
-   */
-  async _getScriptHash () {
-    const address = await this.getAddress()
-    const script = btcAddress.toOutputScript(address, this._network)
-    const hash = crypto.sha256(script)
-
-    const buffer = Buffer.from(hash).reverse()
-
-    return buffer.toString('hex')
+    await this._client.connect()
   }
 
   /** @private */
@@ -407,9 +444,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     const fromAddressOutput = new Output({ descriptor: `addr(${fromAddress})`, network })
     const toAddressOutput = new Output({ descriptor: `addr(${toAddress})`, network })
 
-    const scriptHash = await this._getScriptHash()
-
-    const unspent = await this._electrumClient.listUnspent(scriptHash)
+    const unspent = await this._client.listUnspent(fromAddress)
 
     if (!unspent || unspent.length === 0) {
       throw new Error('No unspent outputs available.')

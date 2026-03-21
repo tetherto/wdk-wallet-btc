@@ -27,8 +27,7 @@ export const FEES = {
 
 describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
   const CONFIGURATION = {
-    host: HOST,
-    port: ELECTRUM_PORT,
+    client: { type: 'electrum', clientConfig: { host: HOST, port: ELECTRUM_PORT } },
     network: 'regtest',
     bip
   }
@@ -92,7 +91,7 @@ describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
       const dustLimit = account._dustLimit
       const expectedAmount = STARTING_BALANCE - expectedFee - dustLimit
 
-      const result = await account.getMaxSpendable()
+      const result = await account.getMaxSpendable({ feeRate: satsPerVByte })
 
       expect(result).toEqual({
         amount: expectedAmount,
@@ -126,7 +125,7 @@ describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
       bitcoin.sendToAddress(tmpAddress, (fundedAmount / 1e8).toFixed(8))
       await waiter.mine()
 
-      const result = await tmpAccount.getMaxSpendable()
+      const result = await tmpAccount.getMaxSpendable({ feeRate: satsPerVByte })
 
       expect(result).toEqual({
         amount: BigInt(fundedAmount - feeOneOutput),
@@ -134,27 +133,27 @@ describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
         changeValue: 0n
       })
 
-      tmpAccount._electrumClient.close()
+      tmpAccount._client.close()
     })
   })
 
   describe('quoteSendTransaction', () => {
     test('should successfully quote a transaction', async () => {
-      const TRANSACTION = { to: recipient, value: 1_000 }
+      const satsPerVByte = bitcoin.estimateSatsPerVByte(1)
+      const TRANSACTION = { to: recipient, value: 1_000, feeRate: satsPerVByte }
 
       const { fee } = await account.quoteSendTransaction(TRANSACTION)
 
-      const satsPerVByte = bitcoin.estimateSatsPerVByte(1)
       const expectedFee = FEES[bip] * BigInt(satsPerVByte)
       expect(fee).toBe(expectedFee)
     })
-    
+
     test('should successfully quote a transaction (bigint)', async () => {
-      const TRANSACTION = { to: recipient, value: 1_000n }
+      const satsPerVByte = bitcoin.estimateSatsPerVByte(1)
+      const TRANSACTION = { to: recipient, value: 1_000n, feeRate: satsPerVByte }
 
       const { fee } = await account.quoteSendTransaction(TRANSACTION)
 
-      const satsPerVByte = bitcoin.estimateSatsPerVByte(1)
       const expectedFee = FEES[bip] * BigInt(satsPerVByte)
       expect(fee).toBe(expectedFee)
     })
@@ -178,10 +177,10 @@ describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
     })
     
     test('should successfully quote a transaction with confirmation target', async () => {
-      const TRANSACTION = { to: recipient, value: 1000, cofnirmationTarget: 5 }
+      const satsPerVByte = bitcoin.estimateSatsPerVByte(5)
+      const TRANSACTION = { to: recipient, value: 1000, feeRate: satsPerVByte }
 
       const { fee } = await account.quoteSendTransaction(TRANSACTION)
-      const satsPerVByte = bitcoin.estimateSatsPerVByte(5)
       const expectedFee = FEES[bip] * BigInt(satsPerVByte)
       expect(fee).toBe(expectedFee)
     })

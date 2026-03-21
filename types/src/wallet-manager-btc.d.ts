@@ -7,12 +7,26 @@ export default class WalletManagerBtc extends WalletManager {
      */
     constructor(seed: string | Uint8Array, config?: BtcWalletConfig);
     /**
-     * An electrum client to interact with the bitcoin node.
+     * A list of all the bitcoin client options.
      *
-     * @private
-     * @type {IElectrumClient}
+     * @protected
+     * @type {Array<IBtcClient>}
      */
-    private _electrumClient;
+    protected _clientList: Array<IBtcClient>;
+    /**
+     * A client to interact with the bitcoin network.
+     *
+     * @protected
+     * @type {IBtcClient}
+     */
+    protected _client: IBtcClient;
+    /**
+     * A list that maps each client to a flag that is true only if the client was externally provided.
+     *
+     * @protected
+     * @type {Array<boolean>}
+     */
+    get _isExternalClient(): Array<boolean>;
     /**
      * Returns the wallet account at a specific index (defaults to [BIP-84](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki); set config.bip=44 for [BIP-44](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)).
      *
@@ -43,9 +57,13 @@ export default class WalletManagerBtc extends WalletManager {
      * @returns {Promise<FeeRates>} The fee rates (in satoshis).
      */
     getFeeRates(): Promise<FeeRates>;
+    /**
+     * Disposes all the wallet accounts, erasing their private keys from the memory and closing all internal connections.
+     */
+    dispose(): void;
 }
 export type FeeRates = import("@tetherto/wdk-wallet").FeeRates;
 export type BtcWalletConfig = import("./wallet-account-btc.js").BtcWalletConfig;
-export type IElectrumClient = import("./transports/index.js").IElectrumClient;
+export type IBtcClient = import("./transports/index.js").IBtcClient;
 import WalletManager from '@tetherto/wdk-wallet';
 import WalletAccountBtc from './wallet-account-btc.js';
