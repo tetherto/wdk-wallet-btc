@@ -1,26 +1,26 @@
 /**
- * @typedef {Object} ElectrumClientConfig
+ * @typedef {Object} BtcClientConfig
  * @property {number} [timeout] - Connection timeout in milliseconds (default: 15_000).
  */
 /**
- * @typedef {Object} ElectrumBalance
+ * @typedef {Object} BtcBalance
  * @property {number} confirmed - Confirmed balance in satoshis.
  * @property {number} [unconfirmed] - Unconfirmed balance in satoshis.
  */
 /**
- * @typedef {Object} ElectrumUtxo
+ * @typedef {Object} BtcUtxo
  * @property {string} tx_hash - The transaction hash containing this UTXO.
  * @property {number} tx_pos - The output index within the transaction.
  * @property {number} value - The UTXO value in satoshis.
  * @property {number} [height] - The block height (0 if unconfirmed).
  */
 /**
- * @typedef {Object} ElectrumHistoryItem
+ * @typedef {Object} BtcHistoryItem
  * @property {string} tx_hash - The transaction hash.
  * @property {number} height - The block height (0 or negative if unconfirmed).
  */
 /** @interface */
-export default interface IElectrumClient {
+export default interface IBtcClient {
     /**
      * Closes the connection.
      *
@@ -34,35 +34,32 @@ export default interface IElectrumClient {
      */
     reconnect(): Promise<void>;
     /**
-     * Establishes the connection to the Electrum server.
+     * Establishes the connection to the server.
      *
      * @returns {Promise<void>}
      */
     connect(): Promise<void>;
     /**
-     * Returns the balance for a script hash.
+     * Returns the balance for an address.
      *
-     * @param {string} scripthash - The script hash.
-     * @returns {Promise<ElectrumBalance>} The balance information.
-     * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-get-balance
+     * @param {string} address - The bitcoin address.
+     * @returns {Promise<BtcBalance>} The balance information.
      */
-    getBalance(scripthash: string): Promise<ElectrumBalance>;
+    getBalance(address: string): Promise<BtcBalance>;
     /**
-     * Returns unspent transaction outputs for a script hash.
+     * Returns unspent transaction outputs for an address.
      *
-     * @param {string} scripthash - The script hash.
-     * @returns {Promise<ElectrumUtxo[]>} List of UTXOs.
-     * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-listunspent
+     * @param {string} address - The bitcoin address.
+     * @returns {Promise<BtcUtxo[]>} List of UTXOs.
      */
-    listUnspent(scripthash: string): Promise<ElectrumUtxo[]>;
+    listUnspent(address: string): Promise<BtcUtxo[]>;
     /**
-     * Returns transaction history for a script hash.
+     * Returns transaction history for an address.
      *
-     * @param {string} scripthash - The script hash.
-     * @returns {Promise<ElectrumHistoryItem[]>} List of transactions.
-     * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-get-history
+     * @param {string} address - The bitcoin address.
+     * @returns {Promise<BtcHistoryItem[]>} List of transactions.
      */
-    getHistory(scripthash: string): Promise<ElectrumHistoryItem[]>;
+    getHistory(address: string): Promise<BtcHistoryItem[]>;
     /**
      * Returns a raw transaction.
      *
@@ -84,17 +81,25 @@ export default interface IElectrumClient {
      *
      * @param {number} blocks - The confirmation target in blocks.
      * @returns {Promise<number>} Fee rate in BTC/kB.
-     * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-estimatefee
+     * @throws {Error} If fee estimation is unavailable.
      */
     estimateFee(blocks: number): Promise<number>;
 }
-export type ElectrumClientConfig = {
+/**
+ * Converts a bitcoin address to an Electrum-style script hash.
+ *
+ * @param {string} address - The bitcoin address.
+ * @param {import('bitcoinjs-lib').Network} network - The bitcoin network.
+ * @returns {string} The reversed SHA-256 hash of the output script, hex-encoded.
+ */
+export function toScriptHash(address: string, network: import('bitcoinjs-lib').Network): string;
+export type BtcClientConfig = {
     /**
      * - Connection timeout in milliseconds (default: 15_000).
      */
     timeout?: number;
 };
-export type ElectrumBalance = {
+export type BtcBalance = {
     /**
      * - Confirmed balance in satoshis.
      */
@@ -104,7 +109,7 @@ export type ElectrumBalance = {
      */
     unconfirmed?: number;
 };
-export type ElectrumUtxo = {
+export type BtcUtxo = {
     /**
      * - The transaction hash containing this UTXO.
      */
@@ -122,7 +127,7 @@ export type ElectrumUtxo = {
      */
     height?: number;
 };
-export type ElectrumHistoryItem = {
+export type BtcHistoryItem = {
     /**
      * - The transaction hash.
      */

@@ -58,8 +58,7 @@ const waiter = new Waiter(bitcoin, {
 
 describe.each([44, 84])('@wdk/wallet-btc (BIP %i)', (bip) => {
   const CONFIGURATION = {
-    host: HOST,
-    port: ELECTRUM_PORT,
+    client: { type: 'electrum', clientConfig: { host: HOST, port: ELECTRUM_PORT } },
     network: 'regtest',
     bip
   }
@@ -81,7 +80,8 @@ describe.each([44, 84])('@wdk/wallet-btc (BIP %i)', (bip) => {
 
     const TRANSACTION = {
       to: await account1.getAddress(),
-      value: 1_000n
+      value: 1_000n,
+      feeRate: 1
     }
 
     await account0.quoteSendTransaction(TRANSACTION)
@@ -110,7 +110,8 @@ describe.each([44, 84])('@wdk/wallet-btc (BIP %i)', (bip) => {
 
     const TRANSACTION = {
       to: await account1.getAddress(),
-      value: 5_000n
+      value: 5_000n,
+      feeRate: 1
     }
 
     await account0.sendTransaction(TRANSACTION)
@@ -143,13 +144,13 @@ describe.each([44, 84])('@wdk/wallet-btc (BIP %i)', (bip) => {
     const address0 = await account0.getAddress()
     const address1 = await account1.getAddress()
 
-    await account0.sendTransaction({ to: address1, value: 1_000n })
+    await account0.sendTransaction({ to: address1, value: 1_000n, feeRate: 1 })
     await waiter.mine()
 
-    await account1.sendTransaction({ to: address0, value: 800n })
-    await waiter.mine() 
+    await account1.sendTransaction({ to: address0, value: 800n, feeRate: 1 })
+    await waiter.mine()
 
-    await account0.sendTransaction({ to: address1, value: 2_000n })
+    await account0.sendTransaction({ to: address1, value: 2_000n, feeRate: 1 })
     await waiter.mine()
 
     const transfers0All = await account0.getTransfers()
@@ -177,7 +178,7 @@ describe.each([44, 84])('@wdk/wallet-btc (BIP %i)', (bip) => {
     const account1 = await wallet.getAccount(3)
 
     const balance = await account0.getBalance()
-    const { amount } = await account0.getMaxSpendable()
+    const { amount } = await account0.getMaxSpendable({ feeRate: 1 })
 
     expect(amount).toBeGreaterThan(0n)
     expect(amount).toBeLessThan(balance)
@@ -187,7 +188,7 @@ describe.each([44, 84])('@wdk/wallet-btc (BIP %i)', (bip) => {
       value: amount
     }
 
-    const { hash } = await account0.sendTransaction(TRANSACTION)
+    const { hash } = await account0.sendTransaction({ ...TRANSACTION, feeRate: 1 })
 
     await waiter.mine()
 

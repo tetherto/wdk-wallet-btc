@@ -76,7 +76,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      */
     toReadOnlyAccount(): Promise<WalletAccountReadOnlyBtc>;
     /**
-     * Disposes the wallet account, erasing the private key from memory and closing the connection with the electrum server.
+     * Disposes the wallet account, erasing the private key from memory and closing the connection with the server.
      */
     dispose(): void;
     /** @private */

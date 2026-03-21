@@ -35,28 +35,42 @@ npm install @tetherto/wdk-wallet-btc
 ### Creating a New Wallet
 
 ```javascript
-import WalletManagerBtc, { WalletAccountBtc, ElectrumTcp } from '@tetherto/wdk-wallet-btc'
+import WalletManagerBtc from '@tetherto/wdk-wallet-btc'
 
 // Use a BIP-39 seed phrase (replace with your own secure phrase)
 const seedPhrase = 'test only example nut use this real life secret phrase must random'
 
-// Choose your Electrum transport - import from '@tetherto/wdk-wallet-btc':
-const client = new ElectrumTcp({ host: 'electrum.blockstream.info', port: 50001 })
-
-// import { ElectrumTls, ElectrumSsl, ElectrumWs } from '@tetherto/wdk-wallet-btc'
-// const client = new ElectrumTls({ host: 'electrum.blockstream.info', port: 50002 })
-// const client = new ElectrumSsl({ host: 'electrum.blockstream.info', port: 50002 })
-// const client = new ElectrumWs({ host: 'electrum.blockstream.info', port: 50003 })
-//
-// Or implement your own by extending IElectrumClient:
-// import { IElectrumClient } from '@tetherto/wdk-wallet-btc'
-// class MyCustomElectrumClient implements IElectrumClient { ... }
-
-// Create wallet manager with Electrum server config
+// Electrum TCP (default if no client is specified)
 const wallet = new WalletManagerBtc(seedPhrase, {
-  client, // Pass a client instance
+  client: { type: 'electrum', clientConfig: { host: 'electrum.blockstream.info', port: 50001 } },
   network: 'bitcoin' // 'bitcoin', 'testnet', or 'regtest'
 })
+
+// Blockbook REST
+// const wallet = new WalletManagerBtc(seedPhrase, {
+//   client: { type: 'blockbook-http', clientConfig: { url: 'https://btc1.trezor.io/api' } },
+//   network: 'bitcoin'
+// })
+
+// WebSocket Electrum
+// const wallet = new WalletManagerBtc(seedPhrase, {
+//   client: { type: 'electrum-ws', clientConfig: { url: 'wss://electrum.example.com:50004' } },
+//   network: 'bitcoin'
+// })
+
+// Pre-built client instance
+// import { ElectrumTcp, BlockbookClient } from '@tetherto/wdk-wallet-btc'
+// const client = new ElectrumTcp({ host: '...', port: 50001 })
+// const wallet = new WalletManagerBtc(seedPhrase, { client })
+
+// Failover — array of clients, tries each in order
+// const wallet = new WalletManagerBtc(seedPhrase, {
+//   client: [
+//     { type: 'blockbook-http', clientConfig: { url: 'https://btc1.trezor.io/api' } },
+//     { type: 'electrum', clientConfig: { host: 'electrum.blockstream.info', port: 50001 } },
+//   ],
+//   network: 'bitcoin'
+// })
 
 // Get a full access account (uses BIP-84 derivation path)
 const account = await wallet.getAccount(0)
@@ -234,25 +248,18 @@ new WalletManagerBtc(seed, config)
 
 **Parameters:**
 - `seed` (string | Uint8Array): BIP-39 mnemonic seed phrase or seed bytes
-- `config` (object, optional): Configuration object
-  - `client` (IElectrumClient, optional): Electrum client instance (recommended). If provided, host/port/protocol are ignored.
+- `config` (BtcWalletConfig, optional): Configuration object
   - `network` (string, optional): "bitcoin", "testnet", or "regtest" (default: "bitcoin")
   - `bip` (number, optional): BIP address type - 44 (legacy) or 84 (native SegWit) (default: 84)
-  - `host` (string, optional): Electrum server hostname (default: "electrum.blockstream.info"). Ignored if client is provided.
-  - `port` (number, optional): Electrum server port (default: 50001). Ignored if client is provided.
-  - `protocol` (string, optional): Transport protocol - "tcp", "tls", "ssl", or "ws" (default: "tcp"). Ignored if client is provided.
-  
+  - `client` — one of:
+    - An `IBtcClient` instance (pre-built client)
+    - A descriptor `{ type, clientConfig }` where type is `'electrum'`, `'blockbook-http'`, or `'electrum-ws'`
+    - An array of the above (for failover — tries each in order)
+
 **Example:**
 ```javascript
-import { ElectrumTcp } from '@tetherto/wdk-wallet-btc'
-
-const client = new ElectrumTcp({
-  host: 'electrum.blockstream.info',
-  port: 50001
-})
-
 const wallet = new WalletManagerBtc(seedPhrase, {
-  client,
+  client: { type: 'electrum', clientConfig: { host: 'electrum.blockstream.info', port: 50001 } },
   network: 'bitcoin'
 })
 ```
@@ -335,13 +342,8 @@ new WalletAccountBtc(seed, path, config)
 **Parameters:**
 - `seed` (string | Uint8Array): BIP-39 mnemonic seed phrase or seed bytes
 - `path` (string): Derivation path suffix (e.g., "0'/0/0")
-- `config` (object, optional): Configuration object
-  - `client` (IElectrumClient, optional): Electrum client instance (recommended). If provided, host/port/protocol are ignored.
-  - `network` (string, optional): "bitcoin", "testnet", or "regtest" (default: "bitcoin")
-  - `bip` (number, optional): BIP address type - 44 (legacy) or 84 (native SegWit) (default: 84)
-  - `host` (string, optional): Electrum server hostname (default: "electrum.blockstream.info"). Ignored if client is provided.
-  - `port` (number, optional): Electrum server port (default: 50001). Ignored if client is provided.
-  - `protocol` (string, optional): Transport protocol - "tcp", "tls", "ssl", or "ws" (default: "tcp"). Ignored if client is provided.
+- `config` (BtcWalletConfig, optional): Configuration object (see [WalletManagerBtc constructor](#constructor) for details)
+
 #### Methods
 
 | Method | Description | Returns |
@@ -553,12 +555,7 @@ new WalletAccountReadOnlyBtc(address, config)
 
 **Parameters:**
 - `address` (string): The account's Bitcoin address
-- `config` (object, optional): Configuration object
-  - `client` (IElectrumClient, optional): Electrum client instance (if provided, host/port/protocol are ignored)
-  - `host` (string, optional): Electrum server hostname (default: "electrum.blockstream.info")
-  - `port` (number, optional): Electrum server port (default: 50001)
-  - `protocol` (string, optional): Transport protocol - "tcp", "tls", or "ssl" (default: "tcp")
-  - `network` (string, optional): "bitcoin", "testnet", or "regtest" (default: "bitcoin")
+- `config` (BtcWalletConfig, optional): Configuration object (see [WalletManagerBtc constructor](#constructor) for details)
 
 #### Methods
 

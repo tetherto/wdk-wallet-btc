@@ -21,7 +21,7 @@ import WalletAccountBtc from './wallet-account-btc.js'
 
 /** @typedef {import('./wallet-account-btc.js').BtcWalletConfig} BtcWalletConfig */
 
-/** @typedef {import('./transports/index.js').IElectrumClient} IElectrumClient */
+/** @typedef {import('./transports/index.js').IBtcClient} IBtcClient */
 
 const MEMPOOL_SPACE_URL = 'https://mempool.space'
 
@@ -35,15 +35,23 @@ export default class WalletManagerBtc extends WalletManager {
   constructor (seed, config = {}) {
     super(seed, config)
 
-    const { host, port, protocol } = this._config
+    const clientOptions = config.client ? [config.client].flat() : [{ type: 'electrum', clientConfig: { host: 'electrum.blockstream.info', port: 50_001 } }]
 
     /**
-     * An electrum client to interact with the bitcoin node.
+     * A list of all the bitcoin client options.
      *
-     * @private
-     * @type {IElectrumClient}
+     * @protected
+     * @type {Array<IBtcClient>}
      */
-    this._electrumClient = this._config.client ?? WalletAccountBtc._createClient({ host, port, protocol })
+    this._clientList = clientOptions.map(client => WalletAccountBtc._createClient(client, this._config.network))
+
+    /**
+     * A client to interact with the bitcoin network.
+     *
+     * @protected
+     * @type {IBtcClient}
+     */
+    this._client = this._clientList[0]
   }
 
   /**
@@ -74,7 +82,7 @@ export default class WalletManagerBtc extends WalletManager {
    */
   async getAccountByPath (path) {
     if (!this._accounts[path]) {
-      const account = new WalletAccountBtc(this._seed, path, { client: this._electrumClient, ...this._config })
+      const account = new WalletAccountBtc(this._seed, path, { ...this._config, client: this._client })
 
       this._accounts[path] = account
     }
@@ -99,12 +107,26 @@ export default class WalletManagerBtc extends WalletManager {
   }
 
   /**
+   * A list that maps each client to a flag that is true only if the client was externally provided.
+   *
+   * @protected
+   * @type {Array<boolean>}
+   */
+  get _isExternalClient () {
+    if (!this._config.client) return [false]
+    return [this._config.client].flat().map(client => typeof client.connect === 'function')
+  }
+
+  /**
    * Disposes all the wallet accounts, erasing their private keys from the memory and closing all internal connections.
    */
   dispose () {
-    if (!this._config.client) {
-      this._electrumClient.close()
+    for (const [i, isExternal] of this._isExternalClient.entries()) {
+      if (!isExternal) {
+        this._clientList[i].close()
+      }
     }
+
     super.dispose()
   }
 }
