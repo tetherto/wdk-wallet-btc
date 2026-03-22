@@ -27,8 +27,7 @@ export const FEES = {
 
 describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
   const CONFIGURATION = {
-    host: HOST,
-    port: ELECTRUM_PORT,
+    client: { type: 'electrum', clientConfig: { host: HOST, port: ELECTRUM_PORT } },
     network: 'regtest',
     bip
   }

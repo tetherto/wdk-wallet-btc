@@ -80,13 +80,20 @@ export default class BlockbookClient implements IBtcClient {
      */
     broadcast(rawTx: string): Promise<string>;
     /**
-     * Returns the estimated fee rate via mempool.space.
+     * Returns the estimated fee rate.
+     *
+     * Tries the Blockbook v1 fee estimation endpoint first. If that fails,
+     * falls back to mempool.space.
      *
      * @param {number} blocks - The confirmation target in blocks.
      * @returns {Promise<number>} Fee rate in BTC/kB.
-     * @throws {Error} If fee estimation is unavailable.
+     * @throws {Error} If fee estimation is unavailable from both sources.
      */
     estimateFee(blocks: number): Promise<number>;
+    /** @private */
+    private _estimateFeeFromBlockbook;
+    /** @private */
+    private _estimateFeeFromMempool;
     /** @private */
     private _get;
 }

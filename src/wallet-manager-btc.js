@@ -37,47 +37,33 @@ export default class WalletManagerBtc extends WalletManager {
   constructor (seed, config = {}) {
     super(seed, config)
 
+    const clientOptions = config.client ? [config.client].flat() : [{ type: 'electrum', clientConfig: { host: 'electrum.blockstream.info', port: 50_001 } }]
+
+    /**
+     * A list of all the bitcoin client options.
+     *
+     * @protected
+     * @type {Array<IBtcClient>}
+     */
+    this._clientList = clientOptions.map(client => WalletAccountBtc._createClient(client, this._config.network))
+
     /**
      * A client to interact with the bitcoin network.
      *
-     * @private
+     * @protected
      * @type {IBtcClient}
      */
     this._client = undefined
 
-    const { client, blockbookUrl, retries = 3 } = config
-
-    /**
-     * @private
-     * @type {IBtcClient[]}
-     */
-    const provider = []
-
-    if (Array.isArray(client)) {
-      client.forEach(candidate => provider.push(candidate))
-    } else if (client) {
-      provider.push(client)
-    }
-
-    if (Array.isArray(blockbookUrl)) {
-      blockbookUrl.forEach(candidate => provider.push(
-        WalletAccountBtc._createClient({ ...config, blockbookUrl: candidate })
-      ))
-    } else if (blockbookUrl) {
-      provider.push(WalletAccountBtc._createClient(config))
-    }
-
-    if (provider.length > 1) {
-      this._client = provider
+    if (this._clientList.length > 1) {
+      this._client = this._clientList
         .reduce(
           (failover, candidate) => failover.addProvider(candidate),
-          new FailoverProvider({ retries })
+          new FailoverProvider({ retries: this._config.retries })
         )
         .initialize()
-    } else if (provider.length === 1) {
-      this._client = provider[0]
     } else {
-      this._client = WalletAccountBtc._createClient(config)
+      this._client = this._clientList[0]
     }
   }
 
@@ -109,9 +95,7 @@ export default class WalletManagerBtc extends WalletManager {
    */
   async getAccountByPath (path) {
     if (!this._accounts[path]) {
-      const { network, bip } = this._config
-
-      const account = new WalletAccountBtc(this._seed, path, { client: this._client, network, bip })
+      const account = new WalletAccountBtc(this._seed, path, { ...this._config, client: this._client })
 
       this._accounts[path] = account
     }
@@ -136,12 +120,26 @@ export default class WalletManagerBtc extends WalletManager {
   }
 
   /**
+   * A list that maps each client to a flag that is true only if the client was externally provided.
+   *
+   * @protected
+   * @type {Array<boolean>}
+   */
+  get _isExternalClient () {
+    if (!this._config.client) return [false]
+    return [this._config.client].flat().map(client => typeof client.connect === 'function')
+  }
+
+  /**
    * Disposes all the wallet accounts, erasing their private keys from the memory and closing all internal connections.
    */
   dispose () {
-    if (!this._config.client && !this._config.blockbookUrl) {
-      this._client.close()
+    for (const [i, isExternal] of this._isExternalClient.entries()) {
+      if (!isExternal) {
+        this._clientList[i].close()
+      }
     }
+
     super.dispose()
   }
 }

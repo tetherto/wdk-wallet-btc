@@ -25,13 +25,15 @@ import bitcoinMessageModule from 'bitcoinjs-message'
 
 import FailoverProvider from '@tetherto/wdk-failover-provider'
 
-import { BlockbookClient, ElectrumTcp, ElectrumSsl, ElectrumTls } from './transports/index.js'
+import { BlockbookClient, ElectrumTcp, ElectrumSsl, ElectrumTls, ElectrumWs } from './transports/index.js'
 
 const bitcoinMessage = bitcoinMessageModule.default ?? bitcoinMessageModule
 
 /** @typedef {import('./transports/index.js').MempoolElectrumConfig} MempoolElectrumConfig */
 /** @typedef {import('./transports/index.js').MempoolElectrumClient} MempoolElectrumClient */
 /** @typedef {import('./transports/index.js').IBtcClient} IBtcClient */
+/** @typedef {import('./transports/blockbook-client.js').BlockbookClientConfig} BlockbookClientConfig */
+/** @typedef {import('./transports/ws.js').ElectrumWsConfig} ElectrumWsConfig */
 
 /** @typedef {import('@bitcoinerlab/coinselect').OutputWithValue} OutputWithValue */
 /** @typedef {import('bitcoinjs-lib').Network} Network */
@@ -50,12 +52,30 @@ const bitcoinMessage = bitcoinMessageModule.default ?? bitcoinMessageModule
  */
 
 /**
+ * @typedef {BtcBlockbookHttpClientDescriptor | BtcElectrumClientDescriptor | BtcElectrumWsClientDescriptor} BtcClientDescriptor
+ */
+
+/**
+ * @typedef {Object} BtcBlockbookHttpClientDescriptor
+ * @property {'blockbook-http'} type - The client's type.
+ * @property {BlockbookClientConfig} clientConfig - The client's configuration.
+ */
+
+/**
+ * @typedef {Object} BtcElectrumWsClientDescriptor
+ * @property {'electrum-ws'} type - Use a WebSocket Electrum client.
+ * @property {Omit<ElectrumWsConfig, 'network'>} clientConfig - The WebSocket client configuration.
+ */
+
+/**
+ * @typedef {Object} BtcElectrumClientDescriptor
+ * @property {'electrum'} type - Use a TCP/TLS/SSL Electrum client.
+ * @property {Omit<MempoolElectrumConfig, 'network'>} clientConfig - The Electrum client configuration.
+ */
+
+/**
  * @typedef {Object} BtcWalletConfig
- * @property {IBtcClient | IBtcClient[]} [client] - BTC client instance. If provided, all other connection options are ignored. If it's a list of instances, the provider failover strategy will be enabled.
- * @property {string | string[]} [blockbookUrl] - Blockbook server API base URL (e.g., 'https://btc1.trezor.io/api'). If provided, host/port/protocol are ignored. If it's a list of urls, the provider failover strategy will be enabled.
- * @property {string} [host] - The electrum server's hostname (default: "electrum.blockstream.info"). Ignored if client or blockbookUrl is provided.
- * @property {number} [port] - The electrum server's port (default: 50001). Ignored if client or blockbookUrl is provided.
- * @property {"tcp" | "tls" | "ssl"} [protocol] - The transport protocol to use (default: "tcp"). Ignored if client or blockbookUrl is provided.
+ * @property {IBtcClient | BtcClientDescriptor | Array<IBtcClient | BtcClientDescriptor>} [client] - The bitcoin client, or a list of bitcoin client options for connection fallback.
  * @property {"bitcoin" | "regtest" | "testnet"} [network] - The name of the network to use (default: "bitcoin").
  * @property {44 | 84} [bip] - The BIP address type used for key and address derivation.
  *   - 44: [BIP-44 (P2PKH / legacy)](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)
@@ -116,6 +136,16 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      */
     this._network = networks[this._config.network] || networks.bitcoin
 
+    const clientOptions = config.client ? [config.client].flat() : [{ type: 'electrum', clientConfig: { host: 'electrum.blockstream.info', port: 50_001 } }]
+
+    /**
+     * A list of all the bitcoin client options.
+     *
+     * @protected
+     * @type {Array<IBtcClient>}
+     */
+    this._clientList = clientOptions.map(client => WalletAccountReadOnlyBtc._createClient(client, this._config.network))
+
     /**
      * A client to interact with the bitcoin network.
      *
@@ -124,39 +154,15 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      */
     this._client = undefined
 
-    const { client, blockbookUrl, retries = 3 } = config
-
-    /**
-     * @private
-     * @type {IBtcClient[]}
-     */
-    const provider = []
-
-    if (Array.isArray(client)) {
-      client.forEach(candidate => provider.push(candidate))
-    } else if (client) {
-      provider.push(client)
-    }
-
-    if (Array.isArray(blockbookUrl)) {
-      blockbookUrl.forEach(candidate => provider.push(
-        WalletAccountReadOnlyBtc._createClient({ ...config, blockbookUrl: candidate })
-      ))
-    } else if (blockbookUrl) {
-      provider.push(WalletAccountReadOnlyBtc._createClient(config))
-    }
-
-    if (provider.length > 1) {
-      this._client = provider
+    if (this._clientList.length > 1) {
+      this._client = this._clientList
         .reduce(
           (failover, candidate) => failover.addProvider(candidate),
-          new FailoverProvider({ retries })
+          new FailoverProvider({ retries: this._config.retries })
         )
         .initialize()
-    } else if (provider.length === 1) {
-      this._client = provider[0]
     } else {
-      this._client = WalletAccountReadOnlyBtc._createClient(config)
+      this._client = this._clientList[0]
     }
 
     const prefix = Object.keys(BIP_BY_ADDRESS_PREFIX).find(p => address.startsWith(p))
@@ -359,41 +365,58 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
   }
 
   /**
+   * A list that maps each client to a flag that is true only if the client was externally provided.
+   *
+   * @protected
+   * @type {Array<boolean>}
+   */
+  get _isExternalClient () {
+    if (!this._config.client) return [false]
+    return [this._config.client].flat().map(client => typeof client.connect === 'function')
+  }
+
+  /**
    * Closes any internal connection with the server.
    */
   dispose () {
-    if (!this._config.client && !this._config.blockbookUrl) {
-      this._client.close()
+    for (const [i, isExternal] of this._isExternalClient.entries()) {
+      if (!isExternal) {
+        this._clientList[i].close()
+      }
     }
   }
 
   /**
-   * Creates a default client based on config options.
+   * Creates a bitcoin client from a descriptor, or returns the client as-is if already instantiated.
    *
    * @protected
-   * @param {BtcWalletConfig} config - The configuration object.
-   * @returns {IBtcClient} The created client.
+   * @param {IBtcClient | BtcClientDescriptor} client - The bitcoin client or client descriptor.
+   * @param {"bitcoin" | "regtest" | "testnet"} [network] - The network name.
+   * @returns {IBtcClient} The bitcoin client.
    */
-  static _createClient (config) {
-    if (config.blockbookUrl) {
-      return new BlockbookClient({ url: config.blockbookUrl })
+  static _createClient (client, network) {
+    if (typeof client.connect === 'function') {
+      return client
     }
 
-    const protocol = config.protocol || 'tcp'
+    const { type, clientConfig } = client
 
-    const transportConfig = {
-      ...config,
-      host: config.host || 'electrum.blockstream.info',
-      port: config.port || 50_001
-    }
-
-    switch (protocol) {
-      case 'tls':
-        return new ElectrumTls(transportConfig)
-      case 'ssl':
-        return new ElectrumSsl(transportConfig)
-      default:
-        return new ElectrumTcp(transportConfig)
+    switch (type) {
+      case 'blockbook-http':
+        return new BlockbookClient(clientConfig)
+      case 'electrum-ws':
+        return new ElectrumWs({ ...clientConfig, network })
+      case 'electrum': {
+        const transportConfig = { ...clientConfig, network }
+        switch (clientConfig.protocol) {
+          case 'tls':
+            return new ElectrumTls(transportConfig)
+          case 'ssl':
+            return new ElectrumSsl(transportConfig)
+          default:
+            return new ElectrumTcp(transportConfig)
+        }
+      }
     }
   }
 
