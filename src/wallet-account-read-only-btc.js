@@ -152,7 +152,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @protected
      * @type {IBtcClient}
      */
-    this._client = undefined
+    this._client = this._clientList[0]
 
     if (this._clientList.length > 1) {
       this._client = this._clientList
@@ -161,8 +161,6 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
           new FailoverProvider({ retries: this._config.retries })
         )
         .initialize()
-    } else {
-      this._client = this._clientList[0]
     }
 
     const prefix = Object.keys(BIP_BY_ADDRESS_PREFIX).find(p => address.startsWith(p))

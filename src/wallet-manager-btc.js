@@ -53,7 +53,7 @@ export default class WalletManagerBtc extends WalletManager {
      * @protected
      * @type {IBtcClient}
      */
-    this._client = undefined
+    this._client = this._clientList[0]
 
     if (this._clientList.length > 1) {
       this._client = this._clientList
@@ -62,8 +62,6 @@ export default class WalletManagerBtc extends WalletManager {
           new FailoverProvider({ retries: this._config.retries })
         )
         .initialize()
-    } else {
-      this._client = this._clientList[0]
     }
   }
 
