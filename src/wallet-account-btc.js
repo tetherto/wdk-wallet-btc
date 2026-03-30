@@ -232,8 +232,8 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
 
       const utxos = await this._client.listUnspent(address)
 
-      for (const { tx_hash } of utxos) {
-        if (tx_hash === txId) {
+      for (const utxo of utxos) {
+        if (utxo.tx_hash === txId) {
           retries = 0
           break
         }
