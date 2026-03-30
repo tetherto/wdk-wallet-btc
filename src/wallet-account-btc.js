@@ -68,6 +68,8 @@ const MAX_CONCURRENT_REQUESTS = 8
 const MAX_CACHE_ENTRIES = 1000
 const REQUEST_BATCH_SIZE = 64
 
+const POLLING_INTERVAL = 300
+
 const bip32 = BIP32Factory(ecc)
 
 initEccLib(ecc)
@@ -197,9 +199,10 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * Sends a transaction.
    *
    * @param {BtcTransaction} tx - The transaction.
+   * @param {number} [timeouts] - Maximum milliseconds to poll for the new transaction in unspent outputs after broadcast.
    * @returns {Promise<TransactionResult>} The transaction's result.
    */
-  async sendTransaction ({ to, value, feeRate, confirmationTarget = 1 }) {
+  async sendTransaction ({ to, value, feeRate, confirmationTarget = 1 }, timeouts = 10000) {
     await this._ensureConnected()
 
     const address = await this.getAddress()
@@ -218,7 +221,24 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
 
     const tx = await this._getRawTransaction({ utxos, to, value, fee, feeRate, changeValue })
 
-    await this._client.broadcast(tx.hex)
+    let retries = Math.ceil(timeouts / POLLING_INTERVAL)
+
+    const txId = await this._client.broadcast(tx.hex)
+
+    while (retries > 0) {
+      retries -= 1
+
+      await new Promise((resolve) => setTimeout(resolve, POLLING_INTERVAL))
+
+      const utxos = await this._client.listUnspent(address)
+
+      for (const { tx_hash } of utxos) {
+        if (tx_hash === txId) {
+          retries = 0
+          break
+        }
+      }
+    }
 
     return { hash: tx.txid, fee: tx.fee }
   }
