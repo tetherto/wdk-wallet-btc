@@ -33,7 +33,7 @@ jobs:
         run: npm run lint
 
     
-  build:
+  test:
     runs-on: ubuntu-latest
 
     needs: lint
