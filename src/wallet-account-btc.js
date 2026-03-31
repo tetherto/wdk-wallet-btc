@@ -199,10 +199,10 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * Sends a transaction.
    *
    * @param {BtcTransaction} tx - The transaction.
-   * @param {number} [timeouts] - Maximum milliseconds to poll for the new transaction in unspent outputs after broadcast.
+   * @param {number} [timeoutMs] - Maximum milliseconds to poll for spent inputs to disappear from unspent outputs after broadcast.
    * @returns {Promise<TransactionResult>} The transaction's result.
    */
-  async sendTransaction ({ to, value, feeRate, confirmationTarget = 1 }, timeouts = 10000) {
+  async sendTransaction ({ to, value, feeRate, confirmationTarget = 1 }, timeoutMs = 10000) {
     await this._ensureConnected()
 
     const address = await this.getAddress()
@@ -221,23 +221,21 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
 
     const tx = await this._getRawTransaction({ utxos, to, value, fee, feeRate, changeValue })
 
-    let retries = Math.ceil(timeouts / POLLING_INTERVAL)
+    let retries = Math.ceil(timeoutMs / POLLING_INTERVAL)
+    const spentOutpoints = new Set(utxos.map(({ tx_hash: txHash, tx_pos: txPos }) => `${txHash}:${txPos}`))
 
-    const txId = await this._client.broadcast(tx.hex)
+    await this._client.broadcast(tx.hex)
 
     while (retries > 0) {
       retries -= 1
 
       await new Promise((resolve) => setTimeout(resolve, POLLING_INTERVAL))
 
-      const utxos = await this._client.listUnspent(address)
+      const currentUtxos = await this._client.listUnspent(address)
+      const hasSpentOutpoints = currentUtxos
+        .some(({ tx_hash: txHash, tx_pos: txPos }) => spentOutpoints.has(`${txHash}:${txPos}`))
 
-      for (const utxo of utxos) {
-        if (utxo.tx_hash === txId) {
-          retries = 0
-          break
-        }
-      }
+      if (!hasSpentOutpoints) break
     }
 
     return { hash: tx.txid, fee: tx.fee }

@@ -169,9 +169,9 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
     const address = await this.getAddress()
 
-    const { confirmed } = await this._client.getBalance(address)
+    const { confirmed, unconfirmed } = await this._client.getBalance(address)
 
-    return BigInt(confirmed)
+    return BigInt(confirmed + (unconfirmed || 0))
   }
 
   /**
