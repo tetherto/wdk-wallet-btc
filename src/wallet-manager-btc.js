@@ -22,6 +22,7 @@ import WalletAccountBtc from './wallet-account-btc.js'
 /** @typedef {import('./wallet-account-btc.js').BtcWalletConfig} BtcWalletConfig */
 
 /** @typedef {import('./signers/seed-signer-btc.js').ISignerBtc} ISignerBtc */
+/** @typedef {import('./transports/index.js').IBtcClient} IBtcClient */
 
 const MEMPOOL_SPACE_URL = 'https://mempool.space'
 
@@ -31,6 +32,24 @@ export default class WalletManagerBtc extends WalletManager {
       throw new Error('Private key signers are not supported for wallet managers.')
     }
     super(signer, config)
+
+    const clientOptions = config.client ? [config.client].flat() : [{ type: 'electrum', clientConfig: { host: 'electrum.blockstream.info', port: 50_001 } }]
+
+    /**
+     * A list of all the bitcoin client options.
+     *
+     * @protected
+     * @type {Array<IBtcClient>}
+     */
+    this._clientList = clientOptions.map(client => WalletAccountBtc._createClient(client, this._config.network))
+
+    /**
+     * A client to interact with the bitcoin network.
+     *
+     * @protected
+     * @type {IBtcClient}
+     */
+    this._client = this._clientList[0]
   }
 
   /**
@@ -43,8 +62,6 @@ export default class WalletManagerBtc extends WalletManager {
     if (!signerName) {
       throw new Error('Signer name is required.')
     }
-    // Maybe we should create a new wallet account for the signer here?
-    // TODO: add validation for signerBtc
 
     this._signers.set(signerName, signer)
   }
@@ -87,7 +104,7 @@ export default class WalletManagerBtc extends WalletManager {
       throw new Error(`Signer ${signerName} not found.`)
     }
     const childSigner = signer.derive(path, this._config)
-    const account = new WalletAccountBtc(childSigner)
+    const account = new WalletAccountBtc(childSigner, { client: this._client })
     this._accounts[key] = account
     return account
   }
@@ -106,5 +123,29 @@ export default class WalletManagerBtc extends WalletManager {
       normal: BigInt(hourFee),
       fast: BigInt(fastestFee)
     }
+  }
+
+  /**
+   * A list that maps each client to a flag that is true only if the client was externally provided.
+   *
+   * @protected
+   * @type {Array<boolean>}
+   */
+  get _isExternalClient () {
+    if (!this._config.client) return [false]
+    return [this._config.client].flat().map(client => typeof client.connect === 'function')
+  }
+
+  /**
+   * Disposes all the wallet accounts, erasing their private keys from the memory and closing all internal connections.
+   */
+  dispose () {
+    for (const [i, isExternal] of this._isExternalClient.entries()) {
+      if (!isExternal) {
+        this._clientList[i].close()
+      }
+    }
+
+    super.dispose()
   }
 }

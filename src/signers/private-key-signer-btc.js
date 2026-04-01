@@ -193,7 +193,9 @@ export default class PrivateKeySignerBtc {
   dispose () {
     if (this._account) {
       sodium_memzero(this._account.privateKey)
-      sodium_memzero(this._account.chainCode)
+      if (this._account.chainCode) {
+        sodium_memzero(this._account.chainCode)
+      }
     }
     this._account = undefined
     this._isActive = false

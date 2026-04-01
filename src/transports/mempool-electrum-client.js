@@ -14,27 +14,30 @@
 'use strict'
 
 import MempoolClient from '@mempool/electrum-client'
+import { networks } from 'bitcoinjs-lib'
+import { toScriptHash } from './btc-client.js'
 
 /**
  * @typedef {Object} MempoolElectrumConfig
  * @property {string} host - The Electrum server hostname.
  * @property {number} port - The Electrum server port.
  * @property {'tcp' | 'ssl' | 'tls'} [protocol] - The transport protocol (default: 'tcp').
+ * @property {"bitcoin" | "regtest" | "testnet"} [network] - The network name (default: 'bitcoin').
  * @property {number} [maxRetry] - Maximum reconnection attempts (default: 2).
  * @property {number} [retryPeriod] - Delay between reconnection attempts in milliseconds (default: 1000).
  * @property {number} [pingPeriod] - Delay between keep-alive pings in milliseconds (default: 120000).
  * @property {(err: Error | null) => void} [callback] - Called when all retries are exhausted.
  */
 
-/** @typedef {import('./electrum-client.js').default} IElectrumClient */
-/** @typedef {import('./electrum-client.js').ElectrumBalance} ElectrumBalance */
-/** @typedef {import('./electrum-client.js').ElectrumUtxo} ElectrumUtxo */
-/** @typedef {import('./electrum-client.js').ElectrumHistoryItem} ElectrumHistoryItem */
+/** @typedef {import('./btc-client.js').default} IBtcClient */
+/** @typedef {import('./btc-client.js').BtcBalance} BtcBalance */
+/** @typedef {import('./btc-client.js').BtcUtxo} BtcUtxo */
+/** @typedef {import('./btc-client.js').BtcHistoryItem} BtcHistoryItem */
 
 /**
  * Electrum client using @mempool/electrum-client.
  *
- * @implements {IElectrumClient}
+ * @implements {IBtcClient}
  */
 export default class MempoolElectrumClient {
   /**
@@ -47,11 +50,15 @@ export default class MempoolElectrumClient {
       host,
       port,
       protocol = 'tcp',
+      network = 'bitcoin',
       maxRetry = 2,
       retryPeriod = 1_000,
       pingPeriod = 120_000,
       callback = null
     } = config
+
+    /** @private */
+    this._network = networks[network]
 
     /**
      * @private
@@ -132,36 +139,33 @@ export default class MempoolElectrumClient {
   }
 
   /**
-   * Returns the balance for a script hash.
+   * Returns the balance for an address.
    *
-   * @param {string} scripthash - The script hash.
-   * @returns {Promise<ElectrumBalance>} The balance information.
-   * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-get-balance
+   * @param {string} address - The bitcoin address.
+   * @returns {Promise<BtcBalance>} The balance information.
    */
-  async getBalance (scripthash) {
-    return this._client.blockchainScripthash_getBalance(scripthash)
+  async getBalance (address) {
+    return this._client.blockchainScripthash_getBalance(toScriptHash(address, this._network))
   }
 
   /**
-   * Returns unspent transaction outputs for a script hash.
+   * Returns unspent transaction outputs for an address.
    *
-   * @param {string} scripthash - The script hash.
-   * @returns {Promise<ElectrumUtxo[]>} List of UTXOs.
-   * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-listunspent
+   * @param {string} address - The bitcoin address.
+   * @returns {Promise<BtcUtxo[]>} List of UTXOs.
    */
-  async listUnspent (scripthash) {
-    return this._client.blockchainScripthash_listunspent(scripthash)
+  async listUnspent (address) {
+    return this._client.blockchainScripthash_listunspent(toScriptHash(address, this._network))
   }
 
   /**
-   * Returns transaction history for a script hash.
+   * Returns transaction history for an address.
    *
-   * @param {string} scripthash - The script hash.
-   * @returns {Promise<ElectrumHistoryItem[]>} List of transactions.
-   * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-address-get-history
+   * @param {string} address - The bitcoin address.
+   * @returns {Promise<BtcHistoryItem[]>} List of transactions.
    */
-  async getHistory (scripthash) {
-    return this._client.blockchainScripthash_getHistory(scripthash)
+  async getHistory (address) {
+    return this._client.blockchainScripthash_getHistory(toScriptHash(address, this._network))
   }
 
   /**
@@ -191,9 +195,12 @@ export default class MempoolElectrumClient {
    *
    * @param {number} blocks - The confirmation target in blocks.
    * @returns {Promise<number>} Fee rate in BTC/kB.
+   * @throws {Error} If fee estimation is unavailable.
    * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-estimatefee
    */
   async estimateFee (blocks) {
-    return this._client.blockchainEstimatefee(blocks)
+    const rate = await this._client.blockchainEstimatefee(blocks)
+    if (rate === -1) throw new Error('Fee estimation is unavailable')
+    return rate
   }
 }

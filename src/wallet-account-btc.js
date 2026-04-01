@@ -16,12 +16,10 @@
 import { address as btcAddress, Psbt, Transaction } from 'bitcoinjs-lib'
 import pLimit from 'p-limit'
 import { LRUCache } from 'lru-cache'
-import bitcoinMessageModule from 'bitcoinjs-message'
 import PrivateKeySignerBtc from './signers/private-key-signer-btc.js'
 import SeedSignerBtc from './signers/seed-signer-btc.js'
 import WalletAccountReadOnlyBtc from './wallet-account-read-only-btc.js'
 
-const bitcoinMessage = bitcoinMessageModule.default ?? bitcoinMessageModule
 /** @typedef {import('@tetherto/wdk-wallet').IWalletAccount} IWalletAccount */
 
 /** @typedef {import('@tetherto/wdk-wallet').KeyPair} KeyPair */
@@ -47,6 +45,7 @@ const bitcoinMessage = bitcoinMessageModule.default ?? bitcoinMessageModule
 const MAX_CONCURRENT_REQUESTS = 8
 const MAX_CACHE_ENTRIES = 1000
 const REQUEST_BATCH_SIZE = 64
+const POLLING_INTERVAL = 300
 
 /** @implements {IWalletAccount} */
 export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
@@ -154,36 +153,19 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
   }
 
   /**
-   * Verifies a message's signature.
-   *
-   * @param {string} message - The original message.
-   * @param {string} signature - The signature to verify.
-   * @returns {Promise<boolean>} True if the signature is valid.
-   */
-  async verify (message, signature) {
-    return bitcoinMessage
-      .verify(
-        message,
-        await this.getAddress(),
-        signature,
-        null,
-        true
-      )
-  }
-
-  /**
    * Sends a transaction.
    *
    * @param {BtcTransaction} tx - The transaction.
+   * @param {number} [timeoutMs] - Maximum milliseconds to poll for spent inputs to disappear from unspent outputs after broadcast.
    * @returns {Promise<TransactionResult>} The transaction's result.
    */
-  async sendTransaction ({ to, value, feeRate, confirmationTarget = 1 }) {
+  async sendTransaction ({ to, value, feeRate, confirmationTarget = 1 }, timeoutMs = 10000) {
     await this._ensureConnected()
 
     const address = await this.getAddress()
 
     if (!feeRate) {
-      const feeEstimate = await this._electrumClient.estimateFee(confirmationTarget)
+      const feeEstimate = await this._client.estimateFee(confirmationTarget)
       feeRate = this._toBigInt(Math.max(feeEstimate * 100_000, 1))
     }
 
@@ -196,7 +178,22 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
 
     const tx = await this._getRawTransaction({ utxos, to, value, fee, feeRate, changeValue })
 
-    await this._electrumClient.broadcast(tx.hex)
+    let retries = Math.ceil(timeoutMs / POLLING_INTERVAL)
+    const spentOutpoints = new Set(utxos.map(({ tx_hash: txHash, tx_pos: txPos }) => `${txHash}:${txPos}`))
+
+    await this._client.broadcast(tx.hex)
+
+    while (retries > 0) {
+      retries -= 1
+
+      await new Promise((resolve) => setTimeout(resolve, POLLING_INTERVAL))
+
+      const currentUtxos = await this._client.listUnspent(address)
+      const hasSpentOutpoints = currentUtxos
+        .some(({ tx_hash: txHash, tx_pos: txPos }) => spentOutpoints.has(`${txHash}:${txPos}`))
+
+      if (!hasSpentOutpoints) break
+    }
 
     return { hash: tx.txid, fee: tx.fee }
   }
@@ -230,10 +227,9 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     } = options
 
     const network = this._network
-    const scriptHash = await this._getScriptHash()
-    const history = await this._electrumClient.getHistory(scriptHash)
-
     const address = await this.getAddress()
+    const history = await this._client.getHistory(address)
+
     const myScript = btcAddress.toOutputScript(address, network)
 
     const txCache = new LRUCache({ max: MAX_CACHE_ENTRIES })
@@ -244,7 +240,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
       const cached = txCache.get(txid)
       if (cached) return cached
       const hex = await limitConcurrency(() =>
-        this._electrumClient.getTransaction(txid)
+        this._client.getTransaction(txid)
       )
       const tx = Transaction.fromHex(hex)
       txCache.set(txid, tx)
@@ -363,19 +359,19 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
   async toReadOnlyAccount () {
     const btcReadOnlyAccount = new WalletAccountReadOnlyBtc(this._address, {
       ...this._signer.config,
-      client: this._electrumClient
+      client: this._client
     })
 
     return btcReadOnlyAccount
   }
 
   /**
-   * Disposes the wallet account, erasing the private key from memory and closing the connection with the electrum server.
+   * Disposes the wallet account, erasing the private key from memory and closing the connection with the server.
    */
   dispose () {
     this._signer.dispose()
-    this._electrumClient.close()
     this._isActive = false
+    super.dispose()
   }
 
   /** @private */
@@ -389,7 +385,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     const legacyPrevTxCache = new Map()
     const getPrevTxHex = async (txid) => {
       if (legacyPrevTxCache.has(txid)) return legacyPrevTxCache.get(txid)
-      const hex = await this._electrumClient.getTransaction(txid)
+      const hex = await this._client.getTransaction(txid)
       legacyPrevTxCache.set(txid, hex)
       return hex
     }

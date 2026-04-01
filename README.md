@@ -13,8 +13,9 @@ For detailed documentation about the complete WDK ecosystem, visit [docs.wallet.
 ## 🌟 Features
 
 - **Multiple Signing Methods**: Support for seed phrases (BIP-39), raw private keys, and hardware wallets (Ledger)
-- **Bitcoin Derivation Paths**: Support for BIP-84 standard derivation paths for Bitcoin (m/84'/0')
 - **Multi-Account Management**: Create and manage multiple accounts from different signers
+- **BIP-39 Seed Phrase Support**: Generate and validate BIP-39 mnemonic seed phrases
+- **Bitcoin Derivation Paths**: Support for BIP-84 (Native SegWit) and BIP-44 (Legacy) derivation paths
 - **Transaction Management**: Create, sign, and broadcast Bitcoin transactions
 - **UTXO Management**: Track and manage unspent transaction outputs using Electrum servers
 - **Hardware Wallet Integration**: Native support for Ledger devices with Device Management Kit
@@ -59,10 +60,38 @@ const seedSigner = new SeedSignerBtc(seedPhrase);
 
 // Create wallet manager with signer and Electrum server config
 const wallet = new WalletManagerBtc(seedSigner, {
-  host: "electrum.blockstream.info", // Electrum server hostname
-  port: 50001, // Electrum server port (50001 for TCP, 50002 for SSL)
+  client: {
+    type: "electrum",
+    clientConfig: { host: "electrum.blockstream.info", port: 50001 },
+  },
   network: "bitcoin", // 'bitcoin', 'testnet', or 'regtest'
 });
+
+// Blockbook REST
+// const wallet = new WalletManagerBtc(seedSigner, {
+//   client: { type: 'blockbook-http', clientConfig: { url: 'https://btc1.trezor.io/api' } },
+//   network: 'bitcoin'
+// })
+
+// WebSocket Electrum
+// const wallet = new WalletManagerBtc(seedSigner, {
+//   client: { type: 'electrum-ws', clientConfig: { url: 'wss://electrum.example.com:50004' } },
+//   network: 'bitcoin'
+// })
+
+// Pre-built client instance
+// import { ElectrumTcp, BlockbookClient } from '@tetherto/wdk-wallet-btc'
+// const client = new ElectrumTcp({ host: '...', port: 50001 })
+// const wallet = new WalletManagerBtc(seedSigner, { client })
+
+// Failover — array of clients, tries each in order
+// const wallet = new WalletManagerBtc(seedSigner, {
+//   client: [
+//     { type: 'blockbook-http', clientConfig: { url: 'https://btc1.trezor.io/api' } },
+//     { type: 'electrum', clientConfig: { host: 'electrum.blockstream.info', port: 50001 } },
+//   ],
+//   network: 'bitcoin'
+// })
 
 // Get a full access account (uses BIP-84 derivation path)
 const account = await wallet.getAccount(0);
@@ -70,6 +99,8 @@ const account = await wallet.getAccount(0);
 // Get the account's address (Native SegWit by default)
 const address = await account.getAddress();
 console.log("Account address:", address);
+// Convert to a read-only account
+const readOnlyAccount = await account.toReadOnlyAccount();
 ```
 
 #### Using Private Key Signer (Non-HD Wallets)
@@ -87,9 +118,11 @@ const pkSigner = new PrivateKeySignerBtc(privateKey);
 
 // Create wallet manager with signer
 const wallet = new WalletManagerBtc(pkSigner, {
-  host: "electrum.blockstream.info",
-  port: 50001,
-  network: "bitcoin",
+  client: {
+    type: "electrum",
+    clientConfig: { host: "electrum.blockstream.info", port: 50001 },
+  },
+  network: "bitcoin", // 'bitcoin', 'testnet', or 'regtest'
 });
 
 // Get account (no derivation for private key signers)
@@ -109,9 +142,11 @@ const ledgerSigner = new LedgerSignerBtc();
 
 // Create wallet manager with hardware signer
 const wallet = new WalletManagerBtc(ledgerSigner, {
-  host: "electrum.blockstream.info",
-  port: 50001,
-  network: "bitcoin",
+  client: {
+    type: "electrum",
+    clientConfig: { host: "electrum.blockstream.info", port: 50001 },
+  },
+  network: "bitcoin", // 'bitcoin', 'testnet', or 'regtest'
 });
 
 // Get account (uses BIP-84 derivation path on hardware device)
@@ -120,7 +155,7 @@ const address = await account.getAddress();
 console.log("Hardware wallet address:", address);
 ```
 
-**Note**: This implementation uses BIP-84 derivation paths and generates Native SegWit (bech32) addresses by default. The address type is determined by the BIP-84 standard, not by configuration.
+**Note**: This implementation uses BIP-84 derivation paths by default and generates Native SegWit (bech32) addresses. BIP-44 (legacy) addresses are also supported via the `bip` configuration option.
 
 **Important Note about Electrum Servers**:
 While the package defaults to `electrum.blockstream.info` if no host is specified, **we strongly recommend configuring your own Electrum server** for production use. Public servers like Blockstream's can be significantly slower (10-300x) and may fail when fetching transaction history for popular addresses with many transactions. For better performance, consider using alternative public servers like `fulcrum.frznode.com` for development, or set up your own Fulcrum server for production environments.
@@ -142,16 +177,17 @@ const address1 = await account1.getAddress();
 console.log("Account 1 address:", address1);
 
 // Get account by custom derivation path
-// Full path will be m/84'/0'/0'/0/5
+// Full path will be m/84'/0'/0'/0/5 (mainnet) or m/84'/1'/0'/0/5 (testnet/regtest)
 const customAccount = await wallet.getAccountByPath("0'/0/5");
 const customAddress = await customAccount.getAddress();
 console.log("Custom account address:", customAddress);
 
-// Note: All addresses are Native SegWit (bech32) addresses (bc1...)
 // All accounts inherit the provider configuration from the wallet manager
 ```
 
-**Note**: This implementation generates Native SegWit (bech32) addresses only. Legacy and P2SH-wrapped SegWit address types are not supported. All accounts use BIP-84 derivation paths (m/84'/0'/account'/0/index).
+### Methods
+
+**Note**: This implementation generates Native SegWit (bech32) addresses by default. All accounts use BIP-84 derivation paths (`m/84'/0'/account'/0/index` for mainnet, `m/84'/1'/account'/0/index` for testnet/regtest).
 
 ### Checking Balances
 
@@ -197,6 +233,8 @@ Send Bitcoin and estimate fees using `WalletAccountBtc`. Uses Electrum servers f
 const result = await account.sendTransaction({
   to: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh", // Recipient's Bitcoin address
   value: 50000n, // Amount in satoshis
+  feeRate: 10n, // Optional: fee rate in sat/vB (auto-estimated if not provided)
+  confirmationTarget: 1, // Optional: target blocks for confirmation (default: 1)
 });
 console.log("Transaction hash:", result.hash);
 console.log("Transaction fee:", result.fee, "satoshis");
@@ -212,14 +250,14 @@ console.log("Estimated fee:", quote.fee, "satoshis");
 **Important Notes:**
 
 - Bitcoin transactions support **single recipient only** (no multiple recipients in one call)
-- Fee rate is calculated automatically based on network conditions
+- Fee rate is calculated automatically based on network conditions if not provided
 - Transaction amounts and fees are always in **satoshis** (1 BTC = 100,000,000 satoshis)
 - `sendTransaction()` returns `hash` and `fee` properties
 - `quoteSendTransaction()` returns only the `fee` estimate
 
 ### Message Signing and Verification
 
-Sign and verify messages using `WalletAccountBtc`.
+Sign messages using `WalletAccountBtc`. Verify messages using `WalletAccountReadOnlyBtc` (also available on `WalletAccountBtc` through inheritance).
 
 ```javascript
 // Sign a message
@@ -323,13 +361,11 @@ const ledgerSigner = new LedgerSignerBtc({
 
 ### Table of Contents
 
-| Class                                       | Description                                                                                                          | Methods                                                                           |
-| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| [WalletManagerBtc](#walletmanagerbtc)       | Main class for managing Bitcoin wallets with different signers. Extends `WalletManager` from `@tetherto/wdk-wallet`. | [Constructor](#constructor), [Methods](#methods)                                  |
-| [WalletAccountBtc](#walletaccountbtc)       | Individual Bitcoin wallet account implementation. Implements `IWalletAccount` from `@tetherto/wdk-wallet`.           | [Constructor](#constructor-1), [Methods](#methods-1), [Properties](#properties)   |
-| [SeedSignerBtc](#seedsignerbtc)             | HD wallet signer using BIP-39 seed phrases.                                                                          | [Constructor](#constructor-2), [Methods](#methods-2), [Properties](#properties-1) |
-| [PrivateKeySignerBtc](#privatekeysignerbtc) | Non-HD signer using raw private keys.                                                                                | [Constructor](#constructor-3), [Methods](#methods-3), [Properties](#properties-2) |
-| [LedgerSignerBtc](#ledgersignerbtc)         | Hardware wallet signer for Ledger devices.                                                                           | [Constructor](#constructor-4), [Methods](#methods-4), [Properties](#properties-3) |
+| Class                                                 | Description                                                                                                                                       | Methods                                                                         |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| [WalletManagerBtc](#walletmanagerbtc)                 | Main class for managing Bitcoin wallets. Extends `WalletManager` from `@tetherto/wdk-wallet`.                                                     | [Constructor](#constructor), [Methods](#methods)                                |
+| [WalletAccountBtc](#walletaccountbtc)                 | Individual Bitcoin wallet account implementation. Extends `WalletAccountReadOnlyBtc` and implements `IWalletAccount` from `@tetherto/wdk-wallet`. | [Constructor](#constructor-1), [Methods](#methods-1), [Properties](#properties) |
+| [WalletAccountReadOnlyBtc](#walletaccountreadonlybtc) | Read-only Bitcoin wallet account. Extends `WalletAccountReadOnly` from `@tetherto/wdk-wallet`.                                                    | [Constructor](#constructor-2), [Methods](#methods-2)                            |
 
 ### WalletManagerBtc
 
@@ -345,20 +381,26 @@ new WalletManagerBtc(signer, config);
 **Parameters:**
 
 - `signer` (ISignerBtc): A signer instance (SeedSignerBtc, PrivateKeySignerBtc, or LedgerSignerBtc)
-- `config` (object, optional): Configuration object
-  - `host` (string, optional): Electrum server hostname (default: "electrum.blockstream.info")
-  - `port` (number, optional): Electrum server port (default: 50001)
+- `config` (BtcWalletConfig, optional): Configuration object
   - `network` (string, optional): "bitcoin", "testnet", or "regtest" (default: "bitcoin")
+  - `bip` (number, optional): BIP address type - 44 (legacy) or 84 (native SegWit) (default: 84)
+  - `client` — one of:
+    - An `IBtcClient` instance (pre-built client)
+    - A descriptor `{ type, clientConfig }` where type is `'electrum'`, `'blockbook-http'`, or `'electrum-ws'`
+    - An array of the above (for failover — tries each in order)
 
 **Example:**
 
 ```javascript
 import { SeedSignerBtc } from "@tetherto/wdk-wallet-btc/signers";
 
-const signer = new SeedSignerBtc("your seed phrase", { network: "bitcoin" });
+const signer = new SeedSignerBtc(seedPhrase, { network: "bitcoin" });
 const wallet = new WalletManagerBtc(signer, {
-  host: "electrum.blockstream.info",
-  port: 50001,
+  client: {
+    type: "electrum",
+    clientConfig: { host: "electrum.blockstream.info", port: 50001 },
+  },
+  network: "bitcoin",
 });
 ```
 
@@ -386,7 +428,10 @@ Returns a wallet account at the specified index using BIP-84 derivation.
 **Example:**
 
 ```javascript
-const account = await wallet.getAccount(0);
+// Returns the account with derivation path:
+// For mainnet (bitcoin): m/84'/0'/0'/0/1
+// For testnet or regtest: m/84'/1'/0'/0/1
+const account = await wallet.getAccount(1);
 ```
 
 ##### `getAccountByPath(path, signerName)`
@@ -403,6 +448,9 @@ Returns a wallet account at the specified BIP-84 derivation path.
 **Example:**
 
 ```javascript
+// Returns the account with derivation path:
+// For mainnet (bitcoin): m/84'/0'/0'/0/1
+// For testnet or regtest: m/84'/1'/0'/0/1
 const account = await wallet.getAccountByPath("0'/0/1");
 ```
 
@@ -410,7 +458,7 @@ const account = await wallet.getAccountByPath("0'/0/1");
 
 Returns current fee rates from mempool.space API.
 
-**Returns:** `Promise<{normal: number, fast: number}>` - Object containing fee rates in sat/vB
+**Returns:** `Promise<{normal: bigint, fast: bigint}>` - Object containing fee rates in sat/vB
 
 - `normal`: Standard fee rate for confirmation within ~1 hour
 - `fast`: Higher fee rate for faster confirmation
@@ -458,7 +506,7 @@ wallet.dispose();
 
 ### WalletAccountBtc
 
-Represents an individual Bitcoin wallet account. Implements `IWalletAccount` from `@tetherto/wdk-wallet`.
+Represents an individual Bitcoin wallet account. Extends `WalletAccountReadOnlyBtc` and implements `IWalletAccount` from `@tetherto/wdk-wallet`.
 
 #### Constructor
 
@@ -469,29 +517,28 @@ new WalletAccountBtc(signer);
 **Parameters:**
 
 - `seed` (string | Uint8Array): BIP-39 mnemonic seed phrase or seed bytes
-- `path` (string): BIP-84 derivation path (e.g., "0'/0/0")
-- `config` (object, optional): Configuration object
-  - `host` (string, optional): Electrum server hostname (default: "electrum.blockstream.info")
-  - `port` (number, optional): Electrum server port (default: 50001)
-  - `network` (string, optional): "bitcoin", "testnet", or "regtest" (default: "bitcoin")
+- `path` (string): Derivation path suffix (e.g., "0'/0/0")
+- `config` (BtcWalletConfig, optional): Configuration object (see [WalletManagerBtc constructor](#constructor) for details)
 
 #### Methods
 
-| Method                          | Description                                                    | Returns                                |
-| ------------------------------- | -------------------------------------------------------------- | -------------------------------------- |
-| `getAddress()`                  | Returns the account's Native SegWit address                    | `Promise<string>`                      |
-| `getBalance()`                  | Returns the confirmed account balance in satoshis              | `Promise<bigint>`                      |
-| `sendTransaction(options)`      | Sends a Bitcoin transaction                                    | `Promise<{hash: string, fee: bigint}>` |
-| `quoteSendTransaction(options)` | Estimates the fee for a transaction                            | `Promise<{fee: bigint}>`               |
-| `getTransfers(options?)`        | Returns the account's transfer history                         | `Promise<BtcTransfer[]>`               |
-| `sign(message)`                 | Signs a message with the account's private key                 | `Promise<string>`                      |
-| `verify(message, signature)`    | Verifies a message signature                                   | `Promise<boolean>`                     |
-| `toReadOnlyAccount()`           | Creates a read-only version of this account                    | `Promise<never>`                       |
-| `dispose()`                     | Disposes the wallet account, clearing private keys from memory | `void`                                 |
+| Method                          | Description                                                    | Returns                                                       |
+| ------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------- |
+| `getAddress()`                  | Returns the account's Bitcoin address                          | `Promise<string>`                                             |
+| `getBalance()`                  | Returns the confirmed account balance in satoshis              | `Promise<bigint>`                                             |
+| `sendTransaction(options)`      | Sends a Bitcoin transaction                                    | `Promise<{hash: string, fee: bigint}>`                        |
+| `quoteSendTransaction(options)` | Estimates the fee for a transaction                            | `Promise<{fee: bigint}>`                                      |
+| `getTransfers(options?)`        | Returns the account's transfer history                         | `Promise<BtcTransfer[]>`                                      |
+| `getTransactionReceipt(hash)`   | Returns a transaction's receipt                                | `Promise<BtcTransaction \| null>`                             |
+| `getMaxSpendable()`             | Returns the maximum spendable amount                           | `Promise<{amount: bigint, fee: bigint, changeValue: bigint}>` |
+| `sign(message)`                 | Signs a message with the account's private key                 | `Promise<string>`                                             |
+| `verify(message, signature)`    | Verifies a message signature                                   | `Promise<boolean>`                                            |
+| `toReadOnlyAccount()`           | Creates a read-only version of this account                    | `Promise<WalletAccountReadOnlyBtc>`                           |
+| `dispose()`                     | Disposes the wallet account, clearing private keys from memory | `void`                                                        |
 
 ##### `getAddress()`
 
-Returns the account's Native SegWit (bech32) address.
+Returns the account's Bitcoin address (Native SegWit bech32 by default, or legacy if using BIP-44).
 
 **Returns:** `Promise<string>` - The Bitcoin address
 
@@ -499,14 +546,14 @@ Returns the account's Native SegWit (bech32) address.
 
 ```javascript
 const address = await account.getAddress();
-console.log("Address:", address); // bc1q...
+console.log("Address:", address); // bc1q... (BIP-84) or 1... (BIP-44)
 ```
 
 ##### `getBalance()`
 
 Returns the account's confirmed balance in satoshis.
 
-**Returns:** `Promise<number>` - Balance in satoshis
+**Returns:** `Promise<bigint>` - Balance in satoshis
 
 **Example:**
 
@@ -524,15 +571,17 @@ Sends a Bitcoin transaction to a single recipient.
 - `options` (object): Transaction options
   - `to` (string): Recipient's Bitcoin address
   - `value` (number | bigint): Amount in satoshis
+  - `feeRate` (number | bigint, optional): Fee rate in sat/vB (auto-estimated if not provided)
+  - `confirmationTarget` (number, optional): Target blocks for confirmation (default: 1)
 
-**Returns:** `Promise<{hash: string, fee: number}>` - Object containing hash and fee (in satoshis)
+**Returns:** `Promise<{hash: string, fee: bigint}>` - Object containing hash and fee (in satoshis)
 
 **Example:**
 
 ```javascript
 const result = await account.sendTransaction({
   to: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
-  value: 50000,
+  value: 50000n,
 });
 console.log("Transaction hash:", result.hash);
 console.log("Fee:", result.fee, "satoshis");
@@ -547,15 +596,17 @@ Estimates the fee for a transaction without broadcasting it.
 - `options` (object): Same as sendTransaction options
   - `to` (string): Recipient's Bitcoin address
   - `value` (number | bigint): Amount in satoshis
+  - `feeRate` (number | bigint, optional): Fee rate in sat/vB (auto-estimated if not provided)
+  - `confirmationTarget` (number, optional): Target blocks for confirmation (default: 1)
 
-**Returns:** `Promise<{fee: number}>` - Object containing estimated fee (in satoshis)
+**Returns:** `Promise<{fee: bigint}>` - Object containing estimated fee (in satoshis)
 
 **Example:**
 
 ```javascript
 const quote = await account.quoteSendTransaction({
   to: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
-  value: 50000,
+  value: 50000n,
 });
 console.log("Estimated fee:", quote.fee, "satoshis");
 ```
@@ -583,6 +634,44 @@ const transfers = await account.getTransfers({
 console.log("Recent incoming transfers:", transfers);
 ```
 
+##### `getTransactionReceipt(hash)`
+
+Returns a transaction's receipt if it has been included in a block.
+
+**Parameters:**
+
+- `hash` (string): The transaction hash (64 hex characters)
+
+**Returns:** `Promise<BtcTransaction | null>` - The transaction object, or null if not yet confirmed
+
+**Example:**
+
+```javascript
+const receipt = await account.getTransactionReceipt("abc123...");
+if (receipt) {
+  console.log("Transaction confirmed");
+}
+```
+
+##### `getMaxSpendable()`
+
+Returns the maximum spendable amount that can be sent in a single transaction. The maximum spendable amount can differ from the wallet's total balance for several reasons:
+
+- **Transaction fees**: Fees are subtracted from the total balance
+- **Uneconomic UTXOs**: Small UTXOs where the fee to spend them exceeds their value are excluded
+- **UTXO limit**: A transaction can include at most 200 inputs. Wallets with more UTXOs cannot spend their full balance in a single transaction.
+- **Dust limit**: Outputs below the dust threshold (294 sats for SegWit, 546 sats for legacy) cannot be created
+
+**Returns:** `Promise<{amount: bigint, fee: bigint, changeValue: bigint}>` - Maximum spendable result
+
+**Example:**
+
+```javascript
+const { amount, fee } = await account.getMaxSpendable();
+console.log("Max spendable:", amount, "satoshis");
+console.log("Estimated fee:", fee, "satoshis");
+```
+
 ##### `sign(message)`
 
 Signs a message using the account's private key.
@@ -591,7 +680,7 @@ Signs a message using the account's private key.
 
 - `message` (string): Message to sign
 
-**Returns:** `Promise<string>` - Signature as hex string
+**Returns:** `Promise<string>` - Signature as base64 string
 
 **Example:**
 
@@ -607,7 +696,7 @@ Verifies a message signature using the account's public key.
 **Parameters:**
 
 - `message` (string): Original message
-- `signature` (string): Signature as hex string
+- `signature` (string): Signature as base64 string
 
 **Returns:** `Promise<boolean>` - True if signature is valid
 
@@ -618,28 +707,24 @@ const isValid = await account.verify("Hello Bitcoin!", signature);
 console.log("Signature valid:", isValid);
 ```
 
+**Note**: The `verify` method is available on `WalletAccountReadOnlyBtc` and is inherited by `WalletAccountBtc`.
+
 ##### `toReadOnlyAccount()`
 
-Creates a read-only version of this account (not supported on Bitcoin blockchain).
+Creates a read-only version of this account that can query balances but cannot sign transactions.
 
-**Returns:** `Promise<never>` - Always throws an error
-
-**Throws:** Error - "Read-only accounts are not supported for the bitcoin blockchain."
+**Returns:** `Promise<WalletAccountReadOnlyBtc>` - The read-only account
 
 **Example:**
 
 ```javascript
-// This will throw an error
-try {
-  await account.toReadOnlyAccount();
-} catch (error) {
-  console.log(error.message); // Read-only accounts are not supported
-}
+const readOnlyAccount = await account.toReadOnlyAccount();
+const balance = await readOnlyAccount.getBalance();
 ```
 
 ##### `dispose()`
 
-Disposes the wallet account, securely erasing the private key from memory.
+Disposes the wallet account, securely erasing the private key from memory and closing the Electrum connection.
 
 **Returns:** `void`
 
@@ -650,17 +735,39 @@ account.dispose();
 // Private key is now securely wiped from memory
 ```
 
-**Note**: `getTokenBalance()`, `transfer()`, `quoteTransfer()`, and `toReadOnlyAccount()` methods are not supported on the Bitcoin blockchain and will throw errors.
+**Note**: `getTokenBalance()`, `transfer()`, and `quoteTransfer()` methods are not supported on the Bitcoin blockchain and will throw errors.
 
 #### Properties
 
 | Property  | Type     | Description                                         |
 | --------- | -------- | --------------------------------------------------- |
 | `index`   | `number` | The derivation path's index of this account         |
-| `path`    | `string` | The full BIP-84 derivation path of this account     |
+| `path`    | `string` | The full derivation path of this account            |
 | `keyPair` | `object` | The account's key pair (⚠️ Contains sensitive data) |
 
 ⚠️ **Security Note**: The `keyPair` property contains sensitive cryptographic material. Never log, display, or expose the private key.
+
+### WalletAccountReadOnlyBtc
+
+Represents a read-only Bitcoin wallet account. Extends `WalletAccountReadOnly` from `@tetherto/wdk-wallet`.
+
+```javascript
+new WalletAccountReadOnlyBtc(address, config);
+```
+
+**Parameters:**
+
+- `address` (string): The account's Bitcoin address
+- `config` (BtcWalletConfig, optional): Configuration object (see [WalletManagerBtc constructor](#constructor) for details)
+
+#### Methods
+
+| Method                          | Description                                       | Returns                                                       |
+| ------------------------------- | ------------------------------------------------- | ------------------------------------------------------------- |
+| `getBalance()`                  | Returns the confirmed account balance in satoshis | `Promise<bigint>`                                             |
+| `quoteSendTransaction(options)` | Estimates the fee for a transaction               | `Promise<{fee: bigint}>`                                      |
+| `getTransactionReceipt(hash)`   | Returns a transaction's receipt                   | `Promise<BtcTransaction \| null>`                             |
+| `getMaxSpendable()`             | Returns the maximum spendable amount              | `Promise<{amount: bigint, fee: bigint, changeValue: bigint}>` |
 
 ### SeedSignerBtc
 
@@ -675,17 +782,12 @@ new SeedSignerBtc(seed, config);
 **Parameters:**
 
 - `seed` (string | Uint8Array): BIP-39 mnemonic seed phrase or seed bytes
-- `config` (object, optional): Configuration object
-  - `network` (string, optional): "bitcoin", "testnet", or "regtest" (default: "bitcoin")
-  - `bip` (number, optional): BIP number for derivation (44 or 84, default: 84)
+- `config` (BtcWalletConfig, optional): Configuration object (see [WalletManagerBtc constructor](#constructor) for details)
 
 **Example:**
 
 ```javascript
-const signer = new SeedSignerBtc("your seed phrase here", {
-  network: "bitcoin",
-  bip: 84,
-});
+const signer = new SeedSignerBtc(seedPhrase, config);
 ```
 
 #### Methods
@@ -722,15 +824,12 @@ new PrivateKeySignerBtc(privateKey, config);
 **Parameters:**
 
 - `privateKey` (string | Uint8Array | Buffer): Raw private key (hex string or 32 bytes)
-- `config` (object, optional): Configuration object
-  - `network` (string, optional): "bitcoin", "testnet", or "regtest" (default: "bitcoin")
+- `config` (BtcWalletConfig, optional): Configuration object (see [WalletManagerBtc constructor](#constructor) for details)
 
 **Example:**
 
 ```javascript
-const signer = new PrivateKeySignerBtc("a1b2c3d4e5f6789abcdef...", {
-  network: "bitcoin",
-});
+const signer = new PrivateKeySignerBtc("a1b2c3d4e5f6789abcdef...", config);
 ```
 
 #### Methods
@@ -827,14 +926,16 @@ This package works with Bitcoin networks:
 
 ### Supported Address Types
 
-This implementation supports **Native SegWit (P2WPKH) addresses only**:
+This implementation supports the following address types:
 
-- **Native SegWit (P2WPKH)**: Addresses starting with 'bc1' (mainnet) or 'tb1' (testnet)
-  - Uses BIP-84 derivation paths (`m/84'/0'/account'/0/index`)
+- **Native SegWit (P2WPKH)** (default, BIP-84): Addresses starting with 'bc1' (mainnet) or 'tb1' (testnet)
+  - Uses BIP-84 derivation paths (`m/84'/0'/account'/0/index` for mainnet)
   - Lower transaction fees compared to legacy formats
   - Full SegWit benefits including transaction malleability protection
 
-**Note**: Legacy (P2PKH) and wrapped SegWit (P2SH-P2WPKH) address types are not supported by this implementation. All generated addresses use the Native SegWit format for optimal fee efficiency and modern Bitcoin standards.
+- **Legacy (P2PKH)** (BIP-44): Addresses starting with '1' (mainnet) or 'm'/'n' (testnet)
+  - Uses BIP-44 derivation paths (`m/44'/0'/account'/0/index` for mainnet)
+  - Enable via `{ bip: 44 }` in config
 
 ## 🔒 Security Considerations
 
@@ -845,7 +946,7 @@ This implementation supports **Native SegWit (P2WPKH) addresses only**:
 - **Memory Cleanup**: Use the `dispose()` method to clear private keys from memory when done
 - **UTXO Management**: UTXO selection and change handling is managed automatically by the wallet
 - **Fee Management**: Fee rates are fetched from mempool.space API automatically
-- **Address Format**: Only Native SegWit (bech32) addresses are supported
+- **Address Format**: Native SegWit (bech32) addresses are used by default
 
 ## 🛠️ Development
 

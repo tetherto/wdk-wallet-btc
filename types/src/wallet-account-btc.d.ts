@@ -57,20 +57,13 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      */
     sign(message: string): Promise<string>;
     /**
-     * Verifies a message's signature.
-     *
-     * @param {string} message - The original message.
-     * @param {string} signature - The signature to verify.
-     * @returns {Promise<boolean>} True if the signature is valid.
-     */
-    verify(message: string, signature: string): Promise<boolean>;
-    /**
      * Sends a transaction.
      *
      * @param {BtcTransaction} tx - The transaction.
+     * @param {number} [timeoutMs] - Maximum milliseconds to poll for spent inputs to disappear from unspent outputs after broadcast.
      * @returns {Promise<TransactionResult>} The transaction's result.
      */
-    sendTransaction({ to, value, feeRate, confirmationTarget }: BtcTransaction): Promise<TransactionResult>;
+    sendTransaction({ to, value, feeRate, confirmationTarget }: BtcTransaction, timeoutMs?: number): Promise<TransactionResult>;
     /**
      * Transfers a token to another address.
      *
@@ -99,7 +92,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      */
     toReadOnlyAccount(): Promise<WalletAccountReadOnlyBtc>;
     /**
-     * Disposes the wallet account, erasing the private key from memory and closing the connection with the electrum server.
+     * Disposes the wallet account, erasing the private key from memory and closing the connection with the server.
      */
     dispose(): void;
     /** @private */

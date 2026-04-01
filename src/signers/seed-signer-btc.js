@@ -13,7 +13,7 @@
 // limitations under the License.
 'use strict'
 import { hmac } from '@noble/hashes/hmac'
-import { sha512 } from '@noble/hashes/sha512'
+import { sha512 } from '@noble/hashes/sha2'
 import { initEccLib, networks, Psbt } from 'bitcoinjs-lib'
 import { BIP32Factory } from 'bip32'
 import { NotImplementedError } from '@tetherto/wdk-wallet'
