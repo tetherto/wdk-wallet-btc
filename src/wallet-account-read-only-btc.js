@@ -155,12 +155,11 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     this._client = this._clientList[0]
 
     if (this._clientList.length > 1) {
-      this._client = this._clientList
-        .reduce(
-          (failover, candidate) => failover.addProvider(candidate),
-          new FailoverProvider({ retries: this._config.retries })
-        )
-        .initialize()
+      const failoverProvider = new FailoverProvider({ retries: this._config.retries })
+      for (const entry of this._clientList) {
+        failoverProvider.addProvider(entry)
+      }
+      this._client = failoverProvider.initialize()
     }
 
     const prefix = Object.keys(BIP_BY_ADDRESS_PREFIX).find(p => address.startsWith(p))
