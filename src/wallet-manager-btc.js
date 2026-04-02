@@ -57,7 +57,7 @@ export default class WalletManagerBtc extends WalletManager {
 
     if (this._clientList.length > 1) {
       const failoverProvider = new FailoverProvider({ retries: this._config.retries })
-      for (const entry in this._clientList) {
+      for (const entry of this._clientList) {
         failoverProvider.addProvider(entry)
       }
       this._client = failoverProvider.initialize()
