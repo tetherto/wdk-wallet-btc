@@ -1,14 +1,5 @@
 export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     /**
-     * Creates a bitcoin client from a descriptor, or returns the client as-is if already instantiated.
-     *
-     * @protected
-     * @param {IBtcClient | BtcClientDescriptor} client - The bitcoin client or client descriptor.
-     * @param {"bitcoin" | "regtest" | "testnet"} [network] - The network name.
-     * @returns {IBtcClient} The bitcoin client.
-     */
-    protected static _createClient(client: IBtcClient | BtcClientDescriptor, network?: "bitcoin" | "regtest" | "testnet"): IBtcClient;
-    /**
      * Creates a new bitcoin read-only wallet account.
      *
      * @param {string} address - The account's address.
@@ -44,12 +35,32 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      */
     protected _client: IBtcClient;
     /**
+     * A list that maps each client to a flag that is true only if the client was externally provided.
+     *
+     * @protected
+     * @type {Array<boolean>}
+     */
+    get _isExternalClient(): Array<boolean>;
+    /**
      * The dust limit in satoshis based on the BIP type.
      *
      * @private
      * @type {bigint}
      */
     private _dustLimit;
+    /**
+     * Returns the account's bitcoin balance.
+     *
+     * @returns {Promise<bigint>} The bitcoin balance (in satoshis).
+     */
+    getBalance(): Promise<bigint>;
+    /**
+     * Returns the account balance for a specific token.
+     *
+     * @param {string} tokenAddress - The smart contract address of the token.
+     * @returns {Promise<bigint>} The token balance (in base unit).
+     */
+    getTokenBalance(tokenAddress: string): Promise<bigint>;
     /**
      * Quotes the costs of a send transaction operation.
      *
@@ -58,6 +69,13 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      */
     quoteSendTransaction({ to, value, feeRate, confirmationTarget }: BtcTransaction): Promise<Omit<TransactionResult, "hash">>;
     /**
+     * Quotes the costs of a transfer operation.
+     *
+     * @param {TransferOptions} options - The transfer's options.
+     * @returns {Promise<Omit<TransferResult, 'hash'>>} The transfer's quotes.
+     */
+    quoteTransfer(options: TransferOptions): Promise<Omit<TransferResult, "hash">>;
+    /**
      * Returns a transaction's receipt.
      *
      * @param {string} hash - The transaction's hash.
@@ -65,32 +83,21 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      */
     getTransactionReceipt(hash: string): Promise<BtcTransactionReceipt | null>;
     /**
-     * Returns an estimation of the maximum spendable amount (in satoshis) that can be sent in
+     * Returns the maximum spendable amount (in satoshis) that can be sent in
      * a single transaction, after subtracting estimated transaction fees.
      *
-     * The estimated maximum spendable amount can differ from the wallet's total balance.
+     * The maximum spendable amount can differ from the wallet's total balance.
      * A transaction can only include up to MAX_UTXO_INPUTS (default: 200) unspents.
      * Wallets holding more than this limit cannot spend their full balance in a
-     * single transaction. There will likely be some satoshis left over as change.
+     * single transaction.
      *
      * @param {Object} [opts] - Options.
      * @param {number | bigint} [opts.feeRate] - Fee rate in sat/vB. If omitted, estimated via the client.
-     * @returns {Promise<BtcMaxSpendableResult>} The estimated maximum spendable result.
+     * @returns {Promise<BtcMaxSpendableResult>} The maximum spendable result.
      */
     getMaxSpendable(opts?: {
         feeRate?: number | bigint;
     }): Promise<BtcMaxSpendableResult>;
-    /**
-     * A list that maps each client to a flag that is true only if the client was externally provided.
-     *
-     * @protected
-     * @type {Array<boolean>}
-     */
-    protected get _isExternalClient(): Array<boolean>;
-    /**
-     * Closes any internal connection with the server.
-     */
-    dispose(): void;
     /**
      * Ensures the client is connected.
      *
@@ -98,6 +105,15 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @returns {Promise<void>}
      */
     protected _ensureConnected(): Promise<void>;
+    /**
+     * Creates a bitcoin client from a descriptor, or returns the client as-is if already instantiated.
+     *
+     * @protected
+     * @param {IBtcClient | BtcClientDescriptor} client - The bitcoin client or client descriptor.
+     * @param {"bitcoin" | "regtest" | "testnet"} [network] - The network name.
+     * @returns {IBtcClient} The bitcoin client.
+     */
+    protected static _createClient(client: IBtcClient | BtcClientDescriptor, network?: "bitcoin" | "regtest" | "testnet"): IBtcClient;
     /** @private */
     private _toBigInt;
     /**
@@ -124,12 +140,22 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
         fee: number;
         changeValue: number;
     }>;
+    /**
+     * Verifies a message's signature.
+     *
+     * @param {string} message - The original message.
+     * @param {string} signature - The signature to verify.
+     * @returns {Promise<boolean>} True if the signature is valid.
+     */
+    verify(message: string, signature: string): Promise<boolean>;
+    /**
+     * Closes any internal connection with the server.
+     */
+    dispose(): void;
 }
 export type MempoolElectrumConfig = import("./transports/index.js").MempoolElectrumConfig;
 export type MempoolElectrumClient = import("./transports/index.js").MempoolElectrumClient;
 export type IBtcClient = import("./transports/index.js").IBtcClient;
-export type BlockbookClientConfig = import("./transports/blockbook-client.js").BlockbookClientConfig;
-export type ElectrumWsConfig = import("./transports/ws.js").ElectrumWsConfig;
 export type OutputWithValue = import("@bitcoinerlab/coinselect").OutputWithValue;
 export type Network = import("bitcoinjs-lib").Network;
 export type BtcTransactionReceipt = import("bitcoinjs-lib").Transaction;
@@ -154,40 +180,13 @@ export type BtcTransaction = {
      */
     feeRate?: number | bigint;
 };
-export type BtcClientDescriptor = BtcBlockbookHttpClientDescriptor | BtcElectrumClientDescriptor | BtcElectrumWsClientDescriptor;
-export type BtcBlockbookHttpClientDescriptor = {
-    /**
-     * - The client's type.
-     */
-    type: "blockbook-http";
-    /**
-     * - The client's configuration.
-     */
-    clientConfig: BlockbookClientConfig;
-};
-export type BtcElectrumWsClientDescriptor = {
-    /**
-     * - Use a WebSocket Electrum client.
-     */
-    type: "electrum-ws";
-    /**
-     * - The WebSocket client configuration.
-     */
-    clientConfig: Omit<ElectrumWsConfig, "network">;
-};
-export type BtcElectrumClientDescriptor = {
-    /**
-     * - Use a TCP/TLS/SSL Electrum client.
-     */
-    type: "electrum";
-    /**
-     * - The Electrum client configuration.
-     */
-    clientConfig: Omit<MempoolElectrumConfig, "network">;
-};
+export type BtcClientDescriptor =
+    | { type: 'blockbook-http', clientConfig: import("./transports/blockbook-client.js").BlockbookClientConfig }
+    | { type: 'electrum-ws', clientConfig: import("./transports/ws.js").ElectrumWsConfig }
+    | { type: 'electrum', clientConfig: MempoolElectrumConfig };
 export type BtcWalletConfig = {
     /**
-     * - The bitcoin client, or a list of bitcoin client options for connection fallback.
+     * - The bitcoin client: a pre-built IBtcClient, a descriptor { type, config }, or an array for failover.
      */
     client?: IBtcClient | BtcClientDescriptor | Array<IBtcClient | BtcClientDescriptor>;
     /**

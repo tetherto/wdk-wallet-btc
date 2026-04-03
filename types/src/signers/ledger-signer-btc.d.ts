@@ -1,5 +1,6 @@
 /** @typedef {import('./seed-signer-btc.js').ISignerBtc} ISignerBtc */
 /** @typedef {import('../wallet-account-read-only-btc.js').BtcWalletConfig} BtcWalletConfig */
+/** @typedef {import('@tetherto/wdk-wallet').KeyPair} KeyPair */
 /** @typedef {import('bitcoinjs-lib').Psbt} Psbt */
 /** @typedef {import('@ledgerhq/device-management-kit').DeviceManagementKit} DeviceManagementKit */
 /**
@@ -22,14 +23,16 @@ export default class LedgerSignerBtc implements ISignerBtc {
     constructor(path: string, config?: BtcWalletConfig, opts?: {
         dmk?: DeviceManagementKit;
     });
-    skipOpenApp: boolean;
-    /**
-     * Device/session state (lazy initialization like EVM signer)
-     */
-    _address: any;
-    _sessionId: string;
-    _signerBtc: import("@ledgerhq/device-signer-kit-bitcoin/internal/DefaultSignerBtc.js").DefaultSignerBtc;
-    _extendedPublicKey: any;
+    /** @private */
+    private skipOpenApp;
+    /** @private */
+    private _address;
+    /** @private */
+    private _sessionId;
+    /** @private */
+    private _signerBtc;
+    /** @private */
+    private _extendedPublicKey;
     /**
      * The wallet account configuration.
      *
@@ -37,10 +40,12 @@ export default class LedgerSignerBtc implements ISignerBtc {
      * @type {BtcWalletConfig}
      */
     protected _config: BtcWalletConfig;
-    _path: string;
-    _bip: 84 | 44;
-    /** @type {DeviceManagementKit} */
-    _dmk: DeviceManagementKit;
+    /** @private */
+    private _path;
+    /** @private */
+    private _bip;
+    /** @private */
+    private _dmk;
     /**
      * The derivation path index of this account.
      *
@@ -148,5 +153,6 @@ export default class LedgerSignerBtc implements ISignerBtc {
 }
 export type ISignerBtc = import("./seed-signer-btc.js").ISignerBtc;
 export type BtcWalletConfig = import("../wallet-account-read-only-btc.js").BtcWalletConfig;
+export type KeyPair = import("@tetherto/wdk-wallet").KeyPair;
 export type Psbt = import("bitcoinjs-lib").Psbt;
 export type DeviceManagementKit = import("@ledgerhq/device-management-kit").DeviceManagementKit;

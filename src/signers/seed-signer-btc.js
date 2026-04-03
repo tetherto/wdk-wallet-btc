@@ -211,10 +211,15 @@ export default class SeedSignerBtc {
       masterNode = deriveMasterNode(seed)
     }
 
+    /** @private */
     this._masterNode = masterNode
+    /** @private */
     this._bip = undefined
+    /** @private */
     this._path = undefined
+    /** @private */
     this._account = undefined
+    /** @private */
     this._address = undefined
     /**
      * The wallet account configuration.
@@ -224,6 +229,7 @@ export default class SeedSignerBtc {
      */
     config = normalizeConfig(config)
     this._config = config
+    /** @private */
     this._isRoot = true
 
     if (opts.path) {

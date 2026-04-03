@@ -103,9 +103,9 @@ export function ensureWitnessUtxoIfNeeded (psbtInstance, i, bip, prevOut, input)
 /**
  * Normalizes wallet configuration with defaults.
  *
- * @param {Object} [config] - The configuration object.
+ * @param {import('../wallet-account-read-only-btc.js').BtcWalletConfig} [config] - The configuration object.
  * @param {number} [config.bip=84] - The BIP standard (44 or 84).
- * @returns {Object} The normalized configuration.
+ * @returns {import('../wallet-account-read-only-btc.js').BtcWalletConfig} The normalized configuration.
  * @throws {Error} If an unsupported BIP is specified.
  */
 export function normalizeConfig (config = {}) {
@@ -136,6 +136,7 @@ export function getAddressFromPublicKey (publicKey, network, bip = 44) {
  *
  * @param {string} message - The message to sign.
  * @param {Buffer} privateKey - The private key.
+ * @param {number} bip - The BIP standard (44 or 84).
  * @returns {Promise<string>} The message's signature.
  */
 export function signMessage (message, privateKey, bip) {

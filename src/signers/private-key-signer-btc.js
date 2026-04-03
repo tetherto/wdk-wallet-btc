@@ -62,9 +62,16 @@ export default class PrivateKeySignerBtc {
     const account = ECPair.fromPrivateKey(pkBuf)
     const network = networks[cfg.network] || networks.bitcoin
     const address = getAddressFromPublicKey(account.publicKey, network, config.bip)
+    /**
+     * @private
+     * @type {BtcWalletConfig}
+     */
     this._config = cfg
+    /** @private */
     this._account = account
+    /** @private */
     this._address = address
+    /** @private */
     this._isPrivateKey = true
   }
 

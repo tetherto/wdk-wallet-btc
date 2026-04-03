@@ -1,12 +1,4 @@
 /**
- * Converts a bitcoin address to an Electrum-style script hash.
- *
- * @param {string} address - The bitcoin address.
- * @param {import('bitcoinjs-lib').Network} network - The bitcoin network.
- * @returns {string} The reversed SHA-256 hash of the output script, hex-encoded.
- */
-export function toScriptHash(address: string, network: import("bitcoinjs-lib").Network): string;
-/**
  * @typedef {Object} BtcClientConfig
  * @property {number} [timeout] - Connection timeout in milliseconds (default: 15_000).
  */
@@ -28,7 +20,7 @@ export function toScriptHash(address: string, network: import("bitcoinjs-lib").N
  * @property {number} height - The block height (0 or negative if unconfirmed).
  */
 /** @interface */
-export default class IBtcClient {
+export default interface IBtcClient {
     /**
      * Closes the connection.
      *
@@ -93,6 +85,14 @@ export default class IBtcClient {
      */
     estimateFee(blocks: number): Promise<number>;
 }
+/**
+ * Converts a bitcoin address to an Electrum-style script hash.
+ *
+ * @param {string} address - The bitcoin address.
+ * @param {import('bitcoinjs-lib').Network} network - The bitcoin network.
+ * @returns {string} The reversed SHA-256 hash of the output script, hex-encoded.
+ */
+export function toScriptHash(address: string, network: import('bitcoinjs-lib').Network): string;
 export type BtcClientConfig = {
     /**
      * - Connection timeout in milliseconds (default: 15_000).

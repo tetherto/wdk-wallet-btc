@@ -3,7 +3,6 @@
  * @property {string} host - The Electrum server hostname.
  * @property {number} port - The Electrum server port.
  * @property {'tcp' | 'ssl' | 'tls'} [protocol] - The transport protocol (default: 'tcp').
- * @property {"bitcoin" | "regtest" | "testnet"} [network] - The network name (default: 'bitcoin').
  * @property {number} [maxRetry] - Maximum reconnection attempts (default: 2).
  * @property {number} [retryPeriod] - Delay between reconnection attempts in milliseconds (default: 1000).
  * @property {number} [pingPeriod] - Delay between keep-alive pings in milliseconds (default: 120000).
@@ -25,7 +24,10 @@ export default class MempoolElectrumClient implements IBtcClient {
      * @param {MempoolElectrumConfig} config - Configuration options.
      */
     constructor(config: MempoolElectrumConfig);
-    /** @private */
+    /**
+     * @private
+     * @type {import('bitcoinjs-lib').Network}
+     */
     private _network;
     /**
      * @private
@@ -130,10 +132,6 @@ export type MempoolElectrumConfig = {
      * - The transport protocol (default: 'tcp').
      */
     protocol?: "tcp" | "ssl" | "tls";
-    /**
-     * - The network name (default: 'bitcoin').
-     */
-    network?: "bitcoin" | "regtest" | "testnet";
     /**
      * - Maximum reconnection attempts (default: 2).
      */

@@ -40,6 +40,7 @@ const GET_MASTER_FINGERPRINT_APDU = new Uint8Array([0xe1, 0x05, 0x00, 0x00, 0x00
 
 /** @typedef {import('./seed-signer-btc.js').ISignerBtc} ISignerBtc */
 /** @typedef {import('../wallet-account-read-only-btc.js').BtcWalletConfig} BtcWalletConfig */
+/** @typedef {import('@tetherto/wdk-wallet').KeyPair} KeyPair */
 /** @typedef {import('bitcoinjs-lib').Psbt} Psbt */
 /** @typedef {import('@ledgerhq/device-management-kit').DeviceManagementKit} DeviceManagementKit */
 
@@ -69,14 +70,16 @@ export default class LedgerSignerBtc {
 
     const netdp = config.network === 'bitcoin' ? 0 : 1
     const fullPath = `m/${bip}'/${netdp}'/${path}`
+    /** @private */
     this.skipOpenApp = netdp === 1
 
-    /**
-     * Device/session state (lazy initialization like EVM signer)
-     */
+    /** @private */
     this._address = undefined
+    /** @private */
     this._sessionId = ''
+    /** @private */
     this._signerBtc = undefined
+    /** @private */
     this._extendedPublicKey = undefined
     /**
      * The wallet account configuration.
@@ -85,11 +88,15 @@ export default class LedgerSignerBtc {
      * @type {BtcWalletConfig}
      */
     this._config = config
-
+    /** @private */
     this._path = fullPath
+    /** @private */
     this._bip = bip
 
-    /** @type {DeviceManagementKit} */
+    /**
+     * @private
+     * @type {DeviceManagementKit}
+     */
     this._dmk =
       opts.dmk ||
       new DeviceManagementKitBuilder()

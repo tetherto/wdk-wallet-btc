@@ -1,5 +1,6 @@
 /** @typedef {import('bitcoinjs-lib').Network} Network */
 /** @typedef {import('bitcoinjs-lib').Psbt} Psbt */
+/** @typedef {import('../wallet-account-read-only-btc.js').BtcWalletConfig} BtcWalletConfig */
 /**
  * Hashes a message using SHA256.
  *
@@ -48,14 +49,11 @@ export function ensureWitnessUtxoIfNeeded(psbtInstance: Psbt, i: number, bip: nu
 /**
  * Normalizes wallet configuration with defaults.
  *
- * @param {Object} [config] - The configuration object.
- * @param {number} [config.bip=84] - The BIP standard (44 or 84).
- * @returns {Object} The normalized configuration.
+ * @param {BtcWalletConfig} [config] - The configuration object.
+ * @returns {BtcWalletConfig} The normalized configuration.
  * @throws {Error} If an unsupported BIP is specified.
  */
-export function normalizeConfig(config?: {
-    bip?: number;
-}): any;
+export function normalizeConfig(config?: BtcWalletConfig): BtcWalletConfig;
 /**
  * Derives a Bitcoin address from a public key.
  *
@@ -70,8 +68,10 @@ export function getAddressFromPublicKey(publicKey: Buffer, network: Network, bip
  *
  * @param {string} message - The message to sign.
  * @param {Buffer} privateKey - The private key.
+ * @param {number} bip - The BIP standard (44 or 84).
  * @returns {Promise<string>} The message's signature.
  */
-export function signMessage(message: string, privateKey: Buffer, bip: any): Promise<string>;
+export function signMessage(message: string, privateKey: Buffer, bip: number): Promise<string>;
 export type Network = import("bitcoinjs-lib").Network;
 export type Psbt = import("bitcoinjs-lib").Psbt;
+export type BtcWalletConfig = import("../wallet-account-read-only-btc.js").BtcWalletConfig;

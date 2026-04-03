@@ -21,6 +21,13 @@ export default class WalletManagerBtc extends WalletManager {
      */
     protected _client: IBtcClient;
     /**
+     * A list that maps each client to a flag that is true only if the client was externally provided.
+     *
+     * @protected
+     * @type {Array<boolean>}
+     */
+    get _isExternalClient(): Array<boolean>;
+    /**
      * Creates a new signer.
      *
      * @param {string} signerName - The signer name.
@@ -36,7 +43,7 @@ export default class WalletManagerBtc extends WalletManager {
      * // For testnet or regtest: m/84'/1'/0'/0/1
      * const account = await wallet.getAccount(1);
      * @param {number} [index] - The index of the account to get (default: 0).
-     * @param {string} signerName - The signer name.
+     * @param {string} [signerName] - The signer name (default: 'default').
      * @returns {Promise<WalletAccountBtc>} The account.
      */
     getAccount(index?: number, signerName?: string): Promise<WalletAccountBtc>;
@@ -49,17 +56,20 @@ export default class WalletManagerBtc extends WalletManager {
      * // For testnet or regtest: m/84'/1'/0'/0/1
      * const account = await wallet.getAccountByPath("0'/0/1");
      * @param {string} path - The derivation path (e.g. "0'/0/0").
-     * @param {string} signerName - The signer name.
+     * @param {string} [signerName] - The signer name (default: 'default').
      * @returns {Promise<WalletAccountBtc>} The account.
      */
     getAccountByPath(path: string, signerName?: string): Promise<WalletAccountBtc>;
     /**
-     * A list that maps each client to a flag that is true only if the client was externally provided.
+     * Returns the current fee rates.
      *
-     * @protected
-     * @type {Array<boolean>}
+     * @returns {Promise<FeeRates>} The fee rates (in satoshis).
      */
-    protected get _isExternalClient(): Array<boolean>;
+    getFeeRates(): Promise<FeeRates>;
+    /**
+     * Disposes all the wallet accounts, erasing their private keys from the memory and closing all internal connections.
+     */
+    dispose(): void;
 }
 export type FeeRates = import("@tetherto/wdk-wallet").FeeRates;
 export type BtcWalletConfig = import("./wallet-account-btc.js").BtcWalletConfig;

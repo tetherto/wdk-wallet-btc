@@ -1,4 +1,12 @@
 /**
+ * @typedef {Object} ElectrumWsConfig
+ * @property {string} url - The WebSocket URL (e.g., 'wss://electrum.example.com:50004').
+ */
+/** @typedef {import('./btc-client.js').default} IBtcClient */
+/** @typedef {import('./btc-client.js').BtcBalance} BtcBalance */
+/** @typedef {import('./btc-client.js').BtcUtxo} BtcUtxo */
+/** @typedef {import('./btc-client.js').BtcHistoryItem} BtcHistoryItem */
+/**
  * Electrum client using WebSocket transport.
  *
  * Compatible with browser environments where TCP sockets are not available.
@@ -13,7 +21,10 @@ export default class ElectrumWs implements IBtcClient {
      * @param {ElectrumWsConfig} config - Configuration options.
      */
     constructor(config: ElectrumWsConfig);
-    /** @private */
+    /**
+     * @private
+     * @type {import('bitcoinjs-lib').Network}
+     */
     private _network;
     /**
      * @private
@@ -121,10 +132,6 @@ export type ElectrumWsConfig = {
      * - The WebSocket URL (e.g., 'wss://electrum.example.com:50004').
      */
     url: string;
-    /**
-     * - The network name (default: 'bitcoin').
-     */
-    network?: "bitcoin" | "regtest" | "testnet";
 };
 export type IBtcClient = import("./btc-client.js").default;
 export type BtcBalance = import("./btc-client.js").BtcBalance;

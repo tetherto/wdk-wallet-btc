@@ -102,13 +102,23 @@ export default class SeedSignerBtc implements ISignerBtc {
         masterNode?: import("bip32").BIP32Interface;
         path?: string;
     });
-    _masterNode: import("bip32").BIP32Interface;
-    _bip: 84 | 44;
-    _path: string;
-    _account: import("bip32").BIP32Interface;
-    _address: string;
-    _config: import("../wallet-account-read-only-btc.js").BtcWalletConfig;
-    _isRoot: boolean;
+    /** @private */
+    private _masterNode;
+    /** @private */
+    private _bip;
+    /** @private */
+    private _path;
+    /** @private */
+    private _account;
+    /** @private */
+    private _address;
+    /**
+     * @protected
+     * @type {BtcWalletConfig}
+     */
+    protected _config: BtcWalletConfig;
+    /** @private */
+    private _isRoot;
     /**
      * Whether this is the root (underived) signer.
      *
@@ -178,7 +188,7 @@ export default class SeedSignerBtc implements ISignerBtc {
      */
     dispose(): void;
 }
-export type ISigner = any;
+export type ISigner = import("@tetherto/wdk-wallet/src/isigner.js").ISigner;
 export type BtcWalletConfig = import("../wallet-account-read-only-btc.js").BtcWalletConfig;
 export type KeyPair = import("@tetherto/wdk-wallet").KeyPair;
 import { Psbt } from 'bitcoinjs-lib';

@@ -15,8 +15,6 @@ import * as ecc from '@bitcoinerlab/secp256k1'
 
 const SEED_PHRASE = 'cook voyage document eight skate token alien guide drink uncle term abuse'
 
-// const INVALID_SEED_PHRASE = 'invalid seed phrase'
-
 const SEED = mnemonicToSeedSync(SEED_PHRASE)
 
 const ACCOUNTS = {
@@ -118,21 +116,6 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
 
       account.dispose()
     })
-    // TODO: add tests for invalid seed phrases, paths, and bip specifications at the signer testing file
-    // test('should throw if the seed phrase is invalid', () => {
-    //   expect(() => new WalletAccountBtc(INVALID_SEED_PHRASE, "0'/0/0", CONFIGURATION))
-    //     .toThrow('The seed phrase is invalid.')
-    // })
-
-    // test('should throw if the path is invalid', () => {
-    //   expect(() => new WalletAccountBtc(SEED_PHRASE, "a'/b/c", CONFIGURATION))
-    //     .toThrow(/Expected BIP32Path/)
-    // })
-
-    // test('should throw for unsupported bip specifications', () => {
-    //   expect(() => new WalletAccountBtc(SEED_PHRASE, "0'/0/0", { bip: 1 }))
-    //     .toThrow(/Invalid bip specification/)
-    // })
   })
 
   describe('getAddress', () => {

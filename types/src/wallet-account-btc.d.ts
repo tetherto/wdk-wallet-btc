@@ -27,6 +27,13 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
     /** @private */
     private _signer;
     /**
+     * Returns the account's address. If not set at construction time (e.g. lazy hardware signers),
+     * it asks the underlying signer to resolve it, then caches it locally.
+     *
+     * @returns {Promise<string>} The account's address.
+     */
+    getAddress(): Promise<string>;
+    /**
      * The derivation path's index of this account.
      *
      * @type {number}
@@ -86,6 +93,10 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      * @returns {Promise<WalletAccountReadOnlyBtc>} The read-only account.
      */
     toReadOnlyAccount(): Promise<WalletAccountReadOnlyBtc>;
+    /**
+     * Disposes the wallet account, erasing the private key from memory and closing the connection with the server.
+     */
+    dispose(): void;
     /** @private */
     private _getRawTransaction;
 }

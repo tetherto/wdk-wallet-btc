@@ -17,10 +17,17 @@ export default class PrivateKeySignerBtc implements ISignerBtc {
      * @param {BtcWalletConfig} [config] - The wallet configuration.
      */
     constructor(privateKey: string | Uint8Array | Buffer, config?: BtcWalletConfig);
-    _config: any;
-    _account: import("ecpair").ECPairInterface;
-    _address: string;
-    _isPrivateKey: boolean;
+    /**
+     * @private
+     * @type {BtcWalletConfig}
+     */
+    private _config: BtcWalletConfig;
+    /** @private */
+    private _account;
+    /** @private */
+    private _address;
+    /** @private */
+    private _isPrivateKey;
     /**
      * Whether this signer is backed by a raw private key.
      *
