@@ -2,10 +2,14 @@ export default class WalletManagerBtc extends WalletManager {
     /**
      * Creates a new wallet manager for the bitcoin blockchain.
      *
-     * @param {ISignerBtc} signer - The root signer for the wallet.
+     * Accepts either a BIP-39 seed (string mnemonic or raw Uint8Array) for
+     * backwards compatibility, or an {@link ISignerBtc} instance for the new
+     * signer-based workflow.
+     *
+     * @param {string | Uint8Array | ISignerBtc} seedOrSigner - A BIP-39 seed phrase, raw seed bytes, or a root signer.
      * @param {BtcWalletConfig} [config] - The configuration object.
      */
-    constructor(signer: ISignerBtc, config?: BtcWalletConfig);
+    constructor(seedOrSigner: string | Uint8Array | ISignerBtc, config?: BtcWalletConfig);
     /**
      * A list of all the bitcoin client options.
      *

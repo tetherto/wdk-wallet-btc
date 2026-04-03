@@ -121,4 +121,44 @@ describe('WalletManagerBtc', () => {
         .rejects.toThrow('Signer ghost not found.')
     })
   })
+
+  describe('backwards compatibility (seed string constructor)', () => {
+    let seedWallet
+
+    beforeEach(() => {
+      seedWallet = new WalletManagerBtc(SEED_PHRASE)
+    })
+
+    afterEach(() => {
+      seedWallet.dispose()
+    })
+
+    test('accepts a mnemonic string directly', () => {
+      expect(seedWallet).toBeInstanceOf(WalletManagerBtc)
+    })
+
+    test('getAccount returns the same path as signer-based construction', async () => {
+      const signerAccount = await wallet.getAccount()
+      const seedAccount = await seedWallet.getAccount()
+
+      expect(seedAccount).toBeInstanceOf(WalletAccountBtc)
+      expect(seedAccount.path).toBe(signerAccount.path)
+    })
+
+    test('getAccountByPath works with seed-constructed wallet', async () => {
+      const account = await seedWallet.getAccountByPath("1'/2/3")
+
+      expect(account).toBeInstanceOf(WalletAccountBtc)
+      expect(account.path).toBe("m/84'/1'/1'/2/3")
+    })
+
+    test('derived accounts produce the same address as signer-based flow', async () => {
+      const signerAccount = await wallet.getAccount(0)
+      const seedAccount = await seedWallet.getAccount(0)
+
+      const signerAddr = await signerAccount.getAddress()
+      const seedAddr = await seedAccount.getAddress()
+      expect(seedAddr).toBe(signerAddr)
+    })
+  })
 })

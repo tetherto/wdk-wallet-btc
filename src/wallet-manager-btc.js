@@ -16,6 +16,7 @@
 import WalletManager from '@tetherto/wdk-wallet'
 
 import WalletAccountBtc from './wallet-account-btc.js'
+import SeedSignerBtc from './signers/seed-signer-btc.js'
 
 /** @typedef {import('@tetherto/wdk-wallet').FeeRates} FeeRates */
 
@@ -30,10 +31,19 @@ export default class WalletManagerBtc extends WalletManager {
   /**
    * Creates a new wallet manager for the bitcoin blockchain.
    *
-   * @param {ISignerBtc} signer - The root signer for the wallet.
+   * Accepts either a BIP-39 seed (string mnemonic or raw Uint8Array) for
+   * backwards compatibility, or an {@link ISignerBtc} instance for the new
+   * signer-based workflow.
+   *
+   * @param {string | Uint8Array | ISignerBtc} seedOrSigner - A BIP-39 seed phrase, raw seed bytes, or a root signer.
    * @param {BtcWalletConfig} [config] - The configuration object.
    */
-  constructor (signer, config = {}) {
+  constructor (seedOrSigner, config = {}) {
+    let signer = seedOrSigner
+    if (typeof seedOrSigner === 'string' || seedOrSigner instanceof Uint8Array) {
+      const { client, ...signerConfig } = config
+      signer = new SeedSignerBtc(seedOrSigner, signerConfig)
+    }
     if (signer.isPrivateKey) {
       throw new Error('Private key signers are not supported for wallet managers.')
     }
