@@ -148,8 +148,8 @@ export default class LedgerSignerBtc {
       const accountNode = bip32.fromBase58(this._extendedPublicKey, network)
       const childNode = accountNode.derive(changeIndex).derive(addressIndex)
       return {
-        privateKey: undefined, // Ledger signers do not expose private keys
-        publicKey: new Uint8Array(childNode.publicKey)
+        privateKey: undefined,
+        publicKey: childNode.publicKey
       }
     }
     throw new Error('Initialise wallet first')

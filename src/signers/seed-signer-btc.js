@@ -301,8 +301,8 @@ export default class SeedSignerBtc {
     const src = this._account || this._masterNode
     if (!src) return { privateKey: null, publicKey: null }
     return {
-      privateKey: src.privateKey ? new Uint8Array(src.privateKey) : null,
-      publicKey: src.publicKey ? new Uint8Array(src.publicKey) : null
+      privateKey: src.privateKey || null,
+      publicKey: src.publicKey || null
     }
   }
 

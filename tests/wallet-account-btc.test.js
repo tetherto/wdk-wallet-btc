@@ -96,8 +96,8 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
       expect(account.path).toBe(ACCOUNTS[bip].path)
 
       expect(account.keyPair).toEqual({
-        privateKey: new Uint8Array(Buffer.from(ACCOUNTS[bip].keyPair.privateKey, 'hex')),
-        publicKey: new Uint8Array(Buffer.from(ACCOUNTS[bip].keyPair.publicKey, 'hex'))
+        privateKey: Buffer.from(ACCOUNTS[bip].keyPair.privateKey, 'hex'),
+        publicKey: Buffer.from(ACCOUNTS[bip].keyPair.publicKey, 'hex')
       })
 
       account.dispose()
@@ -112,8 +112,8 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
       expect(account.path).toBe(ACCOUNTS[bip].path)
 
       expect(account.keyPair).toEqual({
-        privateKey: new Uint8Array(Buffer.from(ACCOUNTS[bip].keyPair.privateKey, 'hex')),
-        publicKey: new Uint8Array(Buffer.from(ACCOUNTS[bip].keyPair.publicKey, 'hex'))
+        privateKey: Buffer.from(ACCOUNTS[bip].keyPair.privateKey, 'hex'),
+        publicKey: Buffer.from(ACCOUNTS[bip].keyPair.publicKey, 'hex')
       })
 
       account.dispose()

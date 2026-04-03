@@ -45,9 +45,16 @@ export default class PrivateKeySignerBtc {
    */
   constructor (privateKey, config = {}) {
     const cfg = normalizeConfig(config)
-    const pkBuf = typeof privateKey === 'string'
-      ? Buffer.from(privateKey, 'hex')
-      : Buffer.from(privateKey)
+
+    let pkBuf
+    if (typeof privateKey === 'string') {
+      pkBuf = Buffer.from(privateKey, 'hex')
+    } else if (Buffer.isBuffer(privateKey)) {
+      pkBuf = privateKey
+    } else {
+      // Wrap Uint8Array as a Buffer view over the same ArrayBuffer (zero-copy)
+      pkBuf = Buffer.from(privateKey.buffer, privateKey.byteOffset, privateKey.byteLength)
+    }
 
     if (pkBuf.length !== 32) {
       throw new Error('PrivateKeySignerBtc: privateKey must be 32-byte Buffer or 64-char hex')
@@ -95,8 +102,8 @@ export default class PrivateKeySignerBtc {
    */
   get keyPair () {
     return {
-      privateKey: this._account ? new Uint8Array(this._account.privateKey) : null,
-      publicKey: new Uint8Array(this._account.publicKey)
+      privateKey: this._account ? this._account.privateKey : null,
+      publicKey: this._account.publicKey
     }
   }
 
