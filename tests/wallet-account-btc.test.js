@@ -53,11 +53,8 @@ export const FEES = {
 }
 
 describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
-  const CONFIGURATION = {
-    client: { type: 'electrum', clientConfig: { host: HOST, port: ELECTRUM_PORT } },
-    network: 'regtest',
-    bip
-  }
+  const SIGNER_CONFIG = { network: 'regtest', bip }
+  const CLIENT_CONFIG = { client: { type: 'electrum', clientConfig: { host: HOST, port: ELECTRUM_PORT } } }
 
   const bitcoin = new BitcoinCli({
     host: HOST,
@@ -76,8 +73,8 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
   let account, recipient
 
   beforeAll(async () => {
-    const signer = new SeedSignerBtc(SEED_PHRASE, CONFIGURATION).derive("0'/0/0")
-    account = new WalletAccountBtc(signer)
+    const signer = new SeedSignerBtc(SEED_PHRASE, SIGNER_CONFIG).derive("0'/0/0")
+    account = new WalletAccountBtc(signer, CLIENT_CONFIG)
     recipient = bitcoin.getNewAddress()
 
     bitcoin.sendToAddress(ACCOUNTS[bip].address, 0.01)
@@ -91,8 +88,8 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
 
   describe('constructor', () => {
     test('should successfully initialize an account for the given seed phrase and path', () => {
-      const signer = new SeedSignerBtc(SEED_PHRASE, CONFIGURATION, { path: "0'/0/0" })
-      const account = new WalletAccountBtc(signer)
+      const signer = new SeedSignerBtc(SEED_PHRASE, SIGNER_CONFIG, { path: "0'/0/0" })
+      const account = new WalletAccountBtc(signer, CLIENT_CONFIG)
 
       expect(account.index).toBe(ACCOUNTS[bip].index)
 
@@ -107,8 +104,8 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     })
 
     test('should successfully initialize an account for the given seed and path', () => {
-      const signer = new SeedSignerBtc(SEED, CONFIGURATION).derive("0'/0/0")
-      const account = new WalletAccountBtc(signer)
+      const signer = new SeedSignerBtc(SEED, SIGNER_CONFIG).derive("0'/0/0")
+      const account = new WalletAccountBtc(signer, CLIENT_CONFIG)
 
       expect(account.index).toBe(ACCOUNTS[bip].index)
 
@@ -247,8 +244,8 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
 
     test('should create a change output when leftover > dust limit', async () => {
       const TRANSACTION = { to: recipient, value: 500_000, feeRate: 1 }
-      const signer = new SeedSignerBtc(SEED_PHRASE, CONFIGURATION, { path: "0'/0/1" })
-      const account = new WalletAccountBtc(signer)
+      const signer = new SeedSignerBtc(SEED_PHRASE, SIGNER_CONFIG, { path: "0'/0/1" })
+      const account = new WalletAccountBtc(signer, CLIENT_CONFIG)
       const address = await account.getAddress()
       bitcoin.sendToAddress(address, 0.02)
       await waiter.mine()
@@ -270,8 +267,8 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     })
 
     test('should collapse dust change into fee when leftover <= dust limit', async () => {
-      const signer = new SeedSignerBtc(SEED_PHRASE, CONFIGURATION).derive("0'/0/5")
-      const account = new WalletAccountBtc(signer)
+      const signer = new SeedSignerBtc(SEED_PHRASE, SIGNER_CONFIG).derive("0'/0/5")
+      const account = new WalletAccountBtc(signer, CLIENT_CONFIG)
       const address = await account.getAddress()
       bitcoin.sendToAddress(address, 0.001)
       await waiter.mine()
@@ -312,8 +309,8 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     })
 
     test('should throw if there an no utxos available', async () => {
-      const signer = new SeedSignerBtc(SEED_PHRASE, CONFIGURATION, { path: "0'/0/2" })
-      const account = new WalletAccountBtc(signer)
+      const signer = new SeedSignerBtc(SEED_PHRASE, SIGNER_CONFIG, { path: "0'/0/2" })
+      const account = new WalletAccountBtc(signer, CLIENT_CONFIG)
 
       await expect(account.sendTransaction({ to: recipient, value: 1_000, feeRate: 1 }))
         .rejects.toThrow('No unspent outputs available')
@@ -336,7 +333,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     beforeAll(async () => {
       // Use the known private key for the first address for this bip
       const privHex = ACCOUNTS[bip].keyPair.privateKey
-      accountPk = WalletAccountBtc.fromPrivateKey(privHex, CONFIGURATION)
+      accountPk = WalletAccountBtc.fromPrivateKey(privHex, { ...SIGNER_CONFIG, ...CLIENT_CONFIG })
       recipientPk = bitcoin.getNewAddress()
 
       // Fund the private-key-based address so we can spend
@@ -386,9 +383,9 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
       const master = bip32.fromPrivateKey(Buffer.from(privateKey), Buffer.from(chainCode), network)
       const xprv = master.toBase58()
 
-      const root = SeedSignerBtc.fromXprv(xprv, CONFIGURATION)
+      const root = SeedSignerBtc.fromXprv(xprv, SIGNER_CONFIG)
       const signer = root.derive("0'/0/0")
-      const accountX = new WalletAccountBtc(signer)
+      const accountX = new WalletAccountBtc(signer, CLIENT_CONFIG)
 
       const addr = await accountX.getAddress()
       expect(addr).toBe(ACCOUNTS[bip].address)
@@ -401,8 +398,8 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     test('should return the correct transaction receipt', async () => {
       const TRANSACTION = { to: recipient, value: 1_000, feeRate: 1 }
 
-      const signer = new SeedSignerBtc(SEED_PHRASE, CONFIGURATION).derive("0'/0/4")
-      const account = new WalletAccountBtc(signer)
+      const signer = new SeedSignerBtc(SEED_PHRASE, SIGNER_CONFIG).derive("0'/0/4")
+      const account = new WalletAccountBtc(signer, CLIENT_CONFIG)
       const address = await account.getAddress()
       bitcoin.sendToAddress(address, 0.01)
       await waiter.mine()
@@ -500,8 +497,8 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     }
 
     beforeAll(async () => {
-      const signer = new SeedSignerBtc(SEED_PHRASE, CONFIGURATION, { path: "0'/0/10" })
-      account = new WalletAccountBtc(signer)
+      const signer = new SeedSignerBtc(SEED_PHRASE, SIGNER_CONFIG, { path: "0'/0/10" })
+      account = new WalletAccountBtc(signer, CLIENT_CONFIG)
 
       for (let i = 0; i < 5; i++) {
         const transfer = i % 2 === 0

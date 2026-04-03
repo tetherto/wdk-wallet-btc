@@ -30,6 +30,8 @@ import WalletAccountReadOnlyBtc from './wallet-account-read-only-btc.js'
 /** @typedef {import('./wallet-account-read-only-btc.js').BtcTransaction} BtcTransaction */
 /** @typedef {import('./wallet-account-read-only-btc.js').BtcWalletConfig} BtcWalletConfig */
 
+/** @typedef {import('./signers/seed-signer-btc.js').ISignerBtc} ISignerBtc */
+
 /**
  * @typedef {Object} BtcTransfer
  * @property {string} txid - The transaction's id.
@@ -52,16 +54,17 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
   /**
    * Creates a new bitcoin wallet account.
    *
-   * @param {ISignerBtc} signer - The signer..
+   * @param {ISignerBtc} signer - The signer.
+   * @param {BtcWalletConfig} [config] - The configuration object.
    */
-  constructor (signer) {
-    // TODO: add validation for signer
+  constructor (signer, config = {}) {
     if (signer.isRoot) {
       throw new Error('The signer is the root signer. Call derive method to create a child signer. Or use WalletManagerBtc to create a new account.')
     }
-    super(signer.address, signer.config)
+    super(signer.address, { network: signer.config.network, bip: signer.config.bip, ...config })
+
+    /** @private */
     this._signer = signer
-    this._isActive = true
   }
 
   /**
@@ -79,15 +82,6 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
       return addr
     }
     throw new Error("The account's address must be set to perform this operation.")
-  }
-
-  /**
-   * Whether the account is active.
-   *
-   * @type {boolean}
-   */
-  get isActive () {
-    return this._isActive
   }
 
   /**
@@ -125,8 +119,9 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @returns {WalletAccountBtc} The wallet account.
    */
   static fromPrivateKey (privateKey, config = {}) {
-    const signer = new PrivateKeySignerBtc(privateKey, config)
-    return new WalletAccountBtc(signer)
+    const { client, ...signerConfig } = config
+    const signer = new PrivateKeySignerBtc(privateKey, signerConfig)
+    return new WalletAccountBtc(signer, { client })
   }
 
   /**
@@ -138,8 +133,9 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @returns {WalletAccountBtc} The wallet account.
    */
   static fromSeed (seed, config = {}, path = "0'/0/0") {
-    const signer = new SeedSignerBtc(seed, config, { path })
-    return new WalletAccountBtc(signer)
+    const { client, ...signerConfig } = config
+    const signer = new SeedSignerBtc(seed, signerConfig, { path })
+    return new WalletAccountBtc(signer, { client })
   }
 
   /**
@@ -357,12 +353,10 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @returns {Promise<WalletAccountReadOnlyBtc>} The read-only account.
    */
   async toReadOnlyAccount () {
-    const btcReadOnlyAccount = new WalletAccountReadOnlyBtc(this._address, {
-      ...this._signer.config,
+    return new WalletAccountReadOnlyBtc(this._address, {
+      ...this._config,
       client: this._client
     })
-
-    return btcReadOnlyAccount
   }
 
   /**
@@ -370,7 +364,6 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    */
   dispose () {
     this._signer.dispose()
-    this._isActive = false
     super.dispose()
   }
 

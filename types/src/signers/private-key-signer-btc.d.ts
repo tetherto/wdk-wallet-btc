@@ -17,7 +17,6 @@ export default class PrivateKeySignerBtc implements ISignerBtc {
      * @param {BtcWalletConfig} [config] - The wallet configuration.
      */
     constructor(privateKey: string | Uint8Array | Buffer, config?: BtcWalletConfig);
-    _isActive: boolean;
     _config: any;
     _account: import("ecpair").ECPairInterface;
     _address: string;
@@ -28,12 +27,6 @@ export default class PrivateKeySignerBtc implements ISignerBtc {
      * @type {boolean}
      */
     get isPrivateKey(): boolean;
-    /**
-     * Whether the signer is still active (not disposed).
-     *
-     * @type {boolean}
-     */
-    get isActive(): boolean;
     /**
      * Not available for private key signers.
      *

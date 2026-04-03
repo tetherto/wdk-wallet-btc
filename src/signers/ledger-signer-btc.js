@@ -77,7 +77,6 @@ export default class LedgerSignerBtc {
     this._address = undefined
     this._sessionId = ''
     this._signerBtc = undefined
-    this._isActive = false
     this._extendedPublicKey = undefined
     /**
      * The wallet account configuration.
@@ -96,15 +95,6 @@ export default class LedgerSignerBtc {
       new DeviceManagementKitBuilder()
         .addTransport(webHidTransportFactory)
         .build()
-  }
-
-  /**
-   * Whether the signer is still active (connected to device).
-   *
-   * @type {boolean}
-   */
-  get isActive () {
-    return this._isActive
   }
 
   /**
@@ -179,7 +169,6 @@ export default class LedgerSignerBtc {
     } finally {
       this._signerBtc = undefined
       this._sessionId = ''
-      this._isActive = false
     }
   }
 
@@ -311,7 +300,6 @@ export default class LedgerSignerBtc {
       const resolvedAddress = typeof addrOut === 'string' ? addrOut : (addrOut && addrOut.address)
       // Active
       this._address = resolvedAddress
-      this._isActive = true
       await this.getExtendedPublicKey()
     } catch (err) {
       await this._disconnect()

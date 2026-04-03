@@ -27,6 +27,12 @@ import WalletAccountBtc from './wallet-account-btc.js'
 const MEMPOOL_SPACE_URL = 'https://mempool.space'
 
 export default class WalletManagerBtc extends WalletManager {
+  /**
+   * Creates a new wallet manager for the bitcoin blockchain.
+   *
+   * @param {ISignerBtc} signer - The root signer for the wallet.
+   * @param {BtcWalletConfig} [config] - The configuration object.
+   */
   constructor (signer, config = {}) {
     if (signer.isPrivateKey) {
       throw new Error('Private key signers are not supported for wallet managers.')
@@ -63,7 +69,7 @@ export default class WalletManagerBtc extends WalletManager {
       throw new Error('Signer name is required.')
     }
 
-    this._signers.set(signerName, signer)
+    this._signers[signerName] = signer
   }
 
   /**
@@ -99,12 +105,13 @@ export default class WalletManagerBtc extends WalletManager {
     if (this._accounts[key]) {
       return this._accounts[key]
     }
-    const signer = this._signers.get(signerName)
+    const signer = this._signers[signerName]
     if (!signer) {
       throw new Error(`Signer ${signerName} not found.`)
     }
-    const childSigner = signer.derive(path, this._config)
-    const account = new WalletAccountBtc(childSigner, { client: this._client })
+    const { client, ...signerConfig } = this._config
+    const childSigner = signer.derive(path, signerConfig)
+    const account = new WalletAccountBtc(childSigner, { client: this._clientList })
     this._accounts[key] = account
     return account
   }

@@ -29,7 +29,6 @@ export default class LedgerSignerBtc implements ISignerBtc {
     _address: any;
     _sessionId: string;
     _signerBtc: import("@ledgerhq/device-signer-kit-bitcoin/internal/DefaultSignerBtc.js").DefaultSignerBtc;
-    _isActive: boolean;
     _extendedPublicKey: any;
     /**
      * The wallet account configuration.
@@ -42,12 +41,6 @@ export default class LedgerSignerBtc implements ISignerBtc {
     _bip: 84 | 44;
     /** @type {DeviceManagementKit} */
     _dmk: DeviceManagementKit;
-    /**
-     * Whether the signer is still active (connected to device).
-     *
-     * @type {boolean}
-     */
-    get isActive(): boolean;
     /**
      * The derivation path index of this account.
      *

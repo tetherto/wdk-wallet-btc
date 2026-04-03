@@ -103,7 +103,6 @@ export default class SeedSignerBtc implements ISignerBtc {
         path?: string;
     });
     _masterNode: import("bip32").BIP32Interface;
-    _isActive: boolean;
     _bip: 84 | 44;
     _path: string;
     _account: import("bip32").BIP32Interface;
@@ -116,12 +115,6 @@ export default class SeedSignerBtc implements ISignerBtc {
      * @type {boolean}
      */
     get isRoot(): boolean;
-    /**
-     * Whether the signer is still active (not disposed).
-     *
-     * @type {boolean}
-     */
-    get isActive(): boolean;
     /**
      * The derivation path index of this account.
      *

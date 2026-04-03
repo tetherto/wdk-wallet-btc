@@ -55,7 +55,6 @@ export default class PrivateKeySignerBtc {
     const account = ECPair.fromPrivateKey(pkBuf)
     const network = networks[cfg.network] || networks.bitcoin
     const address = getAddressFromPublicKey(account.publicKey, network, config.bip)
-    this._isActive = true
     this._config = cfg
     this._account = account
     this._address = address
@@ -69,15 +68,6 @@ export default class PrivateKeySignerBtc {
    */
   get isPrivateKey () {
     return this._isPrivateKey
-  }
-
-  /**
-   * Whether the signer is still active (not disposed).
-   *
-   * @type {boolean}
-   */
-  get isActive () {
-    return this._isActive
   }
 
   /**
@@ -197,7 +187,5 @@ export default class PrivateKeySignerBtc {
         sodium_memzero(this._account.chainCode)
       }
     }
-    this._account = undefined
-    this._isActive = false
   }
 }

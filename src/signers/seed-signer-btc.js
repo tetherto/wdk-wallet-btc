@@ -204,7 +204,6 @@ export default class SeedSignerBtc {
       seed = bip39.mnemonicToSeedSync(seed)
     }
 
-    // TODO: add support for privKey import
     let masterNode
     if (opts.masterNode) {
       masterNode = opts.masterNode
@@ -213,7 +212,6 @@ export default class SeedSignerBtc {
     }
 
     this._masterNode = masterNode
-    this._isActive = true
     this._bip = undefined
     this._path = undefined
     this._account = undefined
@@ -277,15 +275,6 @@ export default class SeedSignerBtc {
   }
 
   /**
-   * Whether the signer is still active (not disposed).
-   *
-   * @type {boolean}
-   */
-  get isActive () {
-    return this._isActive
-  }
-
-  /**
    * The derivation path index of this account.
    *
    * @type {number}
@@ -309,9 +298,11 @@ export default class SeedSignerBtc {
    * @type {KeyPair}
    */
   get keyPair () {
+    const src = this._account || this._masterNode
+    if (!src) return { privateKey: null, publicKey: null }
     return {
-      privateKey: this._account.privateKey ? new Uint8Array(this._account.privateKey) : null,
-      publicKey: new Uint8Array(this._account.publicKey)
+      privateKey: src.privateKey ? new Uint8Array(src.privateKey) : null,
+      publicKey: src.publicKey ? new Uint8Array(src.publicKey) : null
     }
   }
 
@@ -347,7 +338,6 @@ export default class SeedSignerBtc {
         Object.entries(config || {}).filter(([, v]) => v !== undefined)
       )
     }
-    // Recreate a fresh root from the same material; no manual field assignment needed
     const cloned = bip32.fromPrivateKey(
       Buffer.from(this._masterNode.privateKey),
       Buffer.from(this._masterNode.chainCode),
@@ -455,17 +445,22 @@ export default class SeedSignerBtc {
    */
   dispose () {
     if (this._account) {
-      sodium_memzero(this._account.privateKey)
-      sodium_memzero(this._account.chainCode)
+      if (this._account.privateKey) {
+        sodium_memzero(this._account.privateKey)
+        Object.defineProperty(this._account, 'privateKey', {
+          get: () => null,
+          configurable: true
+        })
+      }
+      if (this._account.chainCode) {
+        sodium_memzero(this._account.chainCode)
+      }
     }
 
-    sodium_memzero(this._masterNode.privateKey)
-    sodium_memzero(this._masterNode.chainCode)
-
+    if (this._masterNode) {
+      sodium_memzero(this._masterNode.privateKey)
+      sodium_memzero(this._masterNode.chainCode)
+    }
     this._masterNode = undefined
-    this._isActive = false
-    Object.defineProperty(this._account, 'privateKey', {
-      get: () => null
-    })
   }
 }

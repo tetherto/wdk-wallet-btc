@@ -20,17 +20,12 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
     /**
      * Creates a new bitcoin wallet account.
      *
-     * @param {ISignerBtc} signer - The signer..
+     * @param {ISignerBtc} signer - The signer.
+     * @param {BtcWalletConfig} [config] - The configuration object.
      */
-    constructor(signer: ISignerBtc);
-    _signer: ISignerBtc;
-    _isActive: boolean;
-    /**
-     * Whether the account is active.
-     *
-     * @type {boolean}
-     */
-    get isActive(): boolean;
+    constructor(signer: ISignerBtc, config?: BtcWalletConfig);
+    /** @private */
+    private _signer;
     /**
      * The derivation path's index of this account.
      *
@@ -91,10 +86,6 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      * @returns {Promise<WalletAccountReadOnlyBtc>} The read-only account.
      */
     toReadOnlyAccount(): Promise<WalletAccountReadOnlyBtc>;
-    /**
-     * Disposes the wallet account, erasing the private key from memory and closing the connection with the server.
-     */
-    dispose(): void;
     /** @private */
     private _getRawTransaction;
 }
@@ -105,6 +96,7 @@ export type TransferOptions = import("@tetherto/wdk-wallet").TransferOptions;
 export type TransferResult = import("@tetherto/wdk-wallet").TransferResult;
 export type BtcTransaction = import("./wallet-account-read-only-btc.js").BtcTransaction;
 export type BtcWalletConfig = import("./wallet-account-read-only-btc.js").BtcWalletConfig;
+export type ISignerBtc = import("./signers/seed-signer-btc.js").ISignerBtc;
 export type BtcTransfer = {
     /**
      * - The transaction's id.
