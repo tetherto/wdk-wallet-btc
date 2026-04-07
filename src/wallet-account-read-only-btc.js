@@ -345,9 +345,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
       throw new Error('Recipient address must be a Taproot (P2TR) address. Taproot addresses start with bc1p (mainnet), tb1p (testnet), or bcrt1p (regtest).')
     }
 
-    // TEST: Hardcoded address
-    const address = 'bc1pcp2p7nzg8kknr42w6yel8k7hpy5tedjpacnwlvtfhzgmaq6u4qnq06nhac'
-    // const address = await this.getAddress()
+    const address = await this.getAddress()
 
     if (!feeRate) {
       const feeEstimate = await this._electrumClient.blockchainEstimatefee(confirmationTarget)
@@ -496,12 +494,13 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * Supports both P2WPKH (Bech32) and P2TR (Bech32m) address formats.
    *
    * @protected
+   * @param {string} [address] - If set, hash this address’s scriptPubKey (must match the account’s keys when spending).
    * @returns {Promise<string>} The reversed sha-256 script hash as a hex-encoded string.
    */
-  async _getScriptHash () {
-    const address = await this.getAddress()
+  async _getScriptHash (address) {
+    const resolved = address != null ? address : await this.getAddress()
     const networkName = this._network === networks.testnet ? 'testnet' : this._network === networks.bitcoin ? 'bitcoin' : this._network === networks.regtest ? 'regtest' : 'unknown'
-    console.log('[wallet-account-read-only-btc] _getScriptHash called with address:', address)
+    console.log('[wallet-account-read-only-btc] _getScriptHash called with address:', resolved)
     console.log('[wallet-account-read-only-btc] _getScriptHash using network:', networkName)
     console.log('[wallet-account-read-only-btc] _getScriptHash network object:', {
       messagePrefix: this._network.messagePrefix,
@@ -513,19 +512,19 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     // toOutputScript automatically handles both Bech32 (P2WPKH) and Bech32m (P2TR) addresses
     let script
     try {
-      script = btcAddress.toOutputScript(address, this._network)
+      script = btcAddress.toOutputScript(resolved, this._network)
     } catch (error) {
-      console.error(`[wallet-account-read-only-btc] _getScriptHash ERROR: Failed to convert address to script. Address: ${address}, Network: ${this._network === networks.testnet ? 'testnet' : this._network === networks.bitcoin ? 'bitcoin' : 'unknown'}, Error: ${error.message}`)
+      console.error(`[wallet-account-read-only-btc] _getScriptHash ERROR: Failed to convert address to script. Address: ${resolved}, Network: ${this._network === networks.testnet ? 'testnet' : this._network === networks.bitcoin ? 'bitcoin' : 'unknown'}, Error: ${error.message}`)
       // If conversion fails, try to auto-detect and use the correct network
-      const addressLower = address.toLowerCase()
+      const addressLower = resolved.toLowerCase()
       if (addressLower.startsWith('tb1') || addressLower.startsWith('m') || addressLower.startsWith('n')) {
         console.log('[wallet-account-read-only-btc] _getScriptHash: Retrying with testnet network')
         this._network = networks.testnet
-        script = btcAddress.toOutputScript(address, this._network)
+        script = btcAddress.toOutputScript(resolved, this._network)
       } else if (addressLower.startsWith('bc1') || addressLower.startsWith('1') || addressLower.startsWith('3')) {
         console.log('[wallet-account-read-only-btc] _getScriptHash: Retrying with bitcoin network')
         this._network = networks.bitcoin
-        script = btcAddress.toOutputScript(address, this._network)
+        script = btcAddress.toOutputScript(resolved, this._network)
       } else {
         throw error
       }
@@ -583,7 +582,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     const fromAddressOutput = new Output({ descriptor: `addr(${fromAddress})`, network })
     const toAddressOutput = new Output({ descriptor: `addr(${toAddress})`, network })
 
-    const scriptHash = await this._getScriptHash()
+    const scriptHash = await this._getScriptHash(fromAddress)
     console.log('[wallet-account-read-only-btc] _planSpend scriptHash:', scriptHash)
     console.log('[wallet-account-read-only-btc] _planSpend fromAddress:', fromAddress)
     console.log('[wallet-account-read-only-btc] _planSpend network:', network)
@@ -855,7 +854,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     const fromAddressOutput = new Output({ descriptor: `addr(${fromAddress})`, network })
     const toAddressOutput = new Output({ descriptor: `addr(${toAddress})`, network })
 
-    const scriptHash = await this._getScriptHash()
+    const scriptHash = await this._getScriptHash(fromAddress)
     console.log('[wallet-account-read-only-btc] _planSpendWithMemo scriptHash:', scriptHash)
     console.log('[wallet-account-read-only-btc] _planSpendWithMemo fromAddress:', fromAddress)
     console.log('[wallet-account-read-only-btc] _planSpendWithMemo network:', network)
