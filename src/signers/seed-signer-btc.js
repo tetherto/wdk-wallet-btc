@@ -221,13 +221,13 @@ export default class SeedSignerBtc {
     this._account = undefined
     /** @private */
     this._address = undefined
+    config = normalizeConfig(config)
     /**
      * The wallet account configuration.
      *
      * @protected
      * @type {BtcWalletConfig}
      */
-    config = normalizeConfig(config)
     this._config = config
     /** @private */
     this._isRoot = true
