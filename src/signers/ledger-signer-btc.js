@@ -96,7 +96,6 @@ export default class LedgerSignerBtc {
 
     /**
      * @private
-     * @type {DeviceManagementKit}
      */
     this._dmk =
       opts.dmk ||
