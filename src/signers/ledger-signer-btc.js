@@ -162,10 +162,7 @@ export default class LedgerSignerBtc {
     throw new Error('Initialise wallet first')
   }
 
-  /**
-   * Disconnect current session if any.
-   * @private
-   */
+  /** @private */
   async _disconnect () {
     try {
       if (this._signerBtc && this._dmk && this._sessionId) {
@@ -179,11 +176,7 @@ export default class LedgerSignerBtc {
     }
   }
 
-  /**
-   * Reconnect device and refresh signer/address
-   *
-   * @private
-   */
+  /** @private */
   async _reconnect () {
     if (!this._dmk || !this._sessionId) {
       await this._connect()
@@ -268,11 +261,7 @@ export default class LedgerSignerBtc {
     return result
   }
 
-  /**
-   * Discover and connect the device, then hydrate signer/account/address.
-   *
-   * @private
-   */
+  /** @private */
   async _connect () {
     // Discover & Connect the device
     const device = await firstValueFrom(this._dmk.startDiscovering({}))
