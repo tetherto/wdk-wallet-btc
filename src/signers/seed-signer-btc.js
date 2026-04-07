@@ -27,6 +27,7 @@ import { sodium_memzero } from 'sodium-universal'
 /** @typedef {import('@tetherto/wdk-wallet').ISigner} ISigner */
 /** @typedef {import('../wallet-account-read-only-btc.js').BtcWalletConfig} BtcWalletConfig */
 /** @typedef {import('@tetherto/wdk-wallet').KeyPair} KeyPair */
+/** @typedef {import('bip32').BIP32Interface} BIP32Interface */
 
 import {
   buildPaymentScript,
@@ -193,7 +194,7 @@ export default class SeedSignerBtc {
    * @param {string | Buffer} seed - The seed phrase (mnemonic) or seed buffer.
    * @param {BtcWalletConfig} [config] - The wallet configuration.
    * @param {Object} [opts] - Internal options.
-   * @param {import('bip32').BIP32Interface} [opts.masterNode] - Pre-derived master node.
+   * @param {BIP32Interface} [opts.masterNode] - Pre-derived master node.
    * @param {string} [opts.path] - Derivation path relative to BIP root.
    */
   constructor (seed, config = {}, opts = {}) {

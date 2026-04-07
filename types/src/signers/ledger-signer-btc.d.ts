@@ -101,7 +101,7 @@ export default class LedgerSignerBtc implements ISignerBtc {
      * Consume a DeviceAction observable and resolve on Completed; reject early on Error/Stopped.
      *
      * @template T
-     * @param {import('rxjs').Observable<any>} observable
+     * @param {Observable<any>} observable
      * @returns {Promise<T>}
      * @private
      */
@@ -156,3 +156,4 @@ export type BtcWalletConfig = import("../wallet-account-read-only-btc.js").BtcWa
 export type KeyPair = import("@tetherto/wdk-wallet").KeyPair;
 export type Psbt = import("bitcoinjs-lib").Psbt;
 export type DeviceManagementKit = import("@ledgerhq/device-management-kit").DeviceManagementKit;
+export type Observable = import("rxjs").Observable;

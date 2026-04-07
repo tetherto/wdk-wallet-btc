@@ -95,7 +95,7 @@ export default class SeedSignerBtc implements ISignerBtc {
      * @param {string | Buffer} seed - The seed phrase (mnemonic) or seed buffer.
      * @param {BtcWalletConfig} [config] - The wallet configuration.
      * @param {Object} [opts] - Internal options.
-     * @param {import('bip32').BIP32Interface} [opts.masterNode] - Pre-derived master node.
+     * @param {BIP32Interface} [opts.masterNode] - Pre-derived master node.
      * @param {string} [opts.path] - Derivation path relative to BIP root.
      */
     constructor(seed: string | Buffer, config?: BtcWalletConfig, opts?: {
@@ -188,7 +188,8 @@ export default class SeedSignerBtc implements ISignerBtc {
      */
     dispose(): void;
 }
-export type ISigner = import("@tetherto/wdk-wallet/src/isigner.js").ISigner;
+export type ISigner = import("@tetherto/wdk-wallet").ISigner;
 export type BtcWalletConfig = import("../wallet-account-read-only-btc.js").BtcWalletConfig;
 export type KeyPair = import("@tetherto/wdk-wallet").KeyPair;
+export type BIP32Interface = import("bip32").BIP32Interface;
 import { Psbt } from 'bitcoinjs-lib';

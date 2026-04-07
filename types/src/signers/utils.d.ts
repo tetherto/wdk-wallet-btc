@@ -23,7 +23,7 @@ export function buildPaymentScript(bip: number, pubkey: Buffer, network: Network
  * @param {Psbt} psbtInstance - The PSBT instance.
  * @param {number} i - The input index.
  * @param {Buffer} myScript - The script to match against.
- * @returns {{ input: Object, prevOut: { script: Buffer, value: number } | null, isOurs: boolean }} The input data and ownership status.
+ * @returns {InputOwnershipResult} The input data and ownership status.
  */
 export function detectInputOwnership(psbtInstance: Psbt, i: number, myScript: Buffer): {
     input: any;
@@ -75,3 +75,11 @@ export function signMessage(message: string, privateKey: Buffer, bip: number): P
 export type Network = import("bitcoinjs-lib").Network;
 export type Psbt = import("bitcoinjs-lib").Psbt;
 export type BtcWalletConfig = import("../wallet-account-read-only-btc.js").BtcWalletConfig;
+export type InputOwnershipResult = {
+    input: any;
+    prevOut: {
+        script: Buffer;
+        value: number;
+    } | null;
+    isOurs: boolean;
+};

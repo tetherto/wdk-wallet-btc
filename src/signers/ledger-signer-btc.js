@@ -43,6 +43,7 @@ const GET_MASTER_FINGERPRINT_APDU = new Uint8Array([0xe1, 0x05, 0x00, 0x00, 0x00
 /** @typedef {import('@tetherto/wdk-wallet').KeyPair} KeyPair */
 /** @typedef {import('bitcoinjs-lib').Psbt} Psbt */
 /** @typedef {import('@ledgerhq/device-management-kit').DeviceManagementKit} DeviceManagementKit */
+/** @typedef {import('rxjs').Observable} Observable */
 
 /**
  * Hardware signer backed by a Ledger device.
@@ -241,7 +242,7 @@ export default class LedgerSignerBtc {
    * Consume a DeviceAction observable and resolve on Completed; reject early on Error/Stopped.
    *
    * @template T
-   * @param {import('rxjs').Observable<any>} observable
+   * @param {Observable<any>} observable
    * @returns {Promise<T>}
    * @private
    */

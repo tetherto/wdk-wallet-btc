@@ -20,6 +20,13 @@ const bitcoinMessage = bitcoinMessageModule.default ?? bitcoinMessageModule
 
 /** @typedef {import('bitcoinjs-lib').Network} Network */
 /** @typedef {import('bitcoinjs-lib').Psbt} Psbt */
+/** @typedef {import('../wallet-account-read-only-btc.js').BtcWalletConfig} BtcWalletConfig */
+/**
+  * @typedef {Object} InputOwnershipResult
+  * @property {Object} input - The raw PSBT input data.
+  * @property {{ script: Buffer, value: number } | null} prevOut - The previous output, or null if unavailable.
+  * @property {boolean} isOurs - Whether the input belongs to the given script.
+*/
 
 /**
  * Hashes a message using SHA256.
@@ -52,7 +59,7 @@ export function buildPaymentScript (bip, pubkey, network) {
  * @param {Psbt} psbtInstance - The PSBT instance.
  * @param {number} i - The input index.
  * @param {Buffer} myScript - The script to match against.
- * @returns {{ input: Object, prevOut: { script: Buffer, value: number } | null, isOurs: boolean }} The input data and ownership status.
+ * @returns {InputOwnershipResult} The input data and ownership status.
  */
 export function detectInputOwnership (psbtInstance, i, myScript) {
   const input = psbtInstance.data.inputs[i] || {}
@@ -103,9 +110,9 @@ export function ensureWitnessUtxoIfNeeded (psbtInstance, i, bip, prevOut, input)
 /**
  * Normalizes wallet configuration with defaults.
  *
- * @param {import('../wallet-account-read-only-btc.js').BtcWalletConfig} [config] - The configuration object.
+ * @param {BtcWalletConfig} [config] - The configuration object.
  * @param {number} [config.bip=84] - The BIP standard (44 or 84).
- * @returns {import('../wallet-account-read-only-btc.js').BtcWalletConfig} The normalized configuration.
+ * @returns {BtcWalletConfig} The normalized configuration.
  * @throws {Error} If an unsupported BIP is specified.
  */
 export function normalizeConfig (config = {}) {
