@@ -24,7 +24,7 @@ import * as ecc from '@bitcoinerlab/secp256k1'
 // eslint-disable-next-line camelcase
 import { sodium_memzero } from 'sodium-universal'
 
-/** @typedef {import('@tetherto/wdk-wallet/src/isigner.js').ISigner} ISigner */
+/** @typedef {import('@tetherto/wdk-wallet').ISigner} ISigner */
 /** @typedef {import('../wallet-account-read-only-btc.js').BtcWalletConfig} BtcWalletConfig */
 /** @typedef {import('@tetherto/wdk-wallet').KeyPair} KeyPair */
 
