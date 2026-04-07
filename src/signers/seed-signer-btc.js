@@ -249,7 +249,6 @@ export default class SeedSignerBtc {
 
       this._masterNode = masterNode
 
-      /** @private */
       this._account = account
 
       this._address = address
