@@ -28,12 +28,11 @@ jobs:
         run: npm clean-install
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      
+
       - name: Lint code with standard
         run: npm run lint
 
-    
-  test:
+  build:
     runs-on: ubuntu-latest
 
     needs: lint
