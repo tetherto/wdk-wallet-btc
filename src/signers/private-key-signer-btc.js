@@ -44,7 +44,7 @@ export default class PrivateKeySignerBtc {
    * @param {BtcWalletConfig} [config] - The wallet configuration.
    */
   constructor (privateKey, config = {}) {
-    const cfg = normalizeConfig(config)
+    config = normalizeConfig(config)
 
     let pkBuf
     if (typeof privateKey === 'string') {
@@ -60,13 +60,13 @@ export default class PrivateKeySignerBtc {
       throw new Error('PrivateKeySignerBtc: privateKey must be 32-byte Buffer or 64-char hex')
     }
     const account = ECPair.fromPrivateKey(pkBuf)
-    const network = networks[cfg.network] || networks.bitcoin
+    const network = networks[config.network] || networks.bitcoin
     const address = getAddressFromPublicKey(account.publicKey, network, config.bip)
     /**
      * @private
      * @type {BtcWalletConfig}
      */
-    this._config = cfg
+    this._config = config
     /** @private */
     this._account = account
     /** @private */

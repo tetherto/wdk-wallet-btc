@@ -136,9 +136,9 @@ export default class LedgerSignerBtc implements ISignerBtc {
      * Signs a PSBT (Partially Signed Bitcoin Transaction) using the Ledger device.
      *
      * @param {Psbt} psbt - The PSBT instance to sign.
-     * @returns {Promise<Psbt>} The signed PSBT.
+     * @returns {Promise<string>} The signed PSBT in base64 format.
      */
-    signPsbt(psbt: Psbt): Promise<Psbt>;
+    signPsbt(psbt: Psbt): Promise<string>;
     /**
      * Signs a message.
      *

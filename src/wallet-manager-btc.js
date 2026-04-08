@@ -91,7 +91,7 @@ export default class WalletManagerBtc extends WalletManager {
    * // For testnet or regtest: m/84'/1'/0'/0/1
    * const account = await wallet.getAccount(1);
    * @param {number} [index] - The index of the account to get (default: 0).
-   * @param {string} signerName - The signer name.
+   * @param {string} [signerName] - The signer name (default: 'default').
    * @returns {Promise<WalletAccountBtc>} The account.
    */
   async getAccount (index = 0, signerName = 'default') {
@@ -107,7 +107,7 @@ export default class WalletManagerBtc extends WalletManager {
    * // For testnet or regtest: m/84'/1'/0'/0/1
    * const account = await wallet.getAccountByPath("0'/0/1");
    * @param {string} path - The derivation path (e.g. "0'/0/0").
-   * @param {string} signerName - The signer name.
+   * @param {string} [signerName] - The signer name (default: 'default').
    * @returns {Promise<WalletAccountBtc>} The account.
    */
   async getAccountByPath (path, signerName = 'default') {

@@ -59,7 +59,7 @@ export function normalizeConfig(config?: BtcWalletConfig): BtcWalletConfig;
  *
  * @param {Buffer} publicKey - The public key.
  * @param {Network} network - The network configuration.
- * @param {number} [bip=44] - The BIP standard (44 for P2PKH, 84 for P2WPKH).
+ * @param {number} [bip] - The BIP standard (44 for P2PKH, 84 for P2WPKH) (default: 44).
  * @returns {string} The Bitcoin address.
  */
 export function getAddressFromPublicKey(publicKey: Buffer, network: Network, bip?: number): string;
@@ -69,9 +69,9 @@ export function getAddressFromPublicKey(publicKey: Buffer, network: Network, bip
  * @param {string} message - The message to sign.
  * @param {Buffer} privateKey - The private key.
  * @param {number} bip - The BIP standard (44 or 84).
- * @returns {Promise<string>} The message's signature.
+ * @returns {string} The message's signature.
  */
-export function signMessage(message: string, privateKey: Buffer, bip: number): Promise<string>;
+export function signMessage(message: string, privateKey: Buffer, bip: number): string;
 export type Network = import("bitcoinjs-lib").Network;
 export type Psbt = import("bitcoinjs-lib").Psbt;
 export type BtcWalletConfig = import("../wallet-account-read-only-btc.js").BtcWalletConfig;

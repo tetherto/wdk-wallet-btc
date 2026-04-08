@@ -111,7 +111,7 @@ export function ensureWitnessUtxoIfNeeded (psbtInstance, i, bip, prevOut, input)
  * Normalizes wallet configuration with defaults.
  *
  * @param {BtcWalletConfig} [config] - The configuration object.
- * @param {number} [config.bip=84] - The BIP standard (44 or 84).
+ * @param {number} [config.bip] - The BIP standard (44 or 84) (default: 84).
  * @returns {BtcWalletConfig} The normalized configuration.
  * @throws {Error} If an unsupported BIP is specified.
  */
@@ -128,7 +128,7 @@ export function normalizeConfig (config = {}) {
  *
  * @param {Buffer} publicKey - The public key.
  * @param {Network} network - The network configuration.
- * @param {number} [bip=44] - The BIP standard (44 for P2PKH, 84 for P2WPKH).
+ * @param {number} [bip] - The BIP standard (44 for P2PKH, 84 for P2WPKH) (default: 44).
  * @returns {string} The Bitcoin address.
  */
 export function getAddressFromPublicKey (publicKey, network, bip = 44) {
@@ -144,7 +144,7 @@ export function getAddressFromPublicKey (publicKey, network, bip = 44) {
  * @param {string} message - The message to sign.
  * @param {Buffer} privateKey - The private key.
  * @param {number} bip - The BIP standard (44 or 84).
- * @returns {Promise<string>} The message's signature.
+ * @returns {string} The message's signature.
  */
 export function signMessage (message, privateKey, bip) {
   return bitcoinMessage.sign(message, privateKey, true, bip === 84 ? { segwitType: 'p2wpkh' } : undefined)

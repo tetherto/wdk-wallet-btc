@@ -360,7 +360,7 @@ export default class LedgerSignerBtc {
    * Signs a PSBT (Partially Signed Bitcoin Transaction) using the Ledger device.
    *
    * @param {Psbt} psbt - The PSBT instance to sign.
-   * @returns {Promise<Psbt>} The signed PSBT.
+   * @returns {Promise<string>} The signed PSBT in base64 format.
    */
   async signPsbt (psbt) {
     await this._ensureDeviceReady('transaction signing')
@@ -465,7 +465,7 @@ export default class LedgerSignerBtc {
       }
     }
 
-    return psbt
+    return psbt.toBase64()
   }
 
   /**

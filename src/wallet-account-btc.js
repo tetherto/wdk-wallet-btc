@@ -129,7 +129,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    *
    * @param {string | Buffer} seed - The seed phrase (mnemonic) or seed buffer.
    * @param {BtcWalletConfig} [config] - The wallet configuration options (includes bip, network, etc.).
-   * @param {string} [path="0'/0/0"] - The derivation path relative to the BIP root.
+   * @param {string} [path] - The derivation path relative to the BIP root (default: "0'/0/0").
    * @returns {WalletAccountBtc} The wallet account.
    */
   static fromSeed (seed, config = {}, path = "0'/0/0") {
@@ -408,7 +408,10 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
 
     const signAndFinalize = async (psbt) => {
       const signedBase64 = await this._signer.signPsbt(psbt)
-      const signed = typeof signedBase64 === 'string' ? Psbt.fromBase64(signedBase64) : signedBase64
+      if (typeof signedBase64 !== 'string') {
+        throw new TypeError('signPsbt() must return a base64 string per the ISignerBtc contract')
+      }
+      const signed = Psbt.fromBase64(signedBase64)
       signed.finalizeAllInputs()
       return signed.extractTransaction()
     }

@@ -334,7 +334,12 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
       expect(result).toBe(ACCOUNTS[bip].address)
     })
 
-    test('sign/verify with raw private key', async () => {
+    test('sign with raw private key returns expected signature', async () => {
+      const sig = await accountPk.sign(MESSAGE)
+      expect(sig).toBe(SIGNATURES[bip])
+    })
+
+    test('verify with raw private key', async () => {
       const sig = await accountPk.sign(MESSAGE)
       expect(await accountPk.verify(MESSAGE, sig)).toBe(true)
       expect(await accountPk.verify('Another message.', sig)).toBe(false)
@@ -342,13 +347,16 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
 
     test('sendTransaction with raw private key signer', async () => {
       const TRANSACTION = { to: recipientPk, value: 1_000, feeRate: 1 }
-      const { hash } = await accountPk.sendTransaction(TRANSACTION)
+      const { hash, fee } = await accountPk.sendTransaction(TRANSACTION)
       await waiter.mine()
       const transaction = bitcoin.getTransaction(hash)
       expect(transaction.txid).toBe(hash)
       expect(transaction.details[0].address).toBe(TRANSACTION.to)
       const amount = Math.round(transaction.details[0].amount * 1e+8)
       expect(amount).toBe(TRANSACTION.value)
+
+      const feeSats = bitcoin.getTransactionFeeSats(hash)
+      expect(fee).toBe(BigInt(feeSats))
     })
   })
 
