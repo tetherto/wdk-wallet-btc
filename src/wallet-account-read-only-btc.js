@@ -238,7 +238,12 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
       electrumPort,
       electrumHost,
       electrumProtocol,
-      { retryPeriod: 1_000, maxRetry: 2, pingPeriod: 120_000, callback: null }
+      {
+        retryPeriod: config.retryPeriod ?? 1_000,
+        maxRetry: config.maxRetry ?? 2,
+        pingPeriod: config.pingPeriod ?? 120_000,
+        callback: null
+      }
     )
 
     const prefix = Object.keys(BIP_BY_ADDRESS_PREFIX).find(p => address.startsWith(p))
