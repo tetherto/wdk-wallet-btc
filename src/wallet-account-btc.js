@@ -550,11 +550,11 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
   /**
    * Quotes a transaction that updates a prior transaction with hex data in OP_RETURN.
    * Creates a transaction with 2 inputs:
-   * 1. A UTXO from the priorTx that has a value of 1007 sats (signed by priorAcct)
+   * 1. A UTXO from the priorTx that has a value of 1077 sats (signed by priorAcct)
    * 2. A UTXO from the main account to fund this transaction (signed by this account)
    *
    * Outputs (in order):
-   * 1. Spend 1007 sats to the "to" address param
+   * 1. Spend 1077 sats to the "to" address param
    * 2. An OP_RETURN output containing the hex-encoded data
    * 3. The change returning to the main account
    *
@@ -565,14 +565,14 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @param {string} options.hex - The hex-encoded data string to embed in OP_RETURN.
    * @param {string} options.priorTx - The existing transaction id to reference.
    * @param {WalletAccountBtc} options.priorAcct - The account that owns the priorTx UTXO (for signing).
-   * @param {number | bigint} [options.value] - The amount to send (in satoshis, default: 1007).
+   * @param {number | bigint} [options.value] - The amount to send (in satoshis, default: 1077).
    * @param {number | bigint} [options.feeRate] - Optional fee rate (in sats/vB). If not provided, estimated from network.
    * @param {number} [options.confirmationTarget] - Optional confirmation target in blocks (default: 1).
    * @returns {Promise<string>} The raw hexadecimal string of the transaction.
    */
   async quoteUpdateTransactionWithHexTX ({ to, hex, priorTx, priorAcct, value, feeRate, confirmationTarget = 1 }) {
-    // Default value to 1007 if not provided
-    const sendValue = value !== undefined ? this._toBigInt(value) : 1007n
+    // Default value to 1077 if not provided
+    const sendValue = value !== undefined ? this._toBigInt(value) : 1077n
 
     const address = await this.getAddress()
     const network = this._network
@@ -589,12 +589,12 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     const priorTxHex = await this._electrumClient.blockchainTransaction_get(priorTx, false)
     const priorTransaction = Transaction.fromHex(priorTxHex)
 
-    // Find an output from priorTx with value 1007 sats
+    // Find an output from priorTx with value 1077 sats
     let priorUtxoIndex = -1
     let priorUtxoScript = null
     for (let i = 0; i < priorTransaction.outs.length; i++) {
       const output = priorTransaction.outs[i]
-      if (BigInt(output.value) === 1007n) {
+      if (BigInt(output.value) === 1077n) {
         priorUtxoIndex = i
         priorUtxoScript = output.script
         break
@@ -602,7 +602,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     }
 
     if (priorUtxoIndex === -1) {
-      throw new Error(`No output with value 1007 sats found in transaction ${priorTx}`)
+      throw new Error(`No output with value 1077 sats found in transaction ${priorTx}`)
     }
 
     // Get UTXOs from main account
@@ -685,9 +685,9 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
       {
         tx_hash: priorTx,
         tx_pos: priorUtxoIndex,
-        value: 1007,
+        value: 1077,
         vout: {
-          value: 1007n,
+          value: 1077n,
           scriptPubKey: { hex: priorUtxoScript.toString('hex') }
         }
       },
@@ -729,11 +729,11 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
   /**
    * Sends a transaction that updates a prior transaction with hex data in OP_RETURN.
    * Creates a transaction with 2 inputs:
-   * 1. A UTXO from the priorTx that has a value of 1007 sats (signed by priorAcct)
+   * 1. A UTXO from the priorTx that has a value of 1077 sats (signed by priorAcct)
    * 2. A UTXO from the main account to fund this transaction (signed by this account)
    *
    * Outputs (in order):
-   * 1. Spend 1007 sats to the "to" address param
+   * 1. Spend 1077 sats to the "to" address param
    * 2. An OP_RETURN output containing the hex-encoded data
    * 3. The change returning to the main account
    *
@@ -744,14 +744,14 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @param {string} options.hex - The hex-encoded data string to embed in OP_RETURN.
    * @param {string} options.priorTx - The existing transaction id to reference.
    * @param {WalletAccountBtc} options.priorAcct - The account that owns the priorTx UTXO (for signing).
-   * @param {number | bigint} [options.value] - The amount to send (in satoshis, default: 1007).
+   * @param {number | bigint} [options.value] - The amount to send (in satoshis, default: 1077).
    * @param {number | bigint} [options.feeRate] - Optional fee rate (in sats/vB). If not provided, estimated from network.
    * @param {number} [options.confirmationTarget] - Optional confirmation target in blocks (default: 1).
    * @returns {Promise<TransactionResult>} The transaction result with hash and fee.
    */
   async updateTransactionWithHex ({ to, hex, priorTx, priorAcct, value, feeRate, confirmationTarget = 1 }) {
-    // Default value to 1007 if not provided
-    const sendValue = value !== undefined ? this._toBigInt(value) : 1007n
+    // Default value to 1077 if not provided
+    const sendValue = value !== undefined ? this._toBigInt(value) : 1077n
 
     const address = await this.getAddress()
     const network = this._network
@@ -768,12 +768,12 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     const priorTxHex = await this._electrumClient.blockchainTransaction_get(priorTx, false)
     const priorTransaction = Transaction.fromHex(priorTxHex)
 
-    // Find an output from priorTx with value 1007 sats
+    // Find an output from priorTx with value 1077 sats
     let priorUtxoIndex = -1
     let priorUtxoScript = null
     for (let i = 0; i < priorTransaction.outs.length; i++) {
       const output = priorTransaction.outs[i]
-      if (BigInt(output.value) === 1007n) {
+      if (BigInt(output.value) === 1077n) {
         priorUtxoIndex = i
         priorUtxoScript = output.script
         break
@@ -781,7 +781,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     }
 
     if (priorUtxoIndex === -1) {
-      throw new Error(`No output with value 1007 sats found in transaction ${priorTx}`)
+      throw new Error(`No output with value 1077 sats found in transaction ${priorTx}`)
     }
 
     // Get UTXOs from main account
@@ -864,9 +864,9 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
       {
         tx_hash: priorTx,
         tx_pos: priorUtxoIndex,
-        value: 1007,
+        value: 1077,
         vout: {
-          value: 1007n,
+          value: 1077n,
           scriptPubKey: { hex: priorUtxoScript.toString('hex') }
         }
       },
