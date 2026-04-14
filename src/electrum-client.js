@@ -192,7 +192,7 @@ export default class ElectrumClient extends MempoolElectrumClient {
                 _this._rpcPort,
                 wirePayload
               )
-              console.log('[Electrum RPC] jsMethod:', method)
+              console.log('[Electrum RPC] jsMethod:', method, '→', _this._rpcEndpoint)
               console.log('[Electrum RPC] wire (newline-terminated JSON-RPC, same as on the socket):')
               console.log(wirePayload)
               console.log(

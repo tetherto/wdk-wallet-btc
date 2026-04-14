@@ -948,15 +948,35 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     // For fee estimation, we use the actual memo size + 2 bytes overhead
     const opReturnOutputSize = 1 + 1 + memoBuffer.length // OP_RETURN + push opcode + data
 
-    // First, get base fee estimate without OP_RETURN
-    const result = coinselect({
+    const coinselectInput = {
       utxos: utxosForCoinSelect,
       remainder: fromAddressOutput,
       targets: [{ output: toAddressOutput, value: Number(amount) }],
       feeRate: Number(feeRate)
-    })
+    }
+
+    console.log('[_planSpendWithMemo] coinselect input:', JSON.stringify({
+      utxoCount: utxosForCoinSelect.length,
+      utxoValues: utxosForCoinSelect.map(u => u.value),
+      utxoTotalSats: utxosForCoinSelect.reduce((s, u) => s + u.value, 0),
+      targetValue: Number(amount),
+      feeRate: Number(feeRate),
+      fromDescriptor: fromAddressOutput.toString(),
+      toDescriptor: toAddressOutput.toString()
+    }))
+
+    const result = coinselect(coinselectInput)
 
     if (!result) {
+      console.error('[_planSpendWithMemo] coinselect returned null — insufficient balance', JSON.stringify({
+        utxoTotalSats: utxosForCoinSelect.reduce((s, u) => s + u.value, 0),
+        targetSats: Number(amount),
+        feeRate: Number(feeRate),
+        utxoCount: utxosForCoinSelect.length,
+        utxoValues: utxosForCoinSelect.map(u => u.value),
+        opReturnSize: opReturnOutputSize,
+        memoLength: memoBuffer.length
+      }))
       throw new Error('🚀🚀🚀 LOCAL PACKAGE ACTIVE - Insufficient balance to send the transaction. 🚀🚀🚀')
     }
 
