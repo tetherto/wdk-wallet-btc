@@ -175,7 +175,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    */
   get keyPair () {
     return {
-      privateKey: this._account.privateKey,
+      privateKey: this._account.privateKey ?? null,
       publicKey: this._account.publicKey
     }
   }
