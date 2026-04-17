@@ -73,6 +73,10 @@ export default class BitcoinCli {
     return this.call(`sendtoaddress ${address} ${amount}`, { rawResult: true })
   }
 
+  sendRawTransaction (hex) {
+    return this.call(`sendrawtransaction ${hex}`, { rawResult: true })
+  }
+
   generateToAddress (blocks, address) {
     return this.call(`generatetoaddress ${blocks} ${address}`)
   }

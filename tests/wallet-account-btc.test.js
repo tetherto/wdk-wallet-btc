@@ -146,6 +146,24 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     })
   })
 
+  describe('signTransaction', () => {
+    test('should sign a transaction without broadcasting, then broadcast manually', async () => {
+      const TRANSACTION = { to: recipient, value: 1_000, feeRate: 1 }
+  
+      const signedHex = await account.signTransaction(TRANSACTION)
+  
+      expect(typeof signedHex).toBe('string')
+      expect(signedHex.length).toBeGreaterThan(0)
+  
+      const txid = await bitcoin.sendRawTransaction(signedHex)
+      await waiter.mine()
+  
+      const transaction = bitcoin.getTransaction(txid)
+      expect(transaction.details[0].address).toBe(TRANSACTION.to)
+      expect(Math.round(transaction.details[0].amount * 1e+8)).toBe(TRANSACTION.value)
+    })
+  })
+
   describe('sendTransaction', () => {
     test('should successfully send a transaction', async () => {
       const TRANSACTION = { to: recipient, value: 1_000, feeRate: 1 }
