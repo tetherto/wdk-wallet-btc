@@ -14,10 +14,7 @@
 'use strict'
 
 // TEST: Module-level log at package entry point - MUST APPEAR IF LOCAL PACKAGE IS LOADED
-// Using multiple console methods to ensure visibility
-console.log('🚀🚀🚀 [wdk-wallet-btc] LOCAL PACKAGE ENTRY POINT LOADED - index.js executed 🚀🚀🚀')
-console.warn('⚠️⚠️⚠️ [wdk-wallet-btc] LOCAL PACKAGE ENTRY POINT LOADED - index.js executed ⚠️⚠️⚠️')
-console.error('❌❌❌ [wdk-wallet-btc] LOCAL PACKAGE ENTRY POINT LOADED - index.js executed ❌❌❌')
+console.log('[wdk-wallet-btc] LOCAL PACKAGE ACTIVE')
 
 /** @typedef {import('bitcoinjs-lib').Transaction} BtcTransactionReceipt */
 
