@@ -2,6 +2,8 @@ import { afterAll, beforeAll, describe, expect, test } from '@jest/globals'
 
 import { mnemonicToSeedSync } from 'bip39'
 
+import { address as btcAddress, networks, Transaction } from 'bitcoinjs-lib'
+
 import { HOST, PORT, ELECTRUM_PORT, ZMQ_PORT, DATA_DIR } from './config.js'
 
 import { BitcoinCli, Waiter } from './helpers/index.js'
@@ -147,13 +149,18 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
   })
 
   describe('signTransaction', () => {
-    test('should sign a transaction', async () => {
+    test('should sign a transaction into a valid signed btc tx with the expected recipient output', async () => {
       const TRANSACTION = { to: recipient, value: 1_000, feeRate: 1 }
-      const SIGNED_TRANSACTION = "0x02f86e827a6980843b9aca00847735940082520894a460aebce0d3a4becad8ccf9d6d4861296c503bd8203e880c080a0189acf1d3170de712fd346182a77b08ccaa1317cdd13daf386f1405d52148171a04a83f7c7df7f258344e1726ac5b94f53fb415f0e41a58399b5031940b293b9ec"
-      
+
       const signedHex = await account.signTransaction(TRANSACTION)
-  
-      expect(signedHex).toBe(SIGNED_TRANSACTION)
+
+      const tx = Transaction.fromHex(signedHex)
+
+      const recipientOutput = tx.outs.find(out =>
+        btcAddress.fromOutputScript(out.script, networks.regtest) === recipient
+      )
+
+      expect(recipientOutput.value).toBe(TRANSACTION.value)
     })
   })
 
