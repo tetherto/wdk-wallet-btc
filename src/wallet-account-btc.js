@@ -93,6 +93,44 @@ function derivePath (seed, path) {
   return { masterNode, account }
 }
 
+/**
+ * Encode data as a Bitcoin script push (direct push / OP_PUSHDATA1/2/4).
+ * Supports payloads beyond the old 75-byte direct-push limit.
+ * @param {Buffer} dataBuffer
+ * @returns {Buffer}
+ */
+function encodeScriptPush (dataBuffer) {
+  const n = dataBuffer.length
+  if (n === 0) {
+    return Buffer.from([0x00])
+  }
+  if (n <= 75) {
+    const buf = Buffer.allocUnsafe(1 + n)
+    buf[0] = n
+    dataBuffer.copy(buf, 1)
+    return buf
+  }
+  if (n <= 255) {
+    const buf = Buffer.allocUnsafe(2 + n)
+    buf[0] = 0x4c
+    buf[1] = n
+    dataBuffer.copy(buf, 2)
+    return buf
+  }
+  if (n <= 65535) {
+    const buf = Buffer.allocUnsafe(3 + n)
+    buf[0] = 0x4d
+    buf.writeUInt16LE(n, 1)
+    dataBuffer.copy(buf, 3)
+    return buf
+  }
+  const buf = Buffer.allocUnsafe(5 + n)
+  buf[0] = 0x4e
+  buf.writeUInt32LE(n, 1)
+  dataBuffer.copy(buf, 5)
+  return buf
+}
+
 /** @implements {IWalletAccount} */
 export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
   /**
@@ -529,20 +567,13 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     }
 
     const dataBuffer = Buffer.from(hexData, 'hex')
-    const dataLength = dataBuffer.length
+    const pushPart = encodeScriptPush(dataBuffer)
 
     // OP_RETURN (0x6a) + OP_PUSHNUM_1 (0x51) + push opcode + data
-    // For data <= 75 bytes, use OP_PUSHBYTES_<n> (0x01-0x4b)
-    // For larger data, we'd need OP_PUSHDATA1/2/4, but 75 bytes is usually enough
-    if (dataLength > 75) {
-      throw new Error('OP_RETURN data cannot exceed 75 bytes')
-    }
-
-    const script = Buffer.allocUnsafe(1 + 1 + 1 + dataLength)
+    const script = Buffer.allocUnsafe(1 + 1 + pushPart.length)
     script[0] = 0x6a // OP_RETURN
     script[1] = 0x51 // OP_PUSHNUM_1
-    script[2] = dataLength // OP_PUSHBYTES_<n>
-    dataBuffer.copy(script, 3)
+    pushPart.copy(script, 2)
 
     return script
   }
@@ -723,7 +754,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
       priorAcct
     })
 
-    return tx.hex
+    return { hex: tx.hex, fee: tx.fee }
   }
 
   /**
@@ -1082,19 +1113,11 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    */
   createOpReturnScript (data) {
     const dataBuffer = Buffer.from(data, 'utf8')
-    const dataLength = dataBuffer.length
+    const pushPart = encodeScriptPush(dataBuffer)
 
-    // OP_RETURN (0x6a) + push opcode + data
-    // For data <= 75 bytes, use OP_PUSHBYTES_<n> (0x01-0x4b)
-    // For larger data, we'd need OP_PUSHDATA1/2/4, but 75 bytes is usually enough
-    if (dataLength > 75) {
-      throw new Error('OP_RETURN data cannot exceed 75 bytes')
-    }
-
-    const script = Buffer.allocUnsafe(1 + 1 + dataLength)
+    const script = Buffer.allocUnsafe(1 + pushPart.length)
     script[0] = 0x6a // OP_RETURN
-    script[1] = dataLength // OP_PUSHBYTES_<n>
-    dataBuffer.copy(script, 2)
+    pushPart.copy(script, 1)
 
     return script
   }

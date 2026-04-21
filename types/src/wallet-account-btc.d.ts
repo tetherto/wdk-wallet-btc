@@ -143,7 +143,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      * @param {number | bigint} [options.value] - The amount to send (in satoshis, default: 1007).
      * @param {number | bigint} [options.feeRate] - Optional fee rate (in sats/vB). If not provided, estimated from network.
      * @param {number} [options.confirmationTarget] - Optional confirmation target in blocks (default: 1).
-     * @returns {Promise<string>} The raw hexadecimal string of the transaction.
+     * @returns Signed transaction hex and network fee (not broadcast).
      */
     quoteUpdateTransactionWithHexTX({ to, hex, priorTx, priorAcct, value, feeRate, confirmationTarget }: {
         to: string;
@@ -153,7 +153,10 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
         value?: number | bigint;
         feeRate?: number | bigint;
         confirmationTarget?: number;
-    }): Promise<string>;
+    }): Promise<{
+        hex: string;
+        fee: bigint;
+    }>;
     /**
      * Sends a transaction that updates a prior transaction with hex data in OP_RETURN.
      * Creates a transaction with 2 inputs:

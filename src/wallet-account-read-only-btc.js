@@ -259,6 +259,17 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
   }
 
   /**
+   * P2TR/P2WPKH output script for `address` on this account's network, as lowercase hex.
+   * Taproot witness programs are OP_1 + PUSH32 (prefix 5120…).
+   *
+   * @param {string} address
+   * @returns {string}
+   */
+  getScriptPubKeyHex (address) {
+    return btcAddress.toOutputScript(address, this._network).toString('hex')
+  }
+
+  /**
    * Returns the account's bitcoin balance.
    *
    * @returns {Promise<bigint>} The bitcoin balance (in satoshis).
