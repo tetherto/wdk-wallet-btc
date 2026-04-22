@@ -400,12 +400,14 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @returns {Promise<WalletAccountReadOnlyBtc>} The read-only account.
    */
   async toReadOnlyAccount () {
-    const btcReadOnlyAccount = new WalletAccountReadOnlyBtc(this._address, {
-      ...this._config,
-      client: this._client
-    })
+    if (!this._btcReadOnlyAccount) {
+      this._btcReadOnlyAccount = new WalletAccountReadOnlyBtc(this._address, {
+        ...this._config,
+        client: this._client
+      })
+    }
 
-    return btcReadOnlyAccount
+    return this._btcReadOnlyAccount
   }
 
   /**
