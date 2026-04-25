@@ -7,23 +7,27 @@ on:
     branches: [main, develop]
 
 env:
-  NODE_VERSION: "22"
-  ELECTRS_VERSION_TAG: "0.10.10" # Don't use the reserved var name ELECTRS_VERSION
+  ELECTRS_VERSION_TAG: "0.10.10"
   BITCOIND_VERSION_TAG: "29.0"
 
 jobs:
-  build:
+  lint:
     runs-on: ubuntu-latest
-
-    steps: 
-      - uses: actions/checkout@v4
-      - name: Set up Node ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          registry-url: 'https://registry.npmjs.org'
-
+    name: Lint
+    steps:
+      - uses: tetherto/oss-actions/node-base@v1
+      - run: npm run lint
+  test:
+    needs: lint
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+    runs-on: ${{ matrix.os }}
+    name: Test / ${{ matrix.platform }}
+    steps:
+      - uses: tetherto/oss-actions/node-base@v1
       - name: Install LLVM dependencies
         run: |
           sudo apt-get update
@@ -47,14 +51,6 @@ jobs:
           cd electrs-${{ env.ELECTRS_VERSION_TAG }}
           cargo build --locked --release
           sudo install -m0755 target/release/electrs /usr/local/bin/
-
-      - name: Install dependencies
-        run: npm clean-install
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      
-      - name: Lint code with standard
-        run: npm run lint
 
       - name: Run tests
         run: npm test

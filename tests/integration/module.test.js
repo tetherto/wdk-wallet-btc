@@ -8,9 +8,9 @@ import WalletManagerBtc from '../../index.js'
 
 function parseRawTransaction (rawTransaction, recipientAddress) {
   const getAddress = (vout) => vout.scriptPubKey.address || vout.scriptPubKey.addresses?.[0]
-  
+
   const output = rawTransaction.vout.find(vout => getAddress(vout) === recipientAddress)
-  
+
   return {
     txid: rawTransaction.txid,
     details: [{ address: getAddress(output), amount: output.value, vout: 0 }]
@@ -210,5 +210,5 @@ describe.each([44, 84])('@wdk/wallet-btc (BIP %i)', (bip) => {
       await expect(account.sendTransaction({ to: await account.getAddress(), value: 1_000n })).rejects.toThrow()
       await expect(account.sign(MESSAGE)).rejects.toThrow("private key should be a Buffer")
     }
-  })  
+  })
 })

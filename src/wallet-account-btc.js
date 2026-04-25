@@ -68,6 +68,8 @@ const MAX_CONCURRENT_REQUESTS = 8
 const MAX_CACHE_ENTRIES = 1000
 const REQUEST_BATCH_SIZE = 64
 
+const POLLING_INTERVAL = 300
+
 const bip32 = BIP32Factory(ecc)
 
 initEccLib(ecc)
@@ -167,12 +169,16 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
   /**
    * The account's key pair.
    *
+   * The uint8 arrays are bound to the wallet account, so any external change will reflect to the internal representation. For this reason,
+   * it's strongly recommended to treat the key pair as a read-only view of the keys. While it's still technically possible to alter their
+   * content, client code should never do so.
+   *
    * @type {KeyPair}
    */
   get keyPair () {
     return {
-      privateKey: this._account.privateKey ? new Uint8Array(this._account.privateKey) : null,
-      publicKey: new Uint8Array(this._account.publicKey)
+      privateKey: this._account.privateKey ?? null,
+      publicKey: this._account.publicKey
     }
   }
 
@@ -197,9 +203,10 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * Sends a transaction.
    *
    * @param {BtcTransaction} tx - The transaction.
+   * @param {number} [timeoutMs] - Maximum milliseconds to poll for spent inputs to disappear from unspent outputs after broadcast.
    * @returns {Promise<TransactionResult>} The transaction's result.
    */
-  async sendTransaction ({ to, value, feeRate, confirmationTarget = 1 }) {
+  async sendTransaction ({ to, value, feeRate, confirmationTarget = 1 }, timeoutMs = 10000) {
     await this._ensureConnected()
 
     const address = await this.getAddress()
@@ -218,7 +225,22 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
 
     const tx = await this._getRawTransaction({ utxos, to, value, fee, feeRate, changeValue })
 
+    let retries = Math.ceil(timeoutMs / POLLING_INTERVAL)
+    const spentOutpoints = new Set(utxos.map(({ tx_hash: txHash, tx_pos: txPos }) => `${txHash}:${txPos}`))
+
     await this._client.broadcast(tx.hex)
+
+    while (retries > 0) {
+      retries -= 1
+
+      await new Promise((resolve) => setTimeout(resolve, POLLING_INTERVAL))
+
+      const currentUtxos = await this._client.listUnspent(address)
+      const hasSpentOutpoints = currentUtxos
+        .some(({ tx_hash: txHash, tx_pos: txPos }) => spentOutpoints.has(`${txHash}:${txPos}`))
+
+      if (!hasSpentOutpoints) break
+    }
 
     return { hash: tx.txid, fee: tx.fee }
   }
@@ -382,12 +404,14 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @returns {Promise<WalletAccountReadOnlyBtc>} The read-only account.
    */
   async toReadOnlyAccount () {
-    const btcReadOnlyAccount = new WalletAccountReadOnlyBtc(this._address, {
-      ...this._config,
-      client: this._client
-    })
+    if (!this._btcReadOnlyAccount) {
+      this._btcReadOnlyAccount = new WalletAccountReadOnlyBtc(this._address, {
+        ...this._config,
+        client: this._client
+      })
+    }
 
-    return btcReadOnlyAccount
+    return this._btcReadOnlyAccount
   }
 
   /**

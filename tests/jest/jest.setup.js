@@ -5,8 +5,7 @@ import { HOST, PORT, ELECTRUM_PORT, ZMQ_PORT, DATA_DIR } from '../config.js'
 
 import { BitcoinCli, Waiter } from '../helpers/index.js'
 
-const BITCOIN_CORE_VERSION = 'v30.'
-const BITCOIN_CORE_VERSION_PREV = 'v29.'
+const BITCOIN_CORE_VERSIONS = ['v28.', 'v29.', 'v30.']
 
 const ELECTRS_VERSION = 'v0.10.'
 
@@ -18,7 +17,7 @@ function checkBitcoinCore () {
   try {
     const buffer = execSync(`bitcoind --version`, { stdio: ['inherit', 'pipe', 'ignore'] })
     const output = buffer.toString()
-    return output.includes(BITCOIN_CORE_VERSION) || output.includes(BITCOIN_CORE_VERSION_PREV)
+    return BITCOIN_CORE_VERSIONS.some(version => output.includes(version))
   } catch {
     return false
   }
@@ -61,7 +60,7 @@ export default async () => {
 
   if (!checkBitcoinCore() || !checkElectrs()) {
     console.error('❗ You are missing the following tools:')
-    console.error(`${checkBitcoinCore() ? '✅' : '❌'} Bitcoin Core\t${BITCOIN_CORE_VERSION}x.x+ or ${BITCOIN_CORE_VERSION_PREV}x.x+ - install here: https://bitcoin.org/en/download`)
+    console.error(`${checkBitcoinCore() ? '✅' : '❌'} Bitcoin Core\t${BITCOIN_CORE_VERSIONS[0]}x.x+ - install here: https://bitcoin.org/en/download`)
     console.error(`${checkElectrs() ? '✅' : '❌'} Electrs\t${ELECTRS_VERSION}x+ - install here: https://github.com/romanz/electrs/blob/master/doc/install.md`)
 
     if (isWindows) {
