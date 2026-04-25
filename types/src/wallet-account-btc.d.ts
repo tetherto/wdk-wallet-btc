@@ -30,6 +30,10 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
     get path(): string;
     /**
      * The account's key pair.
+     * 
+     * The uint8 arrays are bound to the wallet account, so any external change will reflect to the internal representation. For this reason,
+     * it's strongly recommended to treat the key pair as a read-only view of the keys. While it's still technically possible to alter their
+     * content, client code should never do so.
      *
      * @type {KeyPair}
      */
