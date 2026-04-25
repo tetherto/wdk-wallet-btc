@@ -49,9 +49,10 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      * Sends a transaction.
      *
      * @param {BtcTransaction} tx - The transaction.
+     * @param {number} [timeoutMs] - Maximum milliseconds to poll for spent inputs to disappear from unspent outputs after broadcast.
      * @returns {Promise<TransactionResult>} The transaction's result.
      */
-    sendTransaction({ to, value, feeRate, confirmationTarget }: BtcTransaction): Promise<TransactionResult>;
+    sendTransaction({ to, value, feeRate, confirmationTarget }: BtcTransaction, timeoutMs?: number): Promise<TransactionResult>;
     /**
      * Transfers a token to another address.
      *
