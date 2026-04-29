@@ -1,6 +1,6 @@
 {
   "name": "@tetherto/wdk-wallet-btc",
-  "version": "1.0.0-beta.8",
+  "version": "1.0.0-beta.9",
   "description": "A simple package to manage BIP-32 wallets for the bitcoin blockchain.",
   "keywords": [
     "wdk",
@@ -34,7 +34,7 @@
     "@bitcoinerlab/secp256k1": "1.2.0",
     "@mempool/electrum-client": "1.1.9",
     "@tetherto/wdk-failover-provider": "1.0.0-beta.2",
-    "@tetherto/wdk-wallet": "1.0.0-beta.7",
+    "@tetherto/wdk-wallet": "1.0.0-beta.8",
     "bare-node-runtime": "^1.1.4",
     "bip32": "4.0.0",
     "bip39": "3.1.0",
