@@ -195,8 +195,15 @@ export type BtcWalletConfig = {
     network?: "bitcoin" | "regtest" | "testnet";
     /**
      * - The BIP address type used for key and address derivation.
+     *   - 44: [BIP-44 (P2PKH / legacy)](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)
+     *   - 84: [BIP-84 (P2WPKH / native SegWit)](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki)
+     *   - Default: 84 (P2WPKH).
      */
     bip?: 44 | 84;
+    /**
+     * - The number of retries in the failover mechanism.
+     */
+    retries?: number
 };
 export type BtcMaxSpendableResult = {
     /**

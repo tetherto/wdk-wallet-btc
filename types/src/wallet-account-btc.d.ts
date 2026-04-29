@@ -30,6 +30,10 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
     get path(): string;
     /**
      * The account's key pair.
+     * 
+     * The uint8 arrays are bound to the wallet account, so any external change will reflect to the internal representation. For this reason,
+     * it's strongly recommended to treat the key pair as a read-only view of the keys. While it's still technically possible to alter their
+     * content, client code should never do so.
      *
      * @type {KeyPair}
      */
@@ -52,9 +56,10 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      * Sends a transaction.
      *
      * @param {BtcTransaction} tx - The transaction.
+     * @param {number} [timeoutMs] - Maximum milliseconds to poll for spent inputs to disappear from unspent outputs after broadcast.
      * @returns {Promise<TransactionResult>} The transaction's result.
      */
-    sendTransaction({ to, value, feeRate, confirmationTarget }: BtcTransaction): Promise<TransactionResult>;
+    sendTransaction({ to, value, feeRate, confirmationTarget }: BtcTransaction, timeoutMs?: number): Promise<TransactionResult>;
     /**
      * Transfers a token to another address.
      *
