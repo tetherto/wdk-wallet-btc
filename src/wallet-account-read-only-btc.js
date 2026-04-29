@@ -153,6 +153,8 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @type {IBtcClient}
      */
     this._client = this._clientList[0]
+    let bip = null
+    let prefix = null
 
     if (this._clientList.length > 1) {
       const failoverProvider = new FailoverProvider({ retries: this._config.retries })
@@ -162,8 +164,12 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
       this._client = failoverProvider.initialize()
     }
 
-    const prefix = Object.keys(BIP_BY_ADDRESS_PREFIX).find(p => address.startsWith(p))
-    const bip = BIP_BY_ADDRESS_PREFIX[prefix] || 44
+    if (address) {
+      prefix = Object.keys(BIP_BY_ADDRESS_PREFIX).find(p => address.startsWith(p))
+      bip = BIP_BY_ADDRESS_PREFIX[prefix] || 44
+    } else {
+      bip = config.bip
+    }
 
     /**
      * The dust limit in satoshis based on the BIP type.
@@ -442,7 +448,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * @param {string} tx.toAddress - The recipient's address.
    * @param {number | bigint} tx.amount - The amount to send (in satoshis).
    * @param {number | bigint} tx.feeRate - The fee rate (in sats/vB).
-   * @returns {Promise<{ utxos: OutputWithValue[], fee: number, changeValue: number }>} - The funding plan.
+   * @returns {Promise<{ utxos: OutputWithValue[], fee: bigint, changeValue: bigint }>} - The funding plan.
    */
   async _planSpend ({ fromAddress, toAddress, amount, feeRate }) {
     amount = this._toBigInt(amount)

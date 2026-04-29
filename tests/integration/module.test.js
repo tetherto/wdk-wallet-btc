@@ -5,6 +5,7 @@ import { HOST, PORT, ELECTRUM_PORT, ZMQ_PORT, DATA_DIR } from '../config.js'
 import { BitcoinCli, Waiter } from '../helpers/index.js'
 
 import WalletManagerBtc from '../../index.js'
+import SeedSignerBtc from '../../src/signers/index.js'
 
 function parseRawTransaction (rawTransaction, recipientAddress) {
   const getAddress = (vout) => vout.scriptPubKey.address || vout.scriptPubKey.addresses?.[0]
@@ -66,7 +67,8 @@ describe.each([44, 84])('@wdk/wallet-btc (BIP %i)', (bip) => {
   let wallet
 
   beforeAll(async () => {
-    wallet = new WalletManagerBtc(SEED_PHRASE, CONFIGURATION)
+    const signer = new SeedSignerBtc(SEED_PHRASE)
+    wallet = new WalletManagerBtc(signer,CONFIGURATION)
 
     bitcoin.sendToAddress(ACCOUNT_0.address[bip], 1)
     bitcoin.sendToAddress(ACCOUNT_1.address[bip], 1)

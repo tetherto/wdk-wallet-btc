@@ -18,11 +18,13 @@ import WalletManager from '@tetherto/wdk-wallet'
 import FailoverProvider from '@tetherto/wdk-failover-provider'
 
 import WalletAccountBtc from './wallet-account-btc.js'
+import SeedSignerBtc from './signers/seed-signer-btc.js'
 
 /** @typedef {import('@tetherto/wdk-wallet').FeeRates} FeeRates */
 
 /** @typedef {import('./wallet-account-btc.js').BtcWalletConfig} BtcWalletConfig */
 
+/** @typedef {import('./signers/seed-signer-btc.js').ISignerBtc} ISignerBtc */
 /** @typedef {import('./transports/index.js').IBtcClient} IBtcClient */
 
 const MEMPOOL_SPACE_URL = 'https://mempool.space'
@@ -31,11 +33,23 @@ export default class WalletManagerBtc extends WalletManager {
   /**
    * Creates a new wallet manager for the bitcoin blockchain.
    *
-   * @param {string | Uint8Array} seed - The wallet's [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) seed phrase.
+   * Accepts either a BIP-39 seed (string mnemonic or raw Uint8Array) for
+   * backwards compatibility, or an {@link ISignerBtc} instance for the new
+   * signer-based workflow.
+   *
+   * @param {string | Uint8Array | ISignerBtc} seedOrSigner - A BIP-39 seed phrase, raw seed bytes, or a root signer.
    * @param {BtcWalletConfig} [config] - The configuration object.
    */
-  constructor (seed, config = {}) {
-    super(seed, config)
+  constructor (seedOrSigner, config = {}) {
+    let signer = seedOrSigner
+    if (typeof seedOrSigner === 'string' || seedOrSigner instanceof Uint8Array) {
+      const { client, ...signerConfig } = config
+      signer = new SeedSignerBtc(seedOrSigner, signerConfig)
+    }
+    if (signer.isPrivateKey) {
+      throw new Error('Private key signers are not supported for wallet managers.')
+    }
+    super(signer, config)
 
     const clientOptions = config.client ? [config.client].flat() : [{ type: 'electrum', clientConfig: { host: 'electrum.blockstream.info', port: 50_001 } }]
 
@@ -65,6 +79,20 @@ export default class WalletManagerBtc extends WalletManager {
   }
 
   /**
+   * Creates a new signer.
+   *
+   * @param {string} signerName - The signer name.
+   * @param {ISignerBtc} signer - The signer.
+   */
+  createSigner (signerName, signer) {
+    if (!signerName) {
+      throw new Error('Signer name is required.')
+    }
+
+    this._signers[signerName] = signer
+  }
+
+  /**
    * Returns the wallet account at a specific index (defaults to [BIP-84](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki); set config.bip=44 for [BIP-44](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)).
    *
    * @example
@@ -73,10 +101,11 @@ export default class WalletManagerBtc extends WalletManager {
    * // For testnet or regtest: m/84'/1'/0'/0/1
    * const account = await wallet.getAccount(1);
    * @param {number} [index] - The index of the account to get (default: 0).
+   * @param {string} [signerName] - The signer name (default: 'default').
    * @returns {Promise<WalletAccountBtc>} The account.
    */
-  async getAccount (index = 0) {
-    return await this.getAccountByPath(`0'/0/${index}`)
+  async getAccount (index = 0, signerName = 'default') {
+    return await this.getAccountByPath(`0'/0/${index}`, signerName)
   }
 
   /**
@@ -88,16 +117,23 @@ export default class WalletManagerBtc extends WalletManager {
    * // For testnet or regtest: m/84'/1'/0'/0/1
    * const account = await wallet.getAccountByPath("0'/0/1");
    * @param {string} path - The derivation path (e.g. "0'/0/0").
+   * @param {string} [signerName] - The signer name (default: 'default').
    * @returns {Promise<WalletAccountBtc>} The account.
    */
-  async getAccountByPath (path) {
-    if (!this._accounts[path]) {
-      const account = new WalletAccountBtc(this._seed, path, { ...this._config, client: this._client })
-
-      this._accounts[path] = account
+  async getAccountByPath (path, signerName = 'default') {
+    const key = `${signerName}:${path}`
+    if (this._accounts[key]) {
+      return this._accounts[key]
     }
-
-    return this._accounts[path]
+    const signer = this._signers[signerName]
+    if (!signer) {
+      throw new Error(`Signer ${signerName} not found.`)
+    }
+    const { client, ...signerConfig } = this._config
+    const childSigner = signer.derive(path, signerConfig)
+    const account = new WalletAccountBtc(childSigner, { client: this._clientList })
+    this._accounts[key] = account
+    return account
   }
 
   /**

@@ -13,23 +13,12 @@
 // limitations under the License.
 'use strict'
 
-import { hmac } from '@noble/hashes/hmac'
-import { sha512 } from '@noble/hashes/sha2'
-import { address as btcAddress, initEccLib, networks, payments, Psbt, Transaction } from 'bitcoinjs-lib'
-import { BIP32Factory } from 'bip32'
+import { address as btcAddress, Psbt, Transaction } from 'bitcoinjs-lib'
 import pLimit from 'p-limit'
 import { LRUCache } from 'lru-cache'
-
-import * as bip39 from 'bip39'
-import * as ecc from '@bitcoinerlab/secp256k1'
-import bitcoinMessageModule from 'bitcoinjs-message'
-
-// eslint-disable-next-line camelcase
-import { sodium_memzero } from 'sodium-universal'
-
+import PrivateKeySignerBtc from './signers/private-key-signer-btc.js'
+import SeedSignerBtc from './signers/seed-signer-btc.js'
 import WalletAccountReadOnlyBtc from './wallet-account-read-only-btc.js'
-
-const bitcoinMessage = bitcoinMessageModule.default ?? bitcoinMessageModule
 
 /** @typedef {import('@tetherto/wdk-wallet').IWalletAccount} IWalletAccount */
 
@@ -40,6 +29,8 @@ const bitcoinMessage = bitcoinMessageModule.default ?? bitcoinMessageModule
 
 /** @typedef {import('./wallet-account-read-only-btc.js').BtcTransaction} BtcTransaction */
 /** @typedef {import('./wallet-account-read-only-btc.js').BtcWalletConfig} BtcWalletConfig */
+
+/** @typedef {import('./signers/seed-signer-btc.js').ISignerBtc} ISignerBtc */
 
 /**
  * @typedef {Object} BtcTransfer
@@ -53,99 +44,44 @@ const bitcoinMessage = bitcoinMessageModule.default ?? bitcoinMessageModule
  * @property {string} [recipient] - The receiving address for outgoing transfers.
  */
 
-const MASTER_SECRET = Buffer.from('Bitcoin seed', 'utf8')
-
-const BITCOIN = {
-  wif: 0x80,
-  bip32: { public: 0x0488b21e, private: 0x0488ade4 },
-  messagePrefix: '\x18Bitcoin Signed Message:\n',
-  bech32: 'bc',
-  pubKeyHash: 0x00,
-  scriptHash: 0x05
-}
-
 const MAX_CONCURRENT_REQUESTS = 8
 const MAX_CACHE_ENTRIES = 1000
 const REQUEST_BATCH_SIZE = 64
-
 const POLLING_INTERVAL = 300
-
-const bip32 = BIP32Factory(ecc)
-
-initEccLib(ecc)
-
-function derivePath (seed, path) {
-  const masterKeyAndChainCodeBuffer = hmac(sha512, MASTER_SECRET, seed)
-
-  const privateKey = masterKeyAndChainCodeBuffer.slice(0, 32)
-  const chainCode = masterKeyAndChainCodeBuffer.slice(32)
-
-  const masterNode = bip32.fromPrivateKey(Buffer.from(privateKey), Buffer.from(chainCode), BITCOIN)
-  const account = masterNode.derivePath(path)
-
-  sodium_memzero(masterKeyAndChainCodeBuffer)
-  sodium_memzero(privateKey)
-  sodium_memzero(chainCode)
-
-  return { masterNode, account }
-}
 
 /** @implements {IWalletAccount} */
 export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
   /**
    * Creates a new bitcoin wallet account.
    *
-   * @param {string | Uint8Array} seed - The wallet's [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) seed phrase.
-   * @param {string} path - The derivation path suffix (e.g. "0'/0/0").
+   * @param {ISignerBtc} signer - The signer.
    * @param {BtcWalletConfig} [config] - The configuration object.
    */
-  constructor (seed, path, config = {}) {
-    if (typeof seed === 'string') {
-      if (!bip39.validateMnemonic(seed)) {
-        throw new Error('The seed phrase is invalid.')
-      }
-
-      seed = bip39.mnemonicToSeedSync(seed)
+  constructor (signer, config = {}) {
+    if (signer.isRoot) {
+      throw new Error('The signer is the root signer. Call derive method to create a child signer. Or use WalletManagerBtc to create a new account.')
     }
+    super(signer.address, { network: signer.config.network, bip: signer.config.bip, ...config })
 
-    const bip = config.bip ?? 84
+    /** @private */
+    this._signer = signer
+  }
 
-    if (![44, 84].includes(bip)) {
-      throw new Error('Invalid bip specification. Supported bips: 44, 84.')
+  /**
+   * Returns the account's address. If not set at construction time (e.g. lazy hardware signers),
+   * it asks the underlying signer to resolve it, then caches it locally.
+   *
+   * @returns {Promise<string>} The account's address.
+   */
+  async getAddress () {
+    if (this._address) return this._address
+    if (this._signer && typeof this._signer.getAddress === 'function') {
+      const addr = await this._signer.getAddress()
+      // Cache inside the read-only base shape
+      this.__address = addr
+      return addr
     }
-
-    const netdp = config.network === 'bitcoin' ? 0 : 1
-    const fullPath = `m/${bip}'/${netdp}'/${path}`
-
-    const { masterNode, account } = derivePath(seed, fullPath)
-
-    const network = networks[config.network] || networks.bitcoin
-
-    const { address } = bip === 44
-      ? payments.p2pkh({ pubkey: account.publicKey, network })
-      : payments.p2wpkh({ pubkey: account.publicKey, network })
-
-    super(address, config)
-
-    /**
-     * The wallet account configuration.
-     *
-     * @protected
-     * @type {BtcWalletConfig}
-     */
-    this._config = config
-
-    /** @private */
-    this._path = fullPath
-
-    /** @private */
-    this._bip = bip
-
-    /** @private */
-    this._masterNode = masterNode
-
-    /** @private */
-    this._account = account
+    throw new Error("The account's address must be set to perform this operation.")
   }
 
   /**
@@ -154,7 +90,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @type {number}
    */
   get index () {
-    return +this._path.split('/').pop()
+    return this._signer.index
   }
 
   /**
@@ -163,7 +99,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @type {string}
    */
   get path () {
-    return this._path
+    return this._signer.path
   }
 
   /**
@@ -176,10 +112,34 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @type {KeyPair}
    */
   get keyPair () {
-    return {
-      privateKey: this._account.privateKey ?? null,
-      publicKey: this._account.publicKey
-    }
+    return this._signer.keyPair
+  }
+
+  /**
+   * Creates a new bitcoin wallet account from a raw private key.
+   *
+   * @param {string | Uint8Array | Buffer} privateKey - The raw private key (hex string or 32 bytes).
+   * @param {BtcWalletConfig} [config] - The wallet configuration options.
+   * @returns {WalletAccountBtc} The wallet account.
+   */
+  static fromPrivateKey (privateKey, config = {}) {
+    const { client, ...signerConfig } = config
+    const signer = new PrivateKeySignerBtc(privateKey, signerConfig)
+    return new WalletAccountBtc(signer, { client })
+  }
+
+  /**
+   * Creates a new bitcoin wallet account from a seed phrase or seed buffer.
+   *
+   * @param {string | Buffer} seed - The seed phrase (mnemonic) or seed buffer.
+   * @param {BtcWalletConfig} [config] - The wallet configuration options (includes bip, network, etc.).
+   * @param {string} [path] - The derivation path relative to the BIP root (default: "0'/0/0").
+   * @returns {WalletAccountBtc} The wallet account.
+   */
+  static fromSeed (seed, config = {}, path = "0'/0/0") {
+    const { client, ...signerConfig } = config
+    const signer = new SeedSignerBtc(seed, signerConfig, { path })
+    return new WalletAccountBtc(signer, { client })
   }
 
   /**
@@ -189,14 +149,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @returns {Promise<string>} The message's signature.
    */
   async sign (message) {
-    return bitcoinMessage
-      .sign(
-        message,
-        this._account.privateKey,
-        true,
-        this._bip === 84 ? { segwitType: 'p2wpkh' } : undefined
-      )
-      .toString('base64')
+    return this._signer.sign(message)
   }
 
   /**
@@ -414,18 +367,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * Disposes the wallet account, erasing the private key from memory and closing the connection with the server.
    */
   dispose () {
-    sodium_memzero(this._account.privateKey)
-    sodium_memzero(this._account.chainCode)
-
-    sodium_memzero(this._masterNode.privateKey)
-    sodium_memzero(this._masterNode.chainCode)
-
-    this._masterNode = undefined
-
-    Object.defineProperty(this._account, 'privateKey', {
-      get: () => null
-    })
-
+    this._signer.dispose()
     super.dispose()
   }
 
@@ -445,50 +387,44 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
       return hex
     }
 
-    const buildAndSign = async (rcptVal, chgVal) => {
+    const buildUnsignedPsbt = async (rcptVal, chgVal) => {
       const psbt = new Psbt({ network: this._network })
 
       for (const utxo of utxos) {
         const baseInput = {
           hash: utxo.tx_hash,
-          index: utxo.tx_pos,
-          bip32Derivation: [{
-            masterFingerprint: this._masterNode.fingerprint,
-            path: this._path,
-            pubkey: this._account.publicKey
-          }]
+          index: utxo.tx_pos
         }
 
-        if (this._bip === 84) {
-          psbt.addInput({
-            ...baseInput,
-            witnessUtxo: {
-              script: Buffer.from(utxo.vout.scriptPubKey.hex, 'hex'),
-              value: Number(utxo.value)
-            }
-          })
-        } else {
-          const prevHex = await getPrevTxHex(utxo.tx_hash)
-          psbt.addInput({
-            ...baseInput,
-            nonWitnessUtxo: Buffer.from(prevHex, 'hex')
-          })
-        }
+        // Provide full previous transaction for broad compatibility
+        const prevHex = await getPrevTxHex(utxo.tx_hash)
+        psbt.addInput({
+          ...baseInput,
+          nonWitnessUtxo: Buffer.from(prevHex, 'hex')
+        })
       }
 
       psbt.addOutput({ address: to, value: Number(rcptVal) })
       if (chgVal > 0n) psbt.addOutput({ address: await this.getAddress(), value: Number(chgVal) })
 
-      utxos.forEach((_, index) => psbt.signInputHD(index, this._masterNode))
-      psbt.finalizeAllInputs()
+      return psbt
+    }
 
-      return psbt.extractTransaction()
+    const signAndFinalize = async (psbt) => {
+      const signedBase64 = await this._signer.signPsbt(psbt)
+      if (typeof signedBase64 !== 'string') {
+        throw new TypeError('signPsbt() must return a base64 string per the ISignerBtc contract')
+      }
+      const signed = Psbt.fromBase64(signedBase64)
+      signed.finalizeAllInputs()
+      return signed.extractTransaction()
     }
 
     let currentRecipientAmnt = value
     let currentChange = changeValue
 
-    let tx = await buildAndSign(currentRecipientAmnt, currentChange)
+    let unsigned = await buildUnsignedPsbt(currentRecipientAmnt, currentChange)
+    let tx = await signAndFinalize(unsigned)
     let vsize = tx.virtualSize()
     let requiredFee = BigInt(vsize) * feeRate
 
@@ -500,19 +436,20 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
 
     const delta = requiredFee - fee
     fee = requiredFee
-
     if (currentChange > 0n) {
       let newChange = currentChange - delta
       if (newChange <= dustLimit) newChange = 0n
       currentChange = newChange
-      tx = await buildAndSign(currentRecipientAmnt, currentChange)
+      unsigned = await buildUnsignedPsbt(currentRecipientAmnt, currentChange)
+      tx = await signAndFinalize(unsigned)
     } else {
       const newRecipientAmnt = currentRecipientAmnt - delta
       if (newRecipientAmnt <= dustLimit) {
         throw new Error(`The amount after fees must be bigger than the dust limit (= ${dustLimit}).`)
       }
       currentRecipientAmnt = newRecipientAmnt
-      tx = await buildAndSign(currentRecipientAmnt, currentChange)
+      unsigned = await buildUnsignedPsbt(currentRecipientAmnt, currentChange)
+      tx = await signAndFinalize(unsigned)
     }
 
     vsize = tx.virtualSize()
