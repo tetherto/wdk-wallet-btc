@@ -15,6 +15,8 @@
 
 import WalletManager from '@tetherto/wdk-wallet'
 
+import FailoverProvider from '@tetherto/wdk-failover-provider'
+
 import WalletAccountBtc from './wallet-account-btc.js'
 import SeedSignerBtc from './signers/seed-signer-btc.js'
 
@@ -66,6 +68,14 @@ export default class WalletManagerBtc extends WalletManager {
      * @type {IBtcClient}
      */
     this._client = this._clientList[0]
+
+    if (this._clientList.length > 1) {
+      const failoverProvider = new FailoverProvider({ retries: this._config.retries })
+      for (const entry of this._clientList) {
+        failoverProvider.addProvider(entry)
+      }
+      this._client = failoverProvider.initialize()
+    }
   }
 
   /**

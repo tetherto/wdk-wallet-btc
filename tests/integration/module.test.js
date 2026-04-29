@@ -175,6 +175,24 @@ describe.each([44, 84])('@wdk/wallet-btc (BIP %i)', (bip) => {
     expect(tx3.value).toBe(2000n)
   })
 
+  test('should sign a transaction without broadcasting, then broadcast manually', async () => {
+    const account0 = await wallet.getAccount(2)
+    const account1 = await wallet.getAccount(3)
+    const TRANSACTION = {
+      to: await account1.getAddress(),
+      value: 1_000n,
+      feeRate: 1
+    }
+    const signedHex = await account0.signTransaction(TRANSACTION)
+    const txid = bitcoin.sendRawTransaction(signedHex)
+    await waiter.mine()
+    
+    const transaction = parseRawTransaction(bitcoin.getRawTransaction(txid), TRANSACTION.to)
+    expect(transaction.txid).toBe(txid)
+    expect(transaction.details[0].address).toBe(TRANSACTION.to)
+    expect(Math.round(transaction.details[0].amount * 1e+8)).toBe(Number(TRANSACTION.value))
+  })
+
   test('should get a max spendable amount that is actually spendable', async () => {
     const account0 = await wallet.getAccount(2)
     const account1 = await wallet.getAccount(3)

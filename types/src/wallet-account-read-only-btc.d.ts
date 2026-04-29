@@ -128,7 +128,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @param {string} tx.toAddress - The recipient's address.
      * @param {number | bigint} tx.amount - The amount to send (in satoshis).
      * @param {number | bigint} tx.feeRate - The fee rate (in sats/vB).
-     * @returns {Promise<{ utxos: OutputWithValue[], fee: number, changeValue: number }>} - The funding plan.
+     * @returns {Promise<{ utxos: OutputWithValue[], fee: bigint, changeValue: bigint }>} - The funding plan.
      */
     protected _planSpend({ fromAddress, toAddress, amount, feeRate }: {
         fromAddress: string;
@@ -137,8 +137,8 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
         feeRate: number | bigint;
     }): Promise<{
         utxos: OutputWithValue[];
-        fee: number;
-        changeValue: number;
+        fee: bigint;
+        changeValue: bigint;
     }>;
     /**
      * Verifies a message's signature.
@@ -182,8 +182,8 @@ export type BtcTransaction = {
 };
 export type BtcClientDescriptor =
     | { type: 'blockbook-http', clientConfig: import("./transports/blockbook-client.js").BlockbookClientConfig }
-    | { type: 'electrum-ws', clientConfig: import("./transports/ws.js").ElectrumWsConfig }
-    | { type: 'electrum', clientConfig: MempoolElectrumConfig };
+    | { type: 'electrum-ws', clientConfig: Omit<import("./transports/ws.js").ElectrumWsConfig, 'network'> }
+    | { type: 'electrum', clientConfig: Omit<MempoolElectrumConfig, 'network'> };
 export type BtcWalletConfig = {
     /**
      * - The bitcoin client: a pre-built IBtcClient, a descriptor { type, config }, or an array for failover.
@@ -195,8 +195,15 @@ export type BtcWalletConfig = {
     network?: "bitcoin" | "regtest" | "testnet";
     /**
      * - The BIP address type used for key and address derivation.
+     *   - 44: [BIP-44 (P2PKH / legacy)](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)
+     *   - 84: [BIP-84 (P2WPKH / native SegWit)](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki)
+     *   - Default: 84 (P2WPKH).
      */
     bip?: 44 | 84;
+    /**
+     * - The number of retries in the failover mechanism.
+     */
+    retries?: number
 };
 export type BtcMaxSpendableResult = {
     /**

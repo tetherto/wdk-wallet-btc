@@ -22,6 +22,9 @@ import * as ecc from '@bitcoinerlab/secp256k1'
 
 import { address as btcAddress, networks, Transaction } from 'bitcoinjs-lib'
 import bitcoinMessageModule from 'bitcoinjs-message'
+
+import FailoverProvider from '@tetherto/wdk-failover-provider'
+
 import { BlockbookClient, ElectrumTcp, ElectrumSsl, ElectrumTls, ElectrumWs } from './transports/index.js'
 
 const bitcoinMessage = bitcoinMessageModule.default ?? bitcoinMessageModule
@@ -46,7 +49,7 @@ const bitcoinMessage = bitcoinMessageModule.default ?? bitcoinMessageModule
  * @property {number | bigint} value - The amount of bitcoins to send to the recipient (in satoshis).
  * @property {number} [confirmationTarget] - Optional confirmation target in blocks (default: 1).
  * @property {number | bigint} [feeRate] - Optional fee rate in satoshis per virtual byte. If provided, this value overrides the fee rate estimated from the blockchain (default: undefined).
- * */
+ */
 
 /**
  * @typedef {BtcBlockbookHttpClientDescriptor | BtcElectrumClientDescriptor | BtcElectrumWsClientDescriptor} BtcClientDescriptor
@@ -75,6 +78,10 @@ const bitcoinMessage = bitcoinMessageModule.default ?? bitcoinMessageModule
  * @property {IBtcClient | BtcClientDescriptor | Array<IBtcClient | BtcClientDescriptor>} [client] - The bitcoin client, or a list of bitcoin client options for connection fallback.
  * @property {"bitcoin" | "regtest" | "testnet"} [network] - The name of the network to use (default: "bitcoin").
  * @property {44 | 84} [bip] - The BIP address type used for key and address derivation.
+ *   - 44: [BIP-44 (P2PKH / legacy)](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)
+ *   - 84: [BIP-84 (P2WPKH / native SegWit)](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki)
+ *   - Default: 84 (P2WPKH).
+ * @property {number} [retries] - The number of retries in the failover mechanism.
  */
 
 /**
@@ -149,12 +156,21 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     let bip = null
     let prefix = null
 
+    if (this._clientList.length > 1) {
+      const failoverProvider = new FailoverProvider({ retries: this._config.retries })
+      for (const entry of this._clientList) {
+        failoverProvider.addProvider(entry)
+      }
+      this._client = failoverProvider.initialize()
+    }
+
     if (address) {
       prefix = Object.keys(BIP_BY_ADDRESS_PREFIX).find(p => address.startsWith(p))
       bip = BIP_BY_ADDRESS_PREFIX[prefix] || 44
     } else {
       bip = config.bip
     }
+
     /**
      * The dust limit in satoshis based on the BIP type.
      *
@@ -432,7 +448,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * @param {string} tx.toAddress - The recipient's address.
    * @param {number | bigint} tx.amount - The amount to send (in satoshis).
    * @param {number | bigint} tx.feeRate - The fee rate (in sats/vB).
-   * @returns {Promise<{ utxos: OutputWithValue[], fee: number, changeValue: number }>} - The funding plan.
+   * @returns {Promise<{ utxos: OutputWithValue[], fee: bigint, changeValue: bigint }>} - The funding plan.
    */
   async _planSpend ({ fromAddress, toAddress, amount, feeRate }) {
     amount = this._toBigInt(amount)

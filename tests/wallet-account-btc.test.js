@@ -2,6 +2,8 @@ import { afterAll, beforeAll, describe, expect, test } from '@jest/globals'
 
 import { mnemonicToSeedSync } from 'bip39'
 
+import { address as btcAddress, networks, Transaction } from 'bitcoinjs-lib'
+
 import { HOST, PORT, ELECTRUM_PORT, ZMQ_PORT, DATA_DIR } from './config.js'
 
 import { BitcoinCli, Waiter } from './helpers/index.js'
@@ -131,6 +133,22 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
       const signature = await account.sign(MESSAGE)
 
       expect(signature).toBe(SIGNATURES[bip])
+    })
+  })
+
+  describe('signTransaction', () => {
+    test('should sign a transaction into a valid signed btc tx with the expected recipient output', async () => {
+      const TRANSACTION = { to: recipient, value: 1_000, feeRate: 1 }
+
+      const signedHex = await account.signTransaction(TRANSACTION)
+
+      const tx = Transaction.fromHex(signedHex)
+
+      const recipientOutput = tx.outs.find(out =>
+        btcAddress.fromOutputScript(out.script, networks.regtest) === recipient
+      )
+
+      expect(recipientOutput.value).toBe(TRANSACTION.value)
     })
   })
 
