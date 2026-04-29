@@ -200,6 +200,17 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
   }
 
   /**
+   * Signs a transaction.
+   *
+   * @param {BtcTransaction} tx - The transaction to sign.
+   * @returns {Promise<string>} The signed raw transaction as a hex string.
+   */
+  async signTransaction ({ to, value, feeRate, confirmationTarget = 1 }) {
+    const { tx } = await this._buildSignedTransaction({ to, value, feeRate, confirmationTarget })
+    return tx.hex
+  }
+
+  /**
    * Sends a transaction.
    *
    * @param {BtcTransaction} tx - The transaction.
@@ -207,24 +218,9 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @returns {Promise<TransactionResult>} The transaction's result.
    */
   async sendTransaction ({ to, value, feeRate, confirmationTarget = 1 }, timeoutMs = 10000) {
-    await this._ensureConnected()
+    const { tx, utxos } = await this._buildSignedTransaction({ to, value, feeRate, confirmationTarget })
 
     const address = await this.getAddress()
-
-    if (!feeRate) {
-      const feeEstimate = await this._client.estimateFee(confirmationTarget)
-      feeRate = this._toBigInt(Math.max(feeEstimate * 100_000, 1))
-    }
-
-    const { utxos, fee, changeValue } = await this._planSpend({
-      fromAddress: address,
-      toAddress: to,
-      amount: value,
-      feeRate
-    })
-
-    const tx = await this._getRawTransaction({ utxos, to, value, fee, feeRate, changeValue })
-
     let retries = Math.ceil(timeoutMs / POLLING_INTERVAL)
     const spentOutpoints = new Set(utxos.map(({ tx_hash: txHash, tx_pos: txPos }) => `${txHash}:${txPos}`))
 
@@ -524,5 +520,20 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     if (requiredFee > fee) throw new Error('Fee shortfall after output rebalance.')
 
     return { txid: tx.getId(), hex: tx.toHex(), fee, vsize }
+  }
+
+  /** @private */
+  async _buildSignedTransaction ({ to, value, feeRate, confirmationTarget = 1 }) {
+    await this._ensureConnected()
+    const address = await this.getAddress()
+    if (!feeRate) {
+      const feeEstimate = await this._client.estimateFee(confirmationTarget)
+      feeRate = this._toBigInt(Math.max(feeEstimate * 100_000, 1))
+    }
+    const { utxos, fee, changeValue } = await this._planSpend({
+      fromAddress: address, toAddress: to, amount: value, feeRate
+    })
+    const tx = await this._getRawTransaction({ utxos, to, value, fee, feeRate, changeValue })
+    return { tx, utxos }
   }
 }

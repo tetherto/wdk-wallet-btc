@@ -46,6 +46,13 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      */
     sign(message: string): Promise<string>;
     /**
+     * Signs a transaction.
+     *
+     * @param {BtcTransaction} tx - The transaction to sign.
+     * @returns {Promise<string>} The signed raw transaction as a hex string.
+     */
+    signTransaction({ to, value, feeRate, confirmationTarget }: BtcTransaction): Promise<string>;
+    /**
      * Sends a transaction.
      *
      * @param {BtcTransaction} tx - The transaction.
