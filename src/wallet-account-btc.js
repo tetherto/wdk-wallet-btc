@@ -204,6 +204,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    *
    * @param {BtcTransaction} tx - The transaction to sign.
    * @returns {Promise<string>} The signed raw transaction as a hex string.
+   * @throws {Error} If the transaction's cost exceeds the maximum transaction fee option.
    */
   async signTransaction ({ to, value, feeRate, confirmationTarget = 1 }) {
     const { tx } = await this._buildSignedTransaction({ to, value, feeRate, confirmationTarget })
@@ -221,6 +222,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @param {BtcTransaction} tx - The transaction.
    * @param {number} [timeoutMs] - Maximum milliseconds to poll for spent inputs to disappear from unspent outputs after broadcast.
    * @returns {Promise<TransactionResult>} The transaction's result.
+   * @throws {Error} If the transaction's cost exceeds the maximum transaction fee option.
    */
   async sendTransaction ({ to, value, feeRate, confirmationTarget = 1 }, timeoutMs = 10000) {
     const { tx, utxos } = await this._buildSignedTransaction({ to, value, feeRate, confirmationTarget })

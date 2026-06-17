@@ -50,6 +50,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      *
      * @param {BtcTransaction} tx - The transaction to sign.
      * @returns {Promise<string>} The signed raw transaction as a hex string.
+     * @throws {Error} If the transaction's cost exceeds the maximum transaction fee option.
      */
     signTransaction({ to, value, feeRate, confirmationTarget }: BtcTransaction): Promise<string>;
     /**
@@ -58,6 +59,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      * @param {BtcTransaction} tx - The transaction.
      * @param {number} [timeoutMs] - Maximum milliseconds to poll for spent inputs to disappear from unspent outputs after broadcast.
      * @returns {Promise<TransactionResult>} The transaction's result.
+     * @throws {Error} If the transaction's cost exceeds the maximum transaction fee option.
      */
     sendTransaction({ to, value, feeRate, confirmationTarget }: BtcTransaction, timeoutMs?: number): Promise<TransactionResult>;
     /**
