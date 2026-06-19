@@ -408,20 +408,21 @@ const wallet = new WalletManagerBtc(signer, {
 
 | Method                                | Description                                                      | Returns                                   |
 | ------------------------------------- | ---------------------------------------------------------------- | ----------------------------------------- |
-| `getAccount(index, signerName?)`      | Returns a wallet account at the specified index                  | `Promise<WalletAccountBtc>`               |
-| `getAccountByPath(path, signerName?)` | Returns a wallet account at the specified BIP-84 derivation path | `Promise<WalletAccountBtc>`               |
-| `createSigner(name, signer)`          | Registers a signer with the wallet manager                       | `void`                                    |
+| `getAccount(indexOrSignerName?, options?)` | Returns a wallet account at the specified index, or the account for a registered signer name | `Promise<WalletAccountBtc>`     |
+| `getAccountByPath(path, options?)`    | Returns a wallet account at the specified BIP-84 derivation path | `Promise<WalletAccountBtc>`               |
+| `addSigner(name, signer)`             | Registers a named signer with the wallet manager (inherited from the base manager) | `WalletManagerBtc`      |
 | `getFeeRates()`                       | Returns current fee rates for transactions                       | `Promise<{normal: number, fast: number}>` |
 | `dispose()`                           | Disposes all wallet accounts, clearing private keys from memory  | `void`                                    |
 
-##### `getAccount(index, signerName)`
+##### `getAccount(indexOrSignerName, options)`
 
-Returns a wallet account at the specified index using BIP-84 derivation.
+Returns a wallet account at the specified index using BIP-84 derivation, or — when passed a string — the account associated with a registered signer name.
 
 **Parameters:**
 
-- `index` (number, optional): The index of the account to get (default: 0)
-- `signerName` (string, optional): The name of the signer to use (default: "default")
+- `indexOrSignerName` (number | string, optional): The account index (default: 0), or the name of a signer registered via `addSigner`
+- `options` (object, optional): Account options
+  - `options.signerName` (string, optional): The name of the signer to derive from. Omit to use the default signer
 
 **Returns:** `Promise<WalletAccountBtc>` - The wallet account
 
@@ -434,14 +435,15 @@ Returns a wallet account at the specified index using BIP-84 derivation.
 const account = await wallet.getAccount(1);
 ```
 
-##### `getAccountByPath(path, signerName)`
+##### `getAccountByPath(path, options)`
 
 Returns a wallet account at the specified BIP-84 derivation path.
 
 **Parameters:**
 
 - `path` (string): The derivation path (e.g., "0'/0/0")
-- `signerName` (string, optional): The name of the signer to use (default: "default")
+- `options` (object, optional): Account options
+  - `options.signerName` (string, optional): The name of the signer to derive from. Omit to use the default signer
 
 **Returns:** `Promise<WalletAccountBtc>` - The wallet account
 
@@ -471,16 +473,16 @@ console.log("Normal fee rate:", feeRates.normal, "sat/vB");
 console.log("Fast fee rate:", feeRates.fast, "sat/vB");
 ```
 
-##### `createSigner(signerName, signer)`
+##### `addSigner(signerName, signer)`
 
-Registers a signer with the wallet manager for use with multiple accounts.
+Registers a named signer with the wallet manager for use with multiple accounts. Inherited from the base `WalletManager`. The default signer (provided at construction) is kept separately and is never stored here.
 
 **Parameters:**
 
 - `signerName` (string): A unique name for the signer
 - `signer` (ISignerBtc): The signer instance to register
 
-**Returns:** `void`
+**Returns:** `WalletManagerBtc` - The wallet manager (for chaining)
 
 **Example:**
 
@@ -488,8 +490,8 @@ Registers a signer with the wallet manager for use with multiple accounts.
 import { PrivateKeySignerBtc } from "@tetherto/wdk-wallet-btc/signers";
 
 const pkSigner = new PrivateKeySignerBtc("a1b2c3d4...", { network: "bitcoin" });
-wallet.createSigner("my-key", pkSigner);
-const account = await wallet.getAccount(0, "my-key");
+wallet.addSigner("my-key", pkSigner);
+const account = await wallet.getAccount("my-key");
 ```
 
 ##### `dispose()`

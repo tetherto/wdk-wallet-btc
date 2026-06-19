@@ -1,21 +1,31 @@
 /**
- * Interface for Bitcoin signers.
- * @implements {ISigner}
+ * Interface for Bitcoin signers, extending the base {@link ISigner} from `@tetherto/wdk-wallet`
+ * so the cross-chain contract is actually enforced.
+ *
+ * @extends {ISigner}
  * @interface
  */
-export class ISignerBtc implements ISigner {
+export class ISignerBtc extends ISigner {
     /**
-     * The derivation path index of this account.
+     * Whether this signer can derive child signers. Derivable signers (e.g. a seed root or a Ledger
+     * session) can derive child accounts; non-derivable signers (e.g. private-key signers and already
+     * derived children) are bound directly to a single account.
      *
-     * @type {number}
+     * @type {boolean}
      */
-    get index(): number;
+    get isDerivable(): boolean;
     /**
-     * The full derivation path of this account.
+     * The derivation path index of this account, when applicable.
      *
-     * @type {string}
+     * @type {number | undefined}
      */
-    get path(): string;
+    get index(): number | undefined;
+    /**
+     * The full derivation path of this account, when applicable.
+     *
+     * @type {string | undefined}
+     */
+    get path(): string | undefined;
     /**
      * The account's key pair (public and private keys).
      *
@@ -29,19 +39,19 @@ export class ISignerBtc implements ISigner {
      */
     get config(): BtcWalletConfig;
     /**
-     * The account's Bitcoin address.
+     * The account's Bitcoin address, when available.
      *
-     * @type {string}
+     * @type {string | undefined}
      */
-    get address(): string;
+    get address(): string | undefined;
     /**
-     * Derives a child signer from the current signer.
+     * Derives a child signer from the current signer, using the same configuration.
      *
      * @param {string} relPath - The relative derivation path.
-     * @param {BtcWalletConfig} [config] - Optional configuration overrides.
-     * @returns {ISignerBtc} The derived child signer.
+     * @returns {Promise<ISignerBtc>} The derived child signer.
+     * @throws {SignerError} If the signer does not support derivation.
      */
-    derive(relPath: string, config?: BtcWalletConfig): ISignerBtc;
+    derive(relPath: string): Promise<ISignerBtc>;
     /**
      * Returns the extended public key (xpub/zpub).
      *
@@ -71,6 +81,14 @@ export class ISignerBtc implements ISigner {
      */
     signPsbt(psbt: Psbt | string): Promise<string>;
     /**
+     * Signs a transaction. For Bitcoin, the generic transaction form is a PSBT, so this is a thin
+     * wrapper over {@link signPsbt}.
+     *
+     * @param {Psbt | string} tx - The PSBT instance or base64 string.
+     * @returns {Promise<string>} The signed PSBT in base64 format.
+     */
+    signTransaction(tx: Psbt | string): Promise<string>;
+    /**
      * Disposes the signer, securely erasing sensitive data from memory.
      */
     dispose(): void;
@@ -95,48 +113,50 @@ export default class SeedSignerBtc implements ISignerBtc {
      * @param {string | Buffer} seed - The seed phrase (mnemonic) or seed buffer.
      * @param {BtcWalletConfig} [config] - The wallet configuration.
      * @param {Object} [opts] - Internal options.
-     * @param {BIP32Interface} [opts.masterNode] - Pre-derived master node.
-     * @param {string} [opts.path] - Derivation path relative to BIP root.
+     * @param {BIP32Interface} [opts.masterNode] - Pre-derived master node (e.g. from an extended private key).
+     * @param {string} [opts.path] - Relative derivation path of the account (default: "0'/0/0").
+     * @param {boolean} [opts.isChild] - When true, the signer is a derived child and does not retain the
+     *   master node, so it cannot derive further.
      */
     constructor(seed: string | Buffer, config?: BtcWalletConfig, opts?: {
         masterNode?: import("bip32").BIP32Interface;
         path?: string;
+        isChild?: boolean;
     });
-    /** @private */
-    private _masterNode;
-    /** @private */
-    private _bip;
-    /** @private */
-    private _path;
-    /** @private */
-    private _account;
-    /** @private */
-    private _address;
     /**
      * @protected
      * @type {BtcWalletConfig}
      */
     protected _config: BtcWalletConfig;
     /** @private */
-    private _isRoot;
+    private _bip;
+    /** @private */
+    private _masterNode;
+    /** @private */
+    private _account;
+    /** @private */
+    private _path;
+    /** @private */
+    private _address;
     /**
-     * Whether this is the root (underived) signer.
+     * Whether this signer can derive child signers. True for a root signer (which holds the master
+     * node); false for a derived child, which retains only its own leaf key.
      *
      * @type {boolean}
      */
-    get isRoot(): boolean;
+    get isDerivable(): boolean;
     /**
-     * The derivation path index of this account.
+     * The derivation path index of this account, or undefined for a root signer (no derived account).
      *
-     * @type {number}
+     * @type {number | undefined}
      */
-    get index(): number;
+    get index(): number | undefined;
     /**
-     * The derivation path of this account.
+     * The derivation path of this account, or undefined for a root signer.
      *
-     * @type {string}
+     * @type {string | undefined}
      */
-    get path(): string;
+    get path(): string | undefined;
     /**
      * The account's key pair.
      *
@@ -156,13 +176,15 @@ export default class SeedSignerBtc implements ISignerBtc {
      */
     get address(): string;
     /**
-     * Derives a child signer from the current signer.
+     * Derives a detached child signer from the current root signer. The child holds only its own leaf
+     * key (not the master node), so it cannot derive further and is safe to hand out and dispose
+     * without affecting this signer.
      *
      * @param {string} relPath - The relative derivation path (e.g., "0'/0/0").
-     * @param {BtcWalletConfig} [config] - Optional configuration overrides.
-     * @returns {SeedSignerBtc} The derived child signer.
+     * @returns {Promise<SeedSignerBtc>} The derived child signer, using the same configuration.
+     * @throws {SignerError} If this signer has no master node (it is a derived child or has been disposed).
      */
-    derive(relPath: string, config?: BtcWalletConfig): SeedSignerBtc;
+    derive(relPath: string): Promise<SeedSignerBtc>;
     /**
      * Returns the extended public key (xpub/zpub/tpub/vpub based on network and BIP).
      *
@@ -177,6 +199,14 @@ export default class SeedSignerBtc implements ISignerBtc {
      */
     signPsbt(psbt: Psbt | string): Promise<string>;
     /**
+     * Signs a transaction. For Bitcoin the generic transaction form is a PSBT, so this is a thin
+     * wrapper over {@link signPsbt}.
+     *
+     * @param {Psbt | string} tx - The PSBT instance or base64 string.
+     * @returns {Promise<string>} The signed PSBT in base64 format.
+     */
+    signTransaction(tx: Psbt | string): Promise<string>;
+    /**
      * Signs a message.
      *
      * @param {string} message - The message to sign.
@@ -188,8 +218,8 @@ export default class SeedSignerBtc implements ISignerBtc {
      */
     dispose(): void;
 }
-export type ISigner = import("@tetherto/wdk-wallet").ISigner;
 export type BtcWalletConfig = import("../wallet-account-read-only-btc.js").BtcWalletConfig;
 export type KeyPair = import("@tetherto/wdk-wallet").KeyPair;
 export type BIP32Interface = import("bip32").BIP32Interface;
+import { ISigner } from '@tetherto/wdk-wallet';
 import { Psbt } from 'bitcoinjs-lib';

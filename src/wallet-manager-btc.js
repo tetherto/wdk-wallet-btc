@@ -46,8 +46,8 @@ export default class WalletManagerBtc extends WalletManager {
       const { client, ...signerConfig } = config
       signer = new SeedSignerBtc(seedOrSigner, signerConfig)
     }
-    if (signer.isPrivateKey) {
-      throw new Error('Private key signers are not supported for wallet managers.')
+    if (!signer.isDerivable) {
+      throw new Error('The default signer must be derivable. Non-derivable signers (e.g. private-key signers) can only be registered by name via addSigner.')
     }
     super(signer, config)
 
@@ -79,33 +79,41 @@ export default class WalletManagerBtc extends WalletManager {
   }
 
   /**
-   * Creates a new signer.
+   * Returns the wallet account at a specific index.
    *
-   * @param {string} signerName - The signer name.
-   * @param {ISignerBtc} signer - The signer.
-   */
-  createSigner (signerName, signer) {
-    if (!signerName) {
-      throw new Error('Signer name is required.')
-    }
-
-    this._signers[signerName] = signer
-  }
-
-  /**
-   * Returns the wallet account at a specific index (defaults to [BIP-84](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki); set config.bip=44 for [BIP-44](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)).
+   * @overload
+   * @param {number} [index] - The index of the account to get (default: 0).
+   * @param {Object} [options] - Account options.
+   * @param {string} [options.signerName] - The signer name. Omit to use the default signer.
+   * @returns {Promise<WalletAccountBtc>} The account.
+   *
+   * @overload
+   * @param {string} signerName - The signer name registered via {@link addSigner}.
+   * @returns {Promise<WalletAccountBtc>} The account.
    *
    * @example
    * // Returns the account with derivation path
    * // For mainnet (bitcoin): m/84'/0'/0'/0/1
    * // For testnet or regtest: m/84'/1'/0'/0/1
    * const account = await wallet.getAccount(1);
-   * @param {number} [index] - The index of the account to get (default: 0).
-   * @param {string} [signerName] - The signer name (default: 'default').
-   * @returns {Promise<WalletAccountBtc>} The account.
    */
-  async getAccount (index = 0, signerName = 'default') {
-    return await this.getAccountByPath(`0'/0/${index}`, signerName)
+  async getAccount (indexOrSignerName = 0, options = {}) {
+    if (typeof indexOrSignerName === 'string') {
+      const key = `${indexOrSignerName}#self`
+      if (this._accounts[key]) {
+        return this._accounts[key]
+      }
+      const signer = this.getSigner(indexOrSignerName)
+      const accountSigner = signer.isDerivable
+        ? await signer.derive(this._relativePath(signer))
+        : signer
+      const account = new WalletAccountBtc(accountSigner, { client: this._clientList })
+      this._accounts[key] = account
+      return account
+    }
+
+    const { signerName } = options
+    return await this.getAccountByPath(`0'/0/${indexOrSignerName}`, { signerName })
   }
 
   /**
@@ -117,23 +125,29 @@ export default class WalletManagerBtc extends WalletManager {
    * // For testnet or regtest: m/84'/1'/0'/0/1
    * const account = await wallet.getAccountByPath("0'/0/1");
    * @param {string} path - The derivation path (e.g. "0'/0/0").
-   * @param {string} [signerName] - The signer name (default: 'default').
+   * @param {Object} [options] - Account options.
+   * @param {string} [options.signerName] - The signer name. Omit to use the default signer.
    * @returns {Promise<WalletAccountBtc>} The account.
+   * @throws {Error} If a signer name is given but no signer exists with that name.
+   * @throws {SignerError} If the signer doesn't support account derivation.
    */
-  async getAccountByPath (path, signerName = 'default') {
-    const key = `${signerName}:${path}`
+  async getAccountByPath (path, options = {}) {
+    const { signerName } = options
+    const key = `${signerName ?? ''}:${path}`
     if (this._accounts[key]) {
       return this._accounts[key]
     }
-    const signer = this._signers[signerName]
-    if (!signer) {
-      throw new Error(`Signer ${signerName} not found.`)
-    }
-    const { client, ...signerConfig } = this._config
-    const childSigner = signer.derive(path, signerConfig)
+    const signer = this.getSigner(signerName)
+    const childSigner = await signer.derive(path)
     const account = new WalletAccountBtc(childSigner, { client: this._clientList })
     this._accounts[key] = account
     return account
+  }
+
+  /** @private */
+  _relativePath (signer) {
+    if (!signer.path) return "0'/0/0"
+    return signer.path.split('/').slice(-3).join('/')
   }
 
   /**

@@ -32,25 +32,25 @@ export default class WalletManagerBtc extends WalletManager {
      */
     get _isExternalClient(): Array<boolean>;
     /**
-     * Creates a new signer.
+     * Returns the wallet account at a specific index, or the account associated with a registered
+     * signer name (defaults to [BIP-84](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki);
+     * set config.bip=44 for [BIP-44](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)).
      *
-     * @param {string} signerName - The signer name.
-     * @param {ISignerBtc} signer - The signer.
-     */
-    createSigner(signerName: string, signer: ISignerBtc): void;
-    /**
-     * Returns the wallet account at a specific index (defaults to [BIP-84](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki); set config.bip=44 for [BIP-44](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)).
+     * @param {number} [index] - The index of the account to get (default: 0).
+     * @param {Object} [options] - Account options.
+     * @param {string} [options.signerName] - The signer name. Omit to use the default signer.
+     * @returns {Promise<WalletAccountBtc>} The account.
      *
      * @example
      * // Returns the account with derivation path
      * // For mainnet (bitcoin): m/84'/0'/0'/0/1
      * // For testnet or regtest: m/84'/1'/0'/0/1
      * const account = await wallet.getAccount(1);
-     * @param {number} [index] - The index of the account to get (default: 0).
-     * @param {string} [signerName] - The signer name (default: 'default').
-     * @returns {Promise<WalletAccountBtc>} The account.
      */
-    getAccount(index?: number, signerName?: string): Promise<WalletAccountBtc>;
+    getAccount(index?: number, options?: {
+        signerName?: string;
+    }): Promise<WalletAccountBtc>;
+    getAccount(signerName: string): Promise<WalletAccountBtc>;
     /**
      * Returns the wallet account at a specific derivation path.
      *
@@ -60,10 +60,24 @@ export default class WalletManagerBtc extends WalletManager {
      * // For testnet or regtest: m/84'/1'/0'/0/1
      * const account = await wallet.getAccountByPath("0'/0/1");
      * @param {string} path - The derivation path (e.g. "0'/0/0").
-     * @param {string} [signerName] - The signer name (default: 'default').
+     * @param {Object} [options] - Account options.
+     * @param {string} [options.signerName] - The signer name. Omit to use the default signer.
      * @returns {Promise<WalletAccountBtc>} The account.
+     * @throws {Error} If a signer name is given but no signer exists with that name.
+     * @throws {SignerError} If the signer doesn't support account derivation.
      */
-    getAccountByPath(path: string, signerName?: string): Promise<WalletAccountBtc>;
+    getAccountByPath(path: string, options?: {
+        signerName?: string;
+    }): Promise<WalletAccountBtc>;
+    /**
+     * Returns the relative ("0'/0/0") portion of a signer's full derivation path, or the default
+     * account path when the signer has no path of its own (e.g. a seed root).
+     *
+     * @private
+     * @param {ISignerBtc} signer - The signer.
+     * @returns {string} The relative derivation path.
+     */
+    private _relativePath;
     /**
      * Returns the current fee rates.
      *

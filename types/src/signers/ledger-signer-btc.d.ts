@@ -47,6 +47,13 @@ export default class LedgerSignerBtc implements ISignerBtc {
     /** @private */
     private _dmk;
     /**
+     * Whether this signer can derive child signers. Always true: a Ledger signer can derive further
+     * accounts from the same device session.
+     *
+     * @type {boolean}
+     */
+    get isDerivable(): boolean;
+    /**
      * The derivation path index of this account.
      *
      * @type {number}
@@ -119,13 +126,13 @@ export default class LedgerSignerBtc implements ISignerBtc {
      */
     getExtendedPublicKey(): Promise<string>;
     /**
-     * Derives a child signer at the given relative path, reusing the current device session.
+     * Derives a child signer at the given relative path, reusing the current device session and the
+     * same configuration.
      *
      * @param {string} relPath - The relative derivation path (e.g., "0'/0/0").
-     * @param {BtcWalletConfig} [cfg] - Optional configuration overrides.
-     * @returns {LedgerSignerBtc} The derived child signer.
+     * @returns {Promise<LedgerSignerBtc>} The derived child signer.
      */
-    derive(relPath: string, cfg?: BtcWalletConfig): LedgerSignerBtc;
+    derive(relPath: string): Promise<LedgerSignerBtc>;
     /**
      * Returns the account's Bitcoin address, connecting to the device if needed.
      *
@@ -139,6 +146,14 @@ export default class LedgerSignerBtc implements ISignerBtc {
      * @returns {Promise<string>} The signed PSBT in base64 format.
      */
     signPsbt(psbt: Psbt): Promise<string>;
+    /**
+     * Signs a transaction. For Bitcoin the generic transaction form is a PSBT, so this is a thin
+     * wrapper over {@link signPsbt}.
+     *
+     * @param {Psbt} tx - The PSBT instance.
+     * @returns {Promise<string>} The signed PSBT in base64 format.
+     */
+    signTransaction(tx: Psbt): Promise<string>;
     /**
      * Signs a message.
      *

@@ -1,5 +1,7 @@
 import { describe, expect, test } from '@jest/globals'
 
+import { Psbt, networks } from 'bitcoinjs-lib'
+
 import SeedSignerBtc from '../src/signers/seed-signer-btc.js'
 import PrivateKeySignerBtc from '../src/signers/private-key-signer-btc.js'
 
@@ -30,32 +32,47 @@ describe('SeedSignerBtc', () => {
       .toThrow(/Invalid bip specification/)
   })
 
-  test('should create a root signer with a valid seed phrase', () => {
+  test('should create a derivable root signer with a default account', () => {
     const signer = new SeedSignerBtc(VALID_SEED_PHRASE)
-    expect(signer.isRoot).toBe(true)
+    expect(signer.isDerivable).toBe(true)
+    // A root always holds an account, defaulting to "0'/0/0", so it can back a wallet account.
+    expect(signer.path).toBe("m/84'/1'/0'/0/0")
+    expect(signer.index).toBe(0)
+    expect(signer.address).toBeDefined()
     signer.dispose()
   })
 
-  test('should derive a child signer from a root signer', () => {
+  test('should derive a detached (non-derivable) child signer from a root signer', async () => {
     const root = new SeedSignerBtc(VALID_SEED_PHRASE)
-    const child = root.derive("0'/0/0")
-    expect(child.isRoot).toBe(false)
+    const child = await root.derive("0'/0/0")
+    expect(child.isDerivable).toBe(false)
     expect(child.address).toBeDefined()
     expect(child.path).toMatch(/^m\/84'\/1'\/0'\/0\/0$/)
+    // A detached child cannot derive further.
+    await expect(child.derive("0'/0/1")).rejects.toThrow()
     child.dispose()
     root.dispose()
   })
 
-  test('should throw when deriving from a disposed signer', () => {
+  test('should reject deriving from a disposed signer', async () => {
     const root = new SeedSignerBtc(VALID_SEED_PHRASE)
     root.dispose()
-    expect(() => root.derive("0'/0/0")).toThrow()
+    await expect(root.derive("0'/0/0")).rejects.toThrow()
   })
 
   test('should sign a message', async () => {
     const signer = new SeedSignerBtc(VALID_SEED_PHRASE, SEED_CONFIG, { path: "0'/0/0" })
     const sig = await signer.sign(MESSAGE)
     expect(sig).toBe(SEED_EXPECTED_SIGNATURE)
+    signer.dispose()
+  })
+
+  test('signTransaction delegates to signPsbt', async () => {
+    const signer = new SeedSignerBtc(VALID_SEED_PHRASE, SEED_CONFIG, { path: "0'/0/0" })
+    const psbt = new Psbt({ network: networks.regtest })
+    const viaPsbt = await signer.signPsbt(psbt.toBase64())
+    const viaTx = await signer.signTransaction(psbt.toBase64())
+    expect(viaTx).toBe(viaPsbt)
     signer.dispose()
   })
 
@@ -115,9 +132,26 @@ describe('PrivateKeySignerBtc', () => {
     signer.dispose()
   })
 
-  test('should throw on derive()', () => {
+  test('is not derivable and exposes undefined index/path', () => {
     const signer = new PrivateKeySignerBtc(VALID_PRIVATE_KEY)
-    expect(() => signer.derive()).toThrow('derive is not supported')
+    expect(signer.isDerivable).toBe(false)
+    expect(signer.index).toBeUndefined()
+    expect(signer.path).toBeUndefined()
+    signer.dispose()
+  })
+
+  test('should reject derive()', async () => {
+    const signer = new PrivateKeySignerBtc(VALID_PRIVATE_KEY)
+    await expect(signer.derive()).rejects.toThrow('does not support derivation')
+    signer.dispose()
+  })
+
+  test('signTransaction delegates to signPsbt', async () => {
+    const signer = new PrivateKeySignerBtc(VALID_PRIVATE_KEY, PK_CONFIG)
+    const psbt = new Psbt({ network: networks.regtest })
+    const viaPsbt = await signer.signPsbt(psbt.toBase64())
+    const viaTx = await signer.signTransaction(psbt.toBase64())
+    expect(viaTx).toBe(viaPsbt)
     signer.dispose()
   })
 

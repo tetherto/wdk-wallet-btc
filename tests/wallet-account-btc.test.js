@@ -73,7 +73,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
   let account, recipient
 
   beforeAll(async () => {
-    const signer = new SeedSignerBtc(SEED_PHRASE, SIGNER_CONFIG).derive("0'/0/0")
+    const signer = new SeedSignerBtc(SEED_PHRASE, SIGNER_CONFIG, { path: "0'/0/0" })
     account = new WalletAccountBtc(signer, CLIENT_CONFIG)
     recipient = bitcoin.getNewAddress()
 
@@ -104,7 +104,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     })
 
     test('should successfully initialize an account for the given seed and path', () => {
-      const signer = new SeedSignerBtc(SEED, SIGNER_CONFIG).derive("0'/0/0")
+      const signer = new SeedSignerBtc(SEED, SIGNER_CONFIG, { path: "0'/0/0" })
       const account = new WalletAccountBtc(signer, CLIENT_CONFIG)
 
       expect(account.index).toBe(ACCOUNTS[bip].index)
@@ -268,7 +268,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     })
 
     test('should collapse dust change into fee when leftover <= dust limit', async () => {
-      const signer = new SeedSignerBtc(SEED_PHRASE, SIGNER_CONFIG).derive("0'/0/5")
+      const signer = new SeedSignerBtc(SEED_PHRASE, SIGNER_CONFIG, { path: "0'/0/5" })
       const account = new WalletAccountBtc(signer, CLIENT_CONFIG)
       const address = await account.getAddress()
       bitcoin.sendToAddress(address, 0.001)
@@ -393,7 +393,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
       const xprv = master.toBase58()
 
       const root = SeedSignerBtc.fromXprv(xprv, SIGNER_CONFIG)
-      const signer = root.derive("0'/0/0")
+      const signer = await root.derive("0'/0/0")
       const accountX = new WalletAccountBtc(signer, CLIENT_CONFIG)
 
       const addr = await accountX.getAddress()
@@ -407,7 +407,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     test('should return the correct transaction receipt', async () => {
       const TRANSACTION = { to: recipient, value: 1_000, feeRate: 1 }
 
-      const signer = new SeedSignerBtc(SEED_PHRASE, SIGNER_CONFIG).derive("0'/0/4")
+      const signer = new SeedSignerBtc(SEED_PHRASE, SIGNER_CONFIG, { path: "0'/0/4" })
       const account = new WalletAccountBtc(signer, CLIENT_CONFIG)
       const address = await account.getAddress()
       bitcoin.sendToAddress(address, 0.01)

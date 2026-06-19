@@ -16,7 +16,7 @@ import { hmac } from '@noble/hashes/hmac'
 import { sha512 } from '@noble/hashes/sha2'
 import { initEccLib, networks, Psbt } from 'bitcoinjs-lib'
 import { BIP32Factory } from 'bip32'
-import { NotImplementedError } from '@tetherto/wdk-wallet'
+import { ISigner, NotImplementedError, SignerError } from '@tetherto/wdk-wallet'
 
 import * as bip39 from 'bip39'
 import * as ecc from '@bitcoinerlab/secp256k1'
@@ -24,18 +24,15 @@ import * as ecc from '@bitcoinerlab/secp256k1'
 // eslint-disable-next-line camelcase
 import { sodium_memzero } from 'sodium-universal'
 
-/** @typedef {import('@tetherto/wdk-wallet').ISigner} ISigner */
 /** @typedef {import('../wallet-account-read-only-btc.js').BtcWalletConfig} BtcWalletConfig */
 /** @typedef {import('@tetherto/wdk-wallet').KeyPair} KeyPair */
 /** @typedef {import('bip32').BIP32Interface} BIP32Interface */
 
 import {
-  buildPaymentScript,
-  detectInputOwnership,
-  ensureWitnessUtxoIfNeeded,
   normalizeConfig,
   getAddressFromPublicKey,
-  signMessage
+  signMessage,
+  signPsbtWithKey
 } from './utils.js'
 
 const MASTER_SECRET = Buffer.from('Bitcoin seed', 'utf8')
@@ -73,24 +70,33 @@ function deriveMasterNode (seed) {
 }
 
 /**
- * Interface for Bitcoin signers.
- * @implements {ISigner}
+ * Interface for Bitcoin signers, extending the base {@link ISigner} from `@tetherto/wdk-wallet`
+ * @extends {ISigner}
  * @interface
  */
-export class ISignerBtc {
+export class ISignerBtc extends ISigner {
   /**
-   * The derivation path index of this account.
+   * Whether this signer can derive child signers.
    *
-   * @type {number}
+   * @type {boolean}
+   */
+  get isDerivable () {
+    throw new NotImplementedError('isDerivable')
+  }
+
+  /**
+   * The derivation path index of this account, when applicable.
+   *
+   * @type {number | undefined}
    */
   get index () {
     throw new NotImplementedError('index')
   }
 
   /**
-   * The full derivation path of this account.
+   * The full derivation path of this account, when applicable.
    *
-   * @type {string}
+   * @type {string | undefined}
    */
   get path () {
     throw new NotImplementedError('path')
@@ -115,23 +121,23 @@ export class ISignerBtc {
   }
 
   /**
-   * The account's Bitcoin address.
+   * The account's Bitcoin address, when available.
    *
-   * @type {string}
+   * @type {string | undefined}
    */
   get address () {
     throw new NotImplementedError('address')
   }
 
   /**
-   * Derives a child signer from the current signer.
+   * Derives a child signer from the current signer, using the same configuration.
    *
    * @param {string} relPath - The relative derivation path.
-   * @param {BtcWalletConfig} [config] - Optional configuration overrides.
-   * @returns {ISignerBtc} The derived child signer.
+   * @returns {Promise<ISignerBtc>} The derived child signer.
+   * @throws {SignerError} If the signer does not support derivation.
    */
-  derive (relPath, config = {}) {
-    throw new NotImplementedError('derive(relPath, config)')
+  async derive (relPath) {
+    throw new NotImplementedError('derive(relPath)')
   }
 
   /**
@@ -175,6 +181,17 @@ export class ISignerBtc {
   }
 
   /**
+   * Signs a transaction. For Bitcoin, the generic transaction form is a PSBT, so this is a thin
+   * wrapper over {@link signPsbt}.
+   *
+   * @param {Psbt | string} tx - The PSBT instance or base64 string.
+   * @returns {Promise<string>} The signed PSBT in base64 format.
+   */
+  async signTransaction (tx) {
+    throw new NotImplementedError('signTransaction(tx)')
+  }
+
+  /**
    * Disposes the signer, securely erasing sensitive data from memory.
    */
   dispose () {
@@ -194,34 +211,12 @@ export default class SeedSignerBtc {
    * @param {string | Buffer} seed - The seed phrase (mnemonic) or seed buffer.
    * @param {BtcWalletConfig} [config] - The wallet configuration.
    * @param {Object} [opts] - Internal options.
-   * @param {BIP32Interface} [opts.masterNode] - Pre-derived master node.
-   * @param {string} [opts.path] - Derivation path relative to BIP root.
+   * @param {BIP32Interface} [opts.masterNode] - Pre-derived master node (e.g. from an extended private key).
+   * @param {string} [opts.path] - Relative derivation path of the account (default: "0'/0/0").
+   * @param {boolean} [opts.isChild] - When true, the signer is a derived child and does not retain the
+   *   master node, so it cannot derive further.
    */
   constructor (seed, config = {}, opts = {}) {
-    if (typeof seed === 'string') {
-      if (!bip39.validateMnemonic(seed)) {
-        throw new Error('The seed phrase is invalid.')
-      }
-      seed = bip39.mnemonicToSeedSync(seed)
-    }
-
-    let masterNode
-    if (opts.masterNode) {
-      masterNode = opts.masterNode
-    } else {
-      masterNode = deriveMasterNode(seed)
-    }
-
-    /** @private */
-    this._masterNode = masterNode
-    /** @private */
-    this._bip = undefined
-    /** @private */
-    this._path = undefined
-    /** @private */
-    this._account = undefined
-    /** @private */
-    this._address = undefined
     config = normalizeConfig(config)
     /**
      * The wallet account configuration.
@@ -231,31 +226,36 @@ export default class SeedSignerBtc {
      */
     this._config = config
     /** @private */
-    this._isRoot = true
+    this._bip = config.bip
 
-    if (opts.path) {
-      const netdp = config.network === 'bitcoin' ? 0 : 1
-      const fullPath = `m/${config.bip}'/${netdp}'/${opts.path}`
-      const account = masterNode.derivePath(fullPath)
-      const network = networks[config.network] || networks.testnet
-      const address = getAddressFromPublicKey(
-        account.publicKey,
-        network,
-        config.bip
-      )
-
-      this._path = fullPath
-
-      this._bip = config.bip
-
-      this._masterNode = masterNode
-
-      this._account = account
-
-      this._address = address
-
-      this._isRoot = false
+    let masterNode
+    if (opts.masterNode) {
+      masterNode = opts.masterNode
+    } else {
+      if (typeof seed === 'string') {
+        if (!bip39.validateMnemonic(seed)) {
+          throw new Error('The seed phrase is invalid.')
+        }
+        seed = bip39.mnemonicToSeedSync(seed)
+      }
+      masterNode = deriveMasterNode(seed)
     }
+
+    // Every signer holds an account; default to "0'/0/0" so it can always back a wallet account.
+    const netdp = config.network === 'bitcoin' ? 0 : 1
+    const fullPath = `m/${config.bip}'/${netdp}'/${opts.path || "0'/0/0"}`
+    const account = masterNode.derivePath(fullPath)
+    const network = networks[config.network] || networks.testnet
+
+    /** @private */
+    this._account = account
+    /** @private */
+    this._path = fullPath
+    /** @private */
+    this._address = getAddressFromPublicKey(account.publicKey, network, config.bip)
+    // A root signer retains the master node and can derive children; a derived child drops it.
+    /** @private */
+    this._masterNode = opts.isChild ? undefined : masterNode
   }
 
   /**
@@ -272,27 +272,28 @@ export default class SeedSignerBtc {
   }
 
   /**
-   * Whether this is the root (underived) signer.
+   * Whether this signer can derive child signers.
    *
    * @type {boolean}
    */
-  get isRoot () {
-    return this._isRoot
+  get isDerivable () {
+    return Boolean(this._masterNode)
   }
 
   /**
    * The derivation path index of this account.
    *
-   * @type {number}
+   * @type {number | undefined}
    */
   get index () {
+    if (!this._path) return undefined
     return +this._path.split('/').pop()
   }
 
   /**
    * The derivation path of this account.
    *
-   * @type {string}
+   * @type {string | undefined}
    */
   get path () {
     return this._path
@@ -331,30 +332,17 @@ export default class SeedSignerBtc {
   }
 
   /**
-   * Derives a child signer from the current signer.
+   * Derives a detached child signer from the current root signer.
    *
    * @param {string} relPath - The relative derivation path (e.g., "0'/0/0").
-   * @param {BtcWalletConfig} [config] - Optional configuration overrides.
-   * @returns {SeedSignerBtc} The derived child signer.
+   * @returns {Promise<SeedSignerBtc>} The derived child signer.
+   * @throws {SignerError} If this signer has no master node (it is a derived child or has been disposed).
    */
-  derive (relPath, config = {}) {
-    const cfg = {
-      ...this._config,
-      ...Object.fromEntries(
-        Object.entries(config || {}).filter(([, v]) => v !== undefined)
-      )
+  async derive (relPath) {
+    if (!this._masterNode) {
+      throw new SignerError('Cannot derive: this signer has no master node (it is a derived child or has been disposed).')
     }
-    const cloned = bip32.fromPrivateKey(
-      Buffer.from(this._masterNode.privateKey),
-      Buffer.from(this._masterNode.chainCode),
-      BITCOIN
-    )
-    const opts = {
-      masterNode: cloned,
-      path: relPath
-    }
-
-    return new SeedSignerBtc(null, cfg, opts)
+    return new SeedSignerBtc(null, this._config, { masterNode: this._masterNode, path: relPath, isChild: true })
   }
 
   /**
@@ -387,53 +375,20 @@ export default class SeedSignerBtc {
     const psbtInstance =
       typeof psbt === 'string' ? Psbt.fromBase64(psbt) : psbt
 
-    const pubkey = this._account && this._account.publicKey
-    if (!pubkey) return psbtInstance.toBase64()
-
+    // Every signer holds a leaf account (a root defaults to "0'/0/0"), so we sign directly with it.
     const network = networks[this._config.network] || networks.testnet
-    const myScript = buildPaymentScript(this._bip, pubkey, network)
+    return signPsbtWithKey(psbtInstance, this._account, this._bip, network)
+  }
 
-    for (let i = 0; i < psbtInstance.inputCount; i++) {
-      const { input, prevOut, isOurs } = detectInputOwnership(
-        psbtInstance,
-        i,
-        myScript
-      )
-
-      if (!isOurs) continue
-
-      try {
-        // Ensure bip32Derivation is present so we can use signInputHD
-        const hasDerivation = (input.bip32Derivation || []).some(
-          (d) =>
-            d &&
-            d.pubkey &&
-            Buffer.isBuffer(d.pubkey) &&
-            d.pubkey.equals(pubkey)
-        )
-        if (!hasDerivation) {
-          psbtInstance.updateInput(i, {
-            bip32Derivation: [
-              {
-                masterFingerprint: this._masterNode.fingerprint,
-                path: this.path,
-                pubkey
-              }
-            ]
-          })
-        }
-
-        // For BIP84, prefer witnessUtxo if we can derive it from prevOut
-        ensureWitnessUtxoIfNeeded(psbtInstance, i, this._bip, prevOut, input)
-
-        psbtInstance.signInputHD(i, this._masterNode)
-      } catch (err) {
-        // Ignore inputs we cannot sign (e.g., finalized or missing data)
-      }
-    }
-
-    // Do not finalize here to support partially signed workflows
-    return psbtInstance.toBase64()
+  /**
+   * Signs a transaction. For Bitcoin the generic transaction form is a PSBT, so this is a thin
+   * wrapper over {@link signPsbt}.
+   *
+   * @param {Psbt | string} tx - The PSBT instance or base64 string.
+   * @returns {Promise<string>} The signed PSBT in base64 format.
+   */
+  async signTransaction (tx) {
+    return this.signPsbt(tx)
   }
 
   /**

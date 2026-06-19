@@ -108,6 +108,43 @@ export function ensureWitnessUtxoIfNeeded (psbtInstance, i, bip, prevOut, input)
 }
 
 /**
+ * Signs every PSBT input owned by the given leaf key, in place.
+ *
+ * Detects which inputs belong to `account` (by matching the derived payment script), ensures the
+ * witnessUtxo is present for SegWit (BIP84) inputs, and signs each owned input directly with the leaf
+ * key via {@link Psbt#signInput}. Inputs that cannot be signed (finalized, missing data) are skipped.
+ * The PSBT is not finalized, to support partially signed workflows.
+ *
+ * @param {Psbt} psbtInstance - The PSBT instance to sign (mutated in place).
+ * @param {Object} account - A leaf signer exposing `publicKey` and a `sign` method (e.g. an ECPair or a BIP32 node).
+ * @param {number} bip - The BIP standard (44 or 84).
+ * @param {Network} network - The network configuration.
+ * @returns {string} The (partially) signed PSBT in base64 format.
+ */
+export function signPsbtWithKey (psbtInstance, account, bip, network) {
+  const pubkey = account && account.publicKey
+  if (!pubkey) return psbtInstance.toBase64()
+
+  const myScript = buildPaymentScript(bip, pubkey, network)
+
+  for (let i = 0; i < psbtInstance.inputCount; i++) {
+    const { input, prevOut, isOurs } = detectInputOwnership(psbtInstance, i, myScript)
+
+    if (!isOurs) continue
+
+    ensureWitnessUtxoIfNeeded(psbtInstance, i, bip, prevOut, input)
+
+    try {
+      psbtInstance.signInput(i, account)
+    } catch (_) {
+      // Ignore inputs we cannot sign (e.g., finalized or missing data)
+    }
+  }
+
+  return psbtInstance.toBase64()
+}
+
+/**
  * Normalizes wallet configuration with defaults.
  *
  * @param {BtcWalletConfig} [config] - The configuration object.

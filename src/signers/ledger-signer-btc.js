@@ -105,6 +105,16 @@ export default class LedgerSignerBtc {
   }
 
   /**
+   * Whether this signer can derive child signers. Always true: a Ledger signer can derive further
+   * accounts from the same device session.
+   *
+   * @type {boolean}
+   */
+  get isDerivable () {
+    return true
+  }
+
+  /**
    * The derivation path index of this account.
    *
    * @type {number}
@@ -328,21 +338,14 @@ export default class LedgerSignerBtc {
   }
 
   /**
-   * Derives a child signer at the given relative path, reusing the current device session.
+   * Derives a child signer at the given relative path, reusing the current device session and the
+   * same configuration.
    *
    * @param {string} relPath - The relative derivation path (e.g., "0'/0/0").
-   * @param {BtcWalletConfig} [cfg] - Optional configuration overrides.
-   * @returns {LedgerSignerBtc} The derived child signer.
+   * @returns {Promise<LedgerSignerBtc>} The derived child signer.
    */
-  derive (relPath, cfg) {
-    const mergedCfg = {
-      ...this._config,
-      ...Object.fromEntries(
-        Object.entries(cfg || {}).filter(([, v]) => v !== undefined)
-      )
-    }
-    const mergedOpts = { dmk: this._dmk }
-    return new LedgerSignerBtc(`${relPath}`, mergedCfg, mergedOpts)
+  async derive (relPath) {
+    return new LedgerSignerBtc(`${relPath}`, this._config, { dmk: this._dmk })
   }
 
   /**
@@ -466,6 +469,17 @@ export default class LedgerSignerBtc {
     }
 
     return psbt.toBase64()
+  }
+
+  /**
+   * Signs a transaction. For Bitcoin the generic transaction form is a PSBT, so this is a thin
+   * wrapper over {@link signPsbt}.
+   *
+   * @param {Psbt} tx - The PSBT instance.
+   * @returns {Promise<string>} The signed PSBT in base64 format.
+   */
+  async signTransaction (tx) {
+    return this.signPsbt(tx)
   }
 
   /**

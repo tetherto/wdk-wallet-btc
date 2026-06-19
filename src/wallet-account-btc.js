@@ -58,9 +58,6 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @param {BtcWalletConfig} [config] - The configuration object.
    */
   constructor (signer, config = {}) {
-    if (signer.isRoot) {
-      throw new Error('The signer is the root signer. Call derive method to create a child signer. Or use WalletManagerBtc to create a new account.')
-    }
     super(signer.address, { network: signer.config.network, bip: signer.config.bip, ...config })
 
     /** @private */
@@ -134,11 +131,13 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @param {string | Buffer} seed - The seed phrase (mnemonic) or seed buffer.
    * @param {BtcWalletConfig} [config] - The wallet configuration options (includes bip, network, etc.).
    * @param {string} [path] - The derivation path relative to the BIP root (default: "0'/0/0").
-   * @returns {WalletAccountBtc} The wallet account.
+   * @returns {Promise<WalletAccountBtc>} The wallet account.
    */
-  static fromSeed (seed, config = {}, path = "0'/0/0") {
+  static async fromSeed (seed, config = {}, path = "0'/0/0") {
     const { client, ...signerConfig } = config
-    const signer = new SeedSignerBtc(seed, signerConfig, { path })
+    const root = new SeedSignerBtc(seed, signerConfig)
+    const signer = await root.derive(path)
+    root.dispose()
     return new WalletAccountBtc(signer, { client })
   }
 

@@ -17,11 +17,12 @@
 import { networks, Psbt } from 'bitcoinjs-lib'
 import * as ecc from '@bitcoinerlab/secp256k1'
 import { ECPairFactory } from 'ecpair'
+import { SignerError } from '@tetherto/wdk-wallet'
 
 // eslint-disable-next-line camelcase
 import { sodium_memzero } from 'sodium-universal'
 
-import { buildPaymentScript, detectInputOwnership, ensureWitnessUtxoIfNeeded, normalizeConfig, getAddressFromPublicKey, signMessage } from './utils.js'
+import { normalizeConfig, getAddressFromPublicKey, signMessage, signPsbtWithKey } from './utils.js'
 
 const ECPair = ECPairFactory(ecc)
 /** @typedef {import('../wallet-account-read-only-btc.js').BtcWalletConfig} BtcWalletConfig */
@@ -60,7 +61,7 @@ export default class PrivateKeySignerBtc {
       throw new Error('PrivateKeySignerBtc: privateKey must be 32-byte Buffer or 64-char hex')
     }
     const account = ECPair.fromPrivateKey(pkBuf)
-    const network = networks[config.network] || networks.bitcoin
+    const network = networks[config.network] || networks.testnet
     const address = getAddressFromPublicKey(account.publicKey, network, config.bip)
     /**
      * @private
@@ -71,35 +72,33 @@ export default class PrivateKeySignerBtc {
     this._account = account
     /** @private */
     this._address = address
-    /** @private */
-    this._isPrivateKey = true
   }
 
   /**
-   * Whether this signer is backed by a raw private key.
+   * Whether this signer can derive child signers. Always false for private-key signers.
    *
    * @type {boolean}
    */
-  get isPrivateKey () {
-    return this._isPrivateKey
+  get isDerivable () {
+    return false
   }
 
   /**
-   * Not available for private key signers.
+   * The account index. Always undefined for private-key signers.
    *
-   * @throws {Error} Always throws since HD index is unavailable.
+   * @type {number | undefined}
    */
   get index () {
-    throw new Error('HD index is unavailable for private-key imported signers.')
+    return undefined
   }
 
   /**
-   * Not available for private key signers.
+   * The derivation path. Always undefined for private-key signers.
    *
-   * @throws {Error} Always throws since HD path is unavailable.
+   * @type {string | undefined}
    */
   get path () {
-    throw new Error('HD path is unavailable for private-key imported signers.')
+    return undefined
   }
 
   /**
@@ -135,10 +134,11 @@ export default class PrivateKeySignerBtc {
   /**
    * Not supported for private key signers.
    *
-   * @throws {Error} Always throws since derivation requires HD keys.
+   * @returns {Promise<never>}
+   * @throws {SignerError} Always — private-key signers do not support derivation.
    */
-  derive () {
-    throw new Error('derive is not supported for PrivateKeySignerBtc.')
+  async derive () {
+    throw new SignerError('PrivateKeySignerBtc does not support derivation.')
   }
 
   /**
@@ -168,27 +168,19 @@ export default class PrivateKeySignerBtc {
    */
   async signPsbt (psbt) {
     const psbtInstance = typeof psbt === 'string' ? Psbt.fromBase64(psbt) : psbt
-
-    const pubkey = this._account && this._account.publicKey
-    if (!pubkey) return psbtInstance.toBase64()
-
     const network = networks[this._config.network] || networks.bitcoin
-    const myScript = buildPaymentScript(this._config.bip, pubkey, network)
+    return signPsbtWithKey(psbtInstance, this._account, this._config.bip, network)
+  }
 
-    for (let i = 0; i < psbtInstance.inputCount; i++) {
-      const { input, prevOut, isOurs } = detectInputOwnership(psbtInstance, i, myScript)
-
-      if (!isOurs) continue
-
-      ensureWitnessUtxoIfNeeded(psbtInstance, i, this._config.bip, prevOut, input)
-
-      try {
-        // Non-HD signing with the leaf key
-        psbtInstance.signInput(i, this._account)
-      } catch (_) {}
-    }
-
-    return psbtInstance.toBase64()
+  /**
+   * Signs a transaction. For Bitcoin the generic transaction form is a PSBT, so this is a thin
+   * wrapper over {@link signPsbt}.
+   *
+   * @param {Psbt | string} tx - The PSBT instance or base64 string.
+   * @returns {Promise<string>} The signed PSBT in base64 format.
+   */
+  async signTransaction (tx) {
+    return this.signPsbt(tx)
   }
 
   /**

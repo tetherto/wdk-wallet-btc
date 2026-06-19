@@ -26,26 +26,25 @@ export default class PrivateKeySignerBtc implements ISignerBtc {
     private _account;
     /** @private */
     private _address;
-    /** @private */
-    private _isPrivateKey;
     /**
-     * Whether this signer is backed by a raw private key.
+     * Whether this signer can derive child signers. Always false: a private-key signer is a single
+     * standalone account bound directly to a wallet account.
      *
      * @type {boolean}
      */
-    get isPrivateKey(): boolean;
+    get isDerivable(): boolean;
     /**
-     * Not available for private key signers.
+     * The account index. Always undefined for private-key signers: a raw key has no BIP-44 position.
      *
-     * @throws {Error} Always throws since HD index is unavailable.
+     * @type {number | undefined}
      */
-    get index(): void;
+    get index(): number | undefined;
     /**
-     * Not available for private key signers.
+     * The derivation path. Always undefined for private-key signers.
      *
-     * @throws {Error} Always throws since HD path is unavailable.
+     * @type {string | undefined}
      */
-    get path(): void;
+    get path(): string | undefined;
     /**
      * The account's key pair (public and private keys).
      *
@@ -67,9 +66,10 @@ export default class PrivateKeySignerBtc implements ISignerBtc {
     /**
      * Not supported for private key signers.
      *
-     * @throws {Error} Always throws since derivation requires HD keys.
+     * @returns {Promise<never>}
+     * @throws {SignerError} Always — private-key signers do not support derivation.
      */
-    derive(): void;
+    derive(): Promise<never>;
     /**
      * Not available for private key signers.
      *
@@ -90,6 +90,14 @@ export default class PrivateKeySignerBtc implements ISignerBtc {
      * @returns {Promise<string>} The signed PSBT in base64 format.
      */
     signPsbt(psbt: Psbt | string): Promise<string>;
+    /**
+     * Signs a transaction. For Bitcoin the generic transaction form is a PSBT, so this is a thin
+     * wrapper over {@link signPsbt}.
+     *
+     * @param {Psbt | string} tx - The PSBT instance or base64 string.
+     * @returns {Promise<string>} The signed PSBT in base64 format.
+     */
+    signTransaction(tx: Psbt | string): Promise<string>;
     /**
      * Disposes the signer, securely erasing the private key from memory.
      */
