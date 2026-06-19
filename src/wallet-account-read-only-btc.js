@@ -82,6 +82,7 @@ const bitcoinMessage = bitcoinMessageModule.default ?? bitcoinMessageModule
  *   - 84: [BIP-84 (P2WPKH / native SegWit)](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki)
  *   - Default: 84 (P2WPKH).
  * @property {number} [retries] - The number of retries in the failover mechanism.
+ * @property {number | bigint} [transactionMaxFee] - The maximum fee amount for sendTransaction and signTransaction operations.
  */
 
 /**
@@ -115,7 +116,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * Creates a new bitcoin read-only wallet account.
    *
    * @param {string} address - The account's address.
-   * @param {Omit<BtcWalletConfig, 'bip'>} [config] - The configuration object.
+   * @param {Omit<BtcWalletConfig, 'bip' | 'transactionMaxFee'>} [config] - The configuration object.
    */
   constructor (address, config = {}) {
     super(address)
@@ -124,7 +125,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * The read-only wallet account configuration.
      *
      * @protected
-     * @type {Omit<BtcWalletConfig, 'bip'>}
+     * @type {Omit<BtcWalletConfig, 'bip' | 'transactionMaxFee'>}
      */
     this._config = config
 

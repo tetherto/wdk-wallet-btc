@@ -3,16 +3,16 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * Creates a new bitcoin read-only wallet account.
      *
      * @param {string} address - The account's address.
-     * @param {Omit<BtcWalletConfig, 'bip'>} [config] - The configuration object.
+     * @param {Omit<BtcWalletConfig, 'bip' | 'transactionMaxFee'>} [config] - The configuration object.
      */
-    constructor(address: string, config?: Omit<BtcWalletConfig, "bip">);
+    constructor(address: string, config?: Omit<BtcWalletConfig, "bip" | "transactionMaxFee">);
     /**
      * The read-only wallet account configuration.
      *
      * @protected
-     * @type {Omit<BtcWalletConfig, 'bip'>}
+     * @type {Omit<BtcWalletConfig, 'bip' | 'transactionMaxFee'>}
      */
-    protected _config: Omit<BtcWalletConfig, "bip">;
+    protected _config: Omit<BtcWalletConfig, "bip" | "transactionMaxFee">;
     /**
      * The network.
      *
@@ -203,7 +203,11 @@ export type BtcWalletConfig = {
     /**
      * - The number of retries in the failover mechanism.
      */
-    retries?: number
+    retries?: number;
+    /**
+     * - The maximum fee amount for sendTransaction and signTransaction operations.
+     */
+    transactionMaxFee?: number | bigint;
 };
 export type BtcMaxSpendableResult = {
     /**
