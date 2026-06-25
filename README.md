@@ -12,13 +12,12 @@ For detailed documentation about the complete WDK ecosystem, visit [docs.wallet.
 
 ## 🌟 Features
 
-- **Multiple Signing Methods**: Support for seed phrases (BIP-39), raw private keys, and hardware wallets (Ledger)
+- **Multiple Signing Methods**: Support for seed phrases (BIP-39) and raw private keys
 - **Multi-Account Management**: Create and manage multiple accounts from different signers
 - **BIP-39 Seed Phrase Support**: Generate and validate BIP-39 mnemonic seed phrases
 - **Bitcoin Derivation Paths**: Support for BIP-84 (Native SegWit) and BIP-44 (Legacy) derivation paths
 - **Transaction Management**: Create, sign, and broadcast Bitcoin transactions
 - **UTXO Management**: Track and manage unspent transaction outputs using Electrum servers
-- **Hardware Wallet Integration**: Native support for Ledger devices with Device Management Kit
 
 ## ⬇️ Installation
 
@@ -40,7 +39,6 @@ import {
   SeedSignerBtc,
   PrivateKeySignerBtc,
 } from "@tetherto/wdk-wallet-btc/signers";
-import LedgerSignerBtc from "@tetherto/wdk-wallet-btc/signers/ledger";
 ```
 
 ### Creating Wallets with Different Signers
@@ -129,30 +127,6 @@ const wallet = new WalletManagerBtc(pkSigner, {
 const account = await wallet.getAccount(0);
 const address = await account.getAddress();
 console.log("Account address:", address);
-```
-
-#### Using Ledger Hardware Wallet Signer
-
-```javascript
-import WalletManagerBtc from "@tetherto/wdk-wallet-btc";
-import { LedgerSignerBtc } from "@tetherto/wdk-wallet-btc/signers/ledger";
-
-// Create Ledger signer (device must be connected and unlocked)
-const ledgerSigner = new LedgerSignerBtc();
-
-// Create wallet manager with hardware signer
-const wallet = new WalletManagerBtc(ledgerSigner, {
-  client: {
-    type: "electrum",
-    clientConfig: { host: "electrum.blockstream.info", port: 50001 },
-  },
-  network: "bitcoin", // 'bitcoin', 'testnet', or 'regtest'
-});
-
-// Get account (uses BIP-84 derivation path on hardware device)
-const account = await wallet.getAccount(0);
-const address = await account.getAddress();
-console.log("Hardware wallet address:", address);
 ```
 
 **Note**: This implementation uses BIP-84 derivation paths by default and generates Native SegWit (bech32) addresses. BIP-44 (legacy) addresses are also supported via the `bip` configuration option.
@@ -335,28 +309,6 @@ const pkSigner = new PrivateKeySignerBtc("a1b2c3d4e5f6789abcdef...", {
 });
 ```
 
-### LedgerSignerBtc (Hardware Wallets)
-
-**Best for**: Maximum security, cold storage, institutional use
-
-- Interfaces with Ledger hardware wallets via WebHID
-- Private keys never leave the hardware device
-- Supports BIP-84 derivation paths
-- Requires physical device interaction for signing
-
-```javascript
-const ledgerSigner = new LedgerSignerBtc({
-  network: "bitcoin",
-});
-```
-
-**Hardware Wallet Requirements:**
-
-- Ledger device with Bitcoin app installed
-- Device must be unlocked and connected via USB
-- Browser must support WebHID API
-- User confirmation required for transactions
-
 ## 📚 API Reference
 
 ### Table of Contents
@@ -380,7 +332,7 @@ new WalletManagerBtc(signer, config);
 
 **Parameters:**
 
-- `signer` (ISignerBtc): A signer instance (SeedSignerBtc, PrivateKeySignerBtc, or LedgerSignerBtc)
+- `signer` (ISignerBtc): A signer instance (SeedSignerBtc or PrivateKeySignerBtc)
 - `config` (BtcWalletConfig, optional): Configuration object
   - `network` (string, optional): "bitcoin", "testnet", or "regtest" (default: "bitcoin")
   - `bip` (number, optional): BIP address type - 44 (legacy) or 84 (native SegWit) (default: 84)
@@ -851,54 +803,6 @@ const signer = new PrivateKeySignerBtc("a1b2c3d4e5f6789abcdef...", config);
 | `address`      | `string`  | The signer's address                               |
 | `keyPair`      | `object`  | The signer's key pair (⚠️ Contains sensitive data) |
 | `isPrivateKey` | `boolean` | Always true for private key signers                |
-
-### LedgerSignerBtc
-
-Hardware wallet signer for Ledger devices using WebHID.
-
-#### Constructor
-
-```javascript
-new LedgerSignerBtc(config);
-```
-
-**Parameters:**
-
-- `config` (object, optional): Configuration object
-  - `network` (string, optional): "bitcoin", "testnet", or "regtest" (default: "bitcoin")
-
-**Example:**
-
-```javascript
-const signer = new LedgerSignerBtc({
-  network: "bitcoin",
-});
-```
-
-#### Methods
-
-| Method                       | Description                                           | Returns            |
-| ---------------------------- | ----------------------------------------------------- | ------------------ |
-| `derive(relPath, config?)`   | Derives a child signer at the specified relative path | `LedgerSignerBtc`  |
-| `sign(message)`              | Signs a message using the hardware device             | `Promise<string>`  |
-| `verify(message, signature)` | Verifies a message signature                          | `Promise<boolean>` |
-| `signPsbt(psbt)`             | Signs a PSBT using the hardware device                | `Promise<Psbt>`    |
-| `getExtendedPublicKey()`     | Returns the extended public key from hardware         | `Promise<string>`  |
-| `getWalletAddress()`         | Returns the wallet address for this signer            | `Promise<string>`  |
-| `dispose()`                  | Cleans up hardware connections                        | `void`             |
-
-#### Properties
-
-| Property  | Type     | Description                        |
-| --------- | -------- | ---------------------------------- |
-| `path`    | `string` | The derivation path of this signer |
-| `address` | `string` | The signer's address               |
-
-**Hardware Requirements:**
-
-- Ledger device with Bitcoin app installed and unlocked
-- WebHID API support in the browser
-- User confirmation required for signing operations
 
 ## 🌐 Supported Networks
 

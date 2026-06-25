@@ -7,9 +7,7 @@
  */
 export class ISignerBtc extends ISigner {
     /**
-     * Whether this signer can derive child signers. Derivable signers (e.g. a seed root or a Ledger
-     * session) can derive child accounts; non-derivable signers (e.g. private-key signers and already
-     * derived children) are bound directly to a single account.
+     * Whether this signer can derive child signers.
      *
      * @type {boolean}
      */
