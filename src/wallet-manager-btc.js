@@ -18,11 +18,13 @@ import WalletManager from '@tetherto/wdk-wallet'
 import FailoverProvider from '@tetherto/wdk-failover-provider'
 
 import WalletAccountBtc from './wallet-account-btc.js'
+import SeedSignerBtc from './signers/seed-signer-btc.js'
 
 /** @typedef {import('@tetherto/wdk-wallet').FeeRates} FeeRates */
 
 /** @typedef {import('./wallet-account-btc.js').BtcWalletConfig} BtcWalletConfig */
 
+/** @typedef {import('./signers/seed-signer-btc.js').ISignerBtc} ISignerBtc */
 /** @typedef {import('./transports/index.js').IBtcClient} IBtcClient */
 
 const MEMPOOL_SPACE_URL = 'https://mempool.space'
@@ -31,11 +33,23 @@ export default class WalletManagerBtc extends WalletManager {
   /**
    * Creates a new wallet manager for the bitcoin blockchain.
    *
-   * @param {string | Uint8Array} seed - The wallet's [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) seed phrase.
+   * Accepts either a BIP-39 seed (string mnemonic or raw Uint8Array) for
+   * backwards compatibility, or an {@link ISignerBtc} instance for the new
+   * signer-based workflow.
+   *
+   * @param {string | Uint8Array | ISignerBtc} seedOrSigner - A BIP-39 seed phrase, raw seed bytes, or a root signer.
    * @param {BtcWalletConfig} [config] - The configuration object.
    */
-  constructor (seed, config = {}) {
-    super(seed, config)
+  constructor (seedOrSigner, config = {}) {
+    let signer = seedOrSigner
+    if (typeof seedOrSigner === 'string' || seedOrSigner instanceof Uint8Array) {
+      const { client, ...signerConfig } = config
+      signer = new SeedSignerBtc(seedOrSigner, signerConfig)
+    }
+    if (!signer.isDerivable) {
+      throw new Error('The default signer must be derivable. Non-derivable signers (e.g. private-key signers) can only be registered by name via addSigner.')
+    }
+    super(signer, config)
 
     const clientOptions = config.client ? [config.client].flat() : [{ type: 'electrum', clientConfig: { host: 'electrum.blockstream.info', port: 50_001 } }]
 
@@ -65,18 +79,41 @@ export default class WalletManagerBtc extends WalletManager {
   }
 
   /**
-   * Returns the wallet account at a specific index (defaults to [BIP-84](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki); set config.bip=44 for [BIP-44](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)).
+   * Returns the wallet account at a specific index.
+   *
+   * @overload
+   * @param {number} [index] - The index of the account to get (default: 0).
+   * @param {Object} [options] - Account options.
+   * @param {string} [options.signerName] - The signer name. Omit to use the default signer.
+   * @returns {Promise<WalletAccountBtc>} The account.
+   *
+   * @overload
+   * @param {string} signerName - The signer name registered via {@link addSigner}.
+   * @returns {Promise<WalletAccountBtc>} The account.
    *
    * @example
    * // Returns the account with derivation path
    * // For mainnet (bitcoin): m/84'/0'/0'/0/1
    * // For testnet or regtest: m/84'/1'/0'/0/1
    * const account = await wallet.getAccount(1);
-   * @param {number} [index] - The index of the account to get (default: 0).
-   * @returns {Promise<WalletAccountBtc>} The account.
    */
-  async getAccount (index = 0) {
-    return await this.getAccountByPath(`0'/0/${index}`)
+  async getAccount (indexOrSignerName = 0, options = {}) {
+    if (typeof indexOrSignerName === 'string') {
+      const key = `${indexOrSignerName}#self`
+      if (this._accounts[key]) {
+        return this._accounts[key]
+      }
+      const signer = this.getSigner(indexOrSignerName)
+      const accountSigner = signer.isDerivable
+        ? await signer.derive(this._relativePath(signer))
+        : signer
+      const account = new WalletAccountBtc(accountSigner, { client: this._clientList })
+      this._accounts[key] = account
+      return account
+    }
+
+    const { signerName } = options
+    return await this.getAccountByPath(`0'/0/${indexOrSignerName}`, { signerName })
   }
 
   /**
@@ -88,16 +125,29 @@ export default class WalletManagerBtc extends WalletManager {
    * // For testnet or regtest: m/84'/1'/0'/0/1
    * const account = await wallet.getAccountByPath("0'/0/1");
    * @param {string} path - The derivation path (e.g. "0'/0/0").
+   * @param {Object} [options] - Account options.
+   * @param {string} [options.signerName] - The signer name. Omit to use the default signer.
    * @returns {Promise<WalletAccountBtc>} The account.
+   * @throws {Error} If a signer name is given but no signer exists with that name.
+   * @throws {SignerError} If the signer doesn't support account derivation.
    */
-  async getAccountByPath (path) {
-    if (!this._accounts[path]) {
-      const account = new WalletAccountBtc(this._seed, path, { ...this._config, client: this._client })
-
-      this._accounts[path] = account
+  async getAccountByPath (path, options = {}) {
+    const { signerName } = options
+    const key = `${signerName ?? ''}:${path}`
+    if (this._accounts[key]) {
+      return this._accounts[key]
     }
+    const signer = this.getSigner(signerName)
+    const childSigner = await signer.derive(path)
+    const account = new WalletAccountBtc(childSigner, { client: this._clientList })
+    this._accounts[key] = account
+    return account
+  }
 
-    return this._accounts[path]
+  /** @private */
+  _relativePath (signer) {
+    if (!signer.path) return "0'/0/0"
+    return signer.path.split('/').slice(-3).join('/')
   }
 
   /**
