@@ -93,10 +93,10 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
 
       expect(account.path).toBe(ACCOUNTS[bip].path)
 
-      expect(account.keyPair).toEqual({
-        privateKey: Buffer.from(ACCOUNTS[bip].keyPair.privateKey, 'hex'),
-        publicKey: Buffer.from(ACCOUNTS[bip].keyPair.publicKey, 'hex')
-      })
+      expect({
+        privateKey: Buffer.from(account.keyPair.privateKey).toString('hex'),
+        publicKey: Buffer.from(account.keyPair.publicKey).toString('hex')
+      }).toEqual(ACCOUNTS[bip].keyPair)
 
       account.dispose()
     })
@@ -108,10 +108,10 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
 
       expect(account.path).toBe(ACCOUNTS[bip].path)
 
-      expect(account.keyPair).toEqual({
-        privateKey: Buffer.from(ACCOUNTS[bip].keyPair.privateKey, 'hex'),
-        publicKey: Buffer.from(ACCOUNTS[bip].keyPair.publicKey, 'hex')
-      })
+      expect({
+        privateKey: Buffer.from(account.keyPair.privateKey).toString('hex'),
+        publicKey: Buffer.from(account.keyPair.publicKey).toString('hex')
+      }).toEqual(ACCOUNTS[bip].keyPair)
 
       account.dispose()
     })
@@ -123,7 +123,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
 
     test('should throw if the path is invalid', () => {
       expect(() => new WalletAccountBtc(SEED_PHRASE, "a'/b/c", CONFIGURATION))
-        .toThrow(/Expected BIP32Path/)
+        .toThrow(/Invalid format/)
     })
 
     test('should throw for unsupported bip specifications', () => {
@@ -160,7 +160,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
         btcAddress.fromOutputScript(out.script, networks.regtest) === recipient
       )
 
-      expect(recipientOutput.value).toBe(TRANSACTION.value)
+      expect(recipientOutput.value).toBe(BigInt(TRANSACTION.value))
     })
 
     test('should throw if transaction fee exceeds the transaction max fee configuration', async () => {
@@ -447,8 +447,8 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
         const out = receipt.outs[i]
         const feeSats = Math.round(vout.value * 1e+8)
 
-        expect(out.value).toBe(feeSats)
-        expect(out.script.toString('hex')).toBe(vout.scriptPubKey.hex)
+        expect(out.value).toBe(BigInt(feeSats))
+        expect(Buffer.from(out.script).toString('hex')).toBe(vout.scriptPubKey.hex)
       }
 
       account.dispose()

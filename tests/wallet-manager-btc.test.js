@@ -33,7 +33,7 @@ describe('WalletManagerBtc', () => {
     })
 
     test('should throw if the index is a negative number', async () => {
-      await expect(wallet.getAccount(-1)).rejects.toThrow(/Expected BIP32Path/)
+      await expect(wallet.getAccount(-1)).rejects.toThrow(/Invalid format/)
     })
   })
 
@@ -48,7 +48,7 @@ describe('WalletManagerBtc', () => {
 
     test('should throw if the path is invalid', async () => {
       await expect(wallet.getAccountByPath("a'/b/c"))
-        .rejects.toThrow(/Expected BIP32Path/)
+        .rejects.toThrow(/Invalid format/)
     })
   })
 
