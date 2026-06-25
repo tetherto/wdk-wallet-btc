@@ -19,15 +19,17 @@ import { WalletAccountReadOnly } from '@tetherto/wdk-wallet'
 import { coinselect } from '@bitcoinerlab/coinselect'
 import { DescriptorsFactory } from '@bitcoinerlab/descriptors'
 import * as ecc from '@bitcoinerlab/secp256k1'
+import bitcoinMessageModule from '@bitcoinerlab/btcmessage'
 
 import { address as btcAddress, networks, Transaction } from 'bitcoinjs-lib'
-import bitcoinMessageModule from 'bitcoinjs-message'
+import { toHex } from 'uint8array-tools'
 
 import FailoverProvider from '@tetherto/wdk-failover-provider'
 
 import { BlockbookClient, ElectrumTcp, ElectrumSsl, ElectrumTls, ElectrumWs } from './transports/index.js'
 
-const bitcoinMessage = bitcoinMessageModule.default ?? bitcoinMessageModule
+const { MessageFactory } = bitcoinMessageModule.default ?? bitcoinMessageModule
+const bitcoinMessage = MessageFactory(ecc)
 
 /** @typedef {import('./transports/index.js').MempoolElectrumConfig} MempoolElectrumConfig */
 /** @typedef {import('./transports/index.js').MempoolElectrumClient} MempoolElectrumClient */
@@ -456,7 +458,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
     const network = this._network
 
-    const fromAddressScriptHex = btcAddress.toOutputScript(fromAddress, network).toString('hex')
+    const fromAddressScriptHex = toHex(btcAddress.toOutputScript(fromAddress, network))
     const fromAddressOutput = new Output({ descriptor: `addr(${fromAddress})`, network })
     const toAddressOutput = new Output({ descriptor: `addr(${toAddress})`, network })
 
@@ -468,14 +470,14 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
     const utxosForCoinSelect = unspent.map(u => ({
       output: fromAddressOutput,
-      value: u.value,
+      value: BigInt(u.value),
       __ref: u
     }))
 
     const result = coinselect({
       utxos: utxosForCoinSelect,
       remainder: fromAddressOutput,
-      targets: [{ output: toAddressOutput, value: Number(amount) }],
+      targets: [{ output: toAddressOutput, value: amount }],
       feeRate: Number(feeRate)
     })
 
@@ -487,7 +489,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
       throw new Error('Exceeded maximum allowed inputs for transaction.')
     }
 
-    const fee = this._toBigInt(Math.max(result.fee ?? 0, MIN_TX_FEE_SATS))
+    const fee = result.fee > BigInt(MIN_TX_FEE_SATS) ? result.fee : BigInt(MIN_TX_FEE_SATS)
 
     const utxos = result.utxos.map(({ __ref }) => ({
       ...__ref,
