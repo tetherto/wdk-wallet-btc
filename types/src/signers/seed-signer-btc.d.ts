@@ -1,7 +1,5 @@
 /**
  * Interface for Bitcoin signers, extending the base {@link ISigner} from `@tetherto/wdk-wallet`
- * so the cross-chain contract is actually enforced.
- *
  * @extends {ISigner}
  * @interface
  */
@@ -64,14 +62,6 @@ export class ISignerBtc extends ISigner {
      */
     sign(message: string): Promise<string>;
     /**
-     * Verifies a message signature.
-     *
-     * @param {string} message - The original message.
-     * @param {string} signature - The signature to verify.
-     * @returns {Promise<boolean>} True if the signature is valid.
-     */
-    verify(message: string, signature: string): Promise<boolean>;
-    /**
      * Signs a PSBT (Partially Signed Bitcoin Transaction).
      *
      * @param {Psbt | string} psbt - The PSBT instance or base64 string.
@@ -86,9 +76,9 @@ export class ISignerBtc extends ISigner {
 /**
  * HD signer backed by a BIP39 seed phrase or seed buffer.
  *
- * @implements {ISignerBtc}
+ * @extends {ISignerBtc}
  */
-export default class SeedSignerBtc implements ISignerBtc {
+export default class SeedSignerBtc extends ISignerBtc {
     /**
      * Creates a signer from an extended private key (xprv/tprv).
      *
@@ -129,20 +119,19 @@ export default class SeedSignerBtc implements ISignerBtc {
     /** @private */
     private _address;
     /**
-     * Whether this signer can derive child signers. True for a root signer (which holds the master
-     * node); false for a derived child, which retains only its own leaf key.
+     * Whether this signer can derive child signers.
      *
      * @type {boolean}
      */
     get isDerivable(): boolean;
     /**
-     * The derivation path index of this account, or undefined for a root signer (no derived account).
+     * The derivation path index of this account.
      *
      * @type {number | undefined}
      */
     get index(): number | undefined;
     /**
-     * The derivation path of this account, or undefined for a root signer.
+     * The derivation path of this account.
      *
      * @type {string | undefined}
      */
@@ -166,12 +155,10 @@ export default class SeedSignerBtc implements ISignerBtc {
      */
     get address(): string;
     /**
-     * Derives a detached child signer from the current root signer. The child holds only its own leaf
-     * key (not the master node), so it cannot derive further and is safe to hand out and dispose
-     * without affecting this signer.
+     * Derives a detached child signer from the current root signer.
      *
      * @param {string} relPath - The relative derivation path (e.g., "0'/0/0").
-     * @returns {Promise<SeedSignerBtc>} The derived child signer, using the same configuration.
+     * @returns {Promise<SeedSignerBtc>} The derived child signer.
      * @throws {SignerError} If this signer has no master node (it is a derived child or has been disposed).
      */
     derive(relPath: string): Promise<SeedSignerBtc>;

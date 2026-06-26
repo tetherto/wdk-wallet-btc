@@ -160,17 +160,6 @@ export class ISignerBtc extends ISigner {
   }
 
   /**
-   * Verifies a message signature.
-   *
-   * @param {string} message - The original message.
-   * @param {string} signature - The signature to verify.
-   * @returns {Promise<boolean>} True if the signature is valid.
-   */
-  async verify (message, signature) {
-    throw new NotImplementedError('verify(message, signature)')
-  }
-
-  /**
    * Signs a PSBT (Partially Signed Bitcoin Transaction).
    *
    * @param {Psbt | string} psbt - The PSBT instance or base64 string.
@@ -189,11 +178,10 @@ export class ISignerBtc extends ISigner {
 }
 
 /**
+ * @extends {ISignerBtc}
  * HD signer backed by a BIP39 seed phrase or seed buffer.
- *
- * @implements {ISignerBtc}
  */
-export default class SeedSignerBtc {
+export default class SeedSignerBtc extends ISignerBtc {
   /**
    * Creates a new seed-based signer.
    *
@@ -206,6 +194,7 @@ export default class SeedSignerBtc {
    *   master node, so it cannot derive further.
    */
   constructor (seed, config = {}, opts = {}) {
+    super()
     config = normalizeConfig(config)
     /**
      * The wallet account configuration.
@@ -234,7 +223,7 @@ export default class SeedSignerBtc {
     const netdp = config.network === 'bitcoin' ? 0 : 1
     const fullPath = `m/${config.bip}'/${netdp}'/${opts.path || "0'/0/0"}`
     const account = masterNode.derivePath(fullPath)
-    const network = networks[config.network] || networks.testnet
+    const network = networks[config.network] || networks.bitcoin
 
     /** @private */
     this._account = account
@@ -255,7 +244,7 @@ export default class SeedSignerBtc {
    * @returns {SeedSignerBtc} The signer instance.
    */
   static fromXprv (xprv, config = {}) {
-    const network = networks[config.network] || networks.testnet
+    const network = networks[config.network] || networks.bitcoin
     const masterNode = bip32.fromBase58(xprv, network)
     return new SeedSignerBtc(null, config, { masterNode })
   }
@@ -340,7 +329,7 @@ export default class SeedSignerBtc {
    * @returns {Promise<string>} The extended public key in base58 format.
    */
   async getExtendedPublicKey () {
-    const network = networks[this._config.network] || networks.testnet
+    const network = networks[this._config.network] || networks.bitcoin
     const src = this._account.neutered()
     const node = bip32.fromPublicKey(
       Buffer.from(src.publicKey),
@@ -365,7 +354,7 @@ export default class SeedSignerBtc {
       typeof psbt === 'string' ? Psbt.fromBase64(psbt) : psbt
 
     // Every signer holds a leaf account (a root defaults to "0'/0/0"), so we sign directly with it.
-    const network = networks[this._config.network] || networks.testnet
+    const network = networks[this._config.network] || networks.bitcoin
     return signPsbtWithKey(psbtInstance, this._account, this._bip, network)
   }
 

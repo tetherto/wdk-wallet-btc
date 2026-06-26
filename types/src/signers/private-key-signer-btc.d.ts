@@ -1,15 +1,14 @@
 /** @typedef {import('../wallet-account-read-only-btc.js').BtcWalletConfig} BtcWalletConfig */
 /** @typedef {import('@tetherto/wdk-wallet').KeyPair} KeyPair */
-/** @typedef {import('./seed-signer-btc.js').ISignerBtc} ISignerBtc */
 /**
  * Signer backed by a single raw private key (non-HD).
  *
  * Does not support HD derivation, extended keys, or master fingerprint.
  * Signs messages and PSBTs directly using the leaf key.
  *
- * @implements {ISignerBtc}
+ * @extends {ISignerBtc}
  */
-export default class PrivateKeySignerBtc implements ISignerBtc {
+export default class PrivateKeySignerBtc extends ISignerBtc {
     /**
      * Creates a new private key signer.
      *
@@ -27,14 +26,13 @@ export default class PrivateKeySignerBtc implements ISignerBtc {
     /** @private */
     private _address;
     /**
-     * Whether this signer can derive child signers. Always false: a private-key signer is a single
-     * standalone account bound directly to a wallet account.
+     * Whether this signer can derive child signers. Always false for private-key signers.
      *
      * @type {boolean}
      */
     get isDerivable(): boolean;
     /**
-     * The account index. Always undefined for private-key signers: a raw key has no BIP-44 position.
+     * The account index. Always undefined for private-key signers.
      *
      * @type {number | undefined}
      */
@@ -75,7 +73,7 @@ export default class PrivateKeySignerBtc implements ISignerBtc {
      *
      * @throws {Error} Always throws since extended keys require HD derivation.
      */
-    getExtendedPublicKey(): Promise<void>;
+    getExtendedPublicKey(): Promise<never>;
     /**
      * Signs a message.
      *
@@ -97,5 +95,5 @@ export default class PrivateKeySignerBtc implements ISignerBtc {
 }
 export type BtcWalletConfig = import("../wallet-account-read-only-btc.js").BtcWalletConfig;
 export type KeyPair = import("@tetherto/wdk-wallet").KeyPair;
-export type ISignerBtc = import("./seed-signer-btc.js").ISignerBtc;
+import { ISignerBtc } from './seed-signer-btc.js';
 import { Psbt } from 'bitcoinjs-lib';

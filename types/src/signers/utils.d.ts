@@ -2,51 +2,6 @@
 /** @typedef {import('bitcoinjs-lib').Psbt} Psbt */
 /** @typedef {import('../wallet-account-read-only-btc.js').BtcWalletConfig} BtcWalletConfig */
 /**
- * Hashes a message using SHA256.
- *
- * @param {string} message - The message to hash.
- * @returns {Buffer} The SHA256 hash of the message.
- */
-export function hashMessage(message: string): Buffer;
-/**
- * Builds a payment output script based on BIP standard.
- *
- * @param {number} bip - The BIP standard (44 for P2PKH, 84 for P2WPKH).
- * @param {Buffer} pubkey - The public key.
- * @param {Network} network - The network configuration.
- * @returns {Buffer} The output script.
- */
-export function buildPaymentScript(bip: number, pubkey: Buffer, network: Network): Buffer;
-/**
- * Detects whether a PSBT input belongs to the given script.
- *
- * @param {Psbt} psbtInstance - The PSBT instance.
- * @param {number} i - The input index.
- * @param {Buffer} myScript - The script to match against.
- * @returns {InputOwnershipResult} The input data and ownership status.
- */
-export function detectInputOwnership(psbtInstance: Psbt, i: number, myScript: Buffer): {
-    input: any;
-    prevOut: {
-        script: Buffer;
-        value: number;
-    } | null;
-    isOurs: boolean;
-};
-/**
- * Adds witnessUtxo to a PSBT input if needed for BIP84 signing.
- *
- * @param {Psbt} psbtInstance - The PSBT instance.
- * @param {number} i - The input index.
- * @param {number} bip - The BIP standard.
- * @param {{ script: Buffer, value: number } | null} prevOut - The previous output.
- * @param {Object} input - The input data.
- */
-export function ensureWitnessUtxoIfNeeded(psbtInstance: Psbt, i: number, bip: number, prevOut: {
-    script: Buffer;
-    value: number;
-} | null, input: any): void;
-/**
  * Signs every PSBT input owned by the given leaf key, in place.
  *
  * Detects which inputs belong to `account` (by matching the derived payment script), ensures the
@@ -90,11 +45,3 @@ export function signMessage(message: string, privateKey: Buffer, bip: number): s
 export type Network = import("bitcoinjs-lib").Network;
 export type Psbt = import("bitcoinjs-lib").Psbt;
 export type BtcWalletConfig = import("../wallet-account-read-only-btc.js").BtcWalletConfig;
-export type InputOwnershipResult = {
-    input: any;
-    prevOut: {
-        script: Buffer;
-        value: number;
-    } | null;
-    isOurs: boolean;
-};

@@ -13,7 +13,7 @@
 // limitations under the License.
 'use strict'
 
-import { crypto, payments, Transaction } from 'bitcoinjs-lib'
+import { payments, Transaction } from 'bitcoinjs-lib'
 import bitcoinMessageModule from 'bitcoinjs-message'
 
 const bitcoinMessage = bitcoinMessageModule.default ?? bitcoinMessageModule
@@ -29,16 +29,6 @@ const bitcoinMessage = bitcoinMessageModule.default ?? bitcoinMessageModule
 */
 
 /**
- * Hashes a message using SHA256.
- *
- * @param {string} message - The message to hash.
- * @returns {Buffer} The SHA256 hash of the message.
- */
-export function hashMessage (message) {
-  return crypto.sha256(Buffer.from(message, 'utf8'))
-}
-
-/**
  * Builds a payment output script based on BIP standard.
  *
  * @param {number} bip - The BIP standard (44 for P2PKH, 84 for P2WPKH).
@@ -46,7 +36,7 @@ export function hashMessage (message) {
  * @param {Network} network - The network configuration.
  * @returns {Buffer} The output script.
  */
-export function buildPaymentScript (bip, pubkey, network) {
+function buildPaymentScript (bip, pubkey, network) {
   const payment = bip === 84
     ? payments.p2wpkh({ pubkey, network })
     : payments.p2pkh({ pubkey, network })
@@ -61,7 +51,7 @@ export function buildPaymentScript (bip, pubkey, network) {
  * @param {Buffer} myScript - The script to match against.
  * @returns {InputOwnershipResult} The input data and ownership status.
  */
-export function detectInputOwnership (psbtInstance, i, myScript) {
+function detectInputOwnership (psbtInstance, i, myScript) {
   const input = psbtInstance.data.inputs[i] || {}
   const txIn = psbtInstance.txInputs[i]
   let prevOut = null
@@ -92,7 +82,7 @@ export function detectInputOwnership (psbtInstance, i, myScript) {
  * @param {{ script: Buffer, value: number } | null} prevOut - The previous output.
  * @param {Object} input - The input data.
  */
-export function ensureWitnessUtxoIfNeeded (psbtInstance, i, bip, prevOut, input) {
+function ensureWitnessUtxoIfNeeded (psbtInstance, i, bip, prevOut, input) {
   try {
     if (bip === 84 && prevOut && prevOut.script && typeof prevOut.value === 'number' && !input.witnessUtxo) {
       psbtInstance.updateInput(i, {

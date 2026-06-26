@@ -23,21 +23,20 @@ import { SignerError } from '@tetherto/wdk-wallet'
 import { sodium_memzero } from 'sodium-universal'
 
 import { normalizeConfig, getAddressFromPublicKey, signMessage, signPsbtWithKey } from './utils.js'
+import { ISignerBtc } from './seed-signer-btc.js'
 
 const ECPair = ECPairFactory(ecc)
 /** @typedef {import('../wallet-account-read-only-btc.js').BtcWalletConfig} BtcWalletConfig */
 /** @typedef {import('@tetherto/wdk-wallet').KeyPair} KeyPair */
-/** @typedef {import('./seed-signer-btc.js').ISignerBtc} ISignerBtc */
 
 /**
+ * @extends {ISignerBtc}
  * Signer backed by a single raw private key (non-HD).
  *
  * Does not support HD derivation, extended keys, or master fingerprint.
  * Signs messages and PSBTs directly using the leaf key.
- *
- * @implements {ISignerBtc}
  */
-export default class PrivateKeySignerBtc {
+export default class PrivateKeySignerBtc extends ISignerBtc {
   /**
    * Creates a new private key signer.
    *
@@ -45,6 +44,7 @@ export default class PrivateKeySignerBtc {
    * @param {BtcWalletConfig} [config] - The wallet configuration.
    */
   constructor (privateKey, config = {}) {
+    super()
     config = normalizeConfig(config)
 
     let pkBuf
@@ -61,7 +61,7 @@ export default class PrivateKeySignerBtc {
       throw new Error('PrivateKeySignerBtc: privateKey must be 32-byte Buffer or 64-char hex')
     }
     const account = ECPair.fromPrivateKey(pkBuf)
-    const network = networks[config.network] || networks.testnet
+    const network = networks[config.network] || networks.bitcoin
     const address = getAddressFromPublicKey(account.publicKey, network, config.bip)
     /**
      * @private
@@ -177,7 +177,13 @@ export default class PrivateKeySignerBtc {
    */
   dispose () {
     if (this._account) {
-      sodium_memzero(this._account.privateKey)
+      if (this._account.privateKey) {
+        sodium_memzero(this._account.privateKey)
+        Object.defineProperty(this._account, 'privateKey', {
+          get: () => null,
+          configurable: true
+        })
+      }
       if (this._account.chainCode) {
         sodium_memzero(this._account.chainCode)
       }
