@@ -130,6 +130,14 @@ export class ISignerBtc extends ISigner {
   }
 
   /**
+   * Returns the account's address.
+   * @returns {Promise<string>}
+   */
+  async getAddress () {
+    throw new NotImplementedError('getAddress()')
+  }
+
+  /**
    * Derives a child signer from the current signer, using the same configuration.
    *
    * @param {string} relPath - The relative derivation path.
@@ -306,6 +314,14 @@ export default class SeedSignerBtc extends ISignerBtc {
    * @type {string}
    */
   get address () {
+    return this._address
+  }
+
+  /**
+   * Returns the account's derived address.
+   * @returns {Promise<string>}
+   */
+  async getAddress () {
     return this._address
   }
 

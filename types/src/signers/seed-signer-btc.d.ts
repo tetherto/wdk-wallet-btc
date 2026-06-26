@@ -41,6 +41,11 @@ export class ISignerBtc extends ISigner {
      */
     get address(): string | undefined;
     /**
+     * Returns the account's address.
+     * @returns {Promise<string>}
+     */
+    getAddress(): Promise<string>;
+    /**
      * Derives a child signer from the current signer, using the same configuration.
      *
      * @param {string} relPath - The relative derivation path.
@@ -154,6 +159,11 @@ export default class SeedSignerBtc extends ISignerBtc {
      * @type {string}
      */
     get address(): string;
+    /**
+     * Returns the account's derived address.
+     * @returns {Promise<string>}
+     */
+    getAddress(): Promise<string>;
     /**
      * Derives a detached child signer from the current root signer.
      *

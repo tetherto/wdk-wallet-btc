@@ -62,6 +62,11 @@ export default class PrivateKeySignerBtc extends ISignerBtc {
      */
     get address(): string;
     /**
+     * Returns the account's derived address.
+     * @returns {Promise<string>}
+     */
+    getAddress(): Promise<string>;
+    /**
      * Not supported for private key signers.
      *
      * @returns {Promise<never>}
