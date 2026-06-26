@@ -181,17 +181,6 @@ export class ISignerBtc extends ISigner {
   }
 
   /**
-   * Signs a transaction. For Bitcoin, the generic transaction form is a PSBT, so this is a thin
-   * wrapper over {@link signPsbt}.
-   *
-   * @param {Psbt | string} tx - The PSBT instance or base64 string.
-   * @returns {Promise<string>} The signed PSBT in base64 format.
-   */
-  async signTransaction (tx) {
-    throw new NotImplementedError('signTransaction(tx)')
-  }
-
-  /**
    * Disposes the signer, securely erasing sensitive data from memory.
    */
   dispose () {
@@ -378,17 +367,6 @@ export default class SeedSignerBtc {
     // Every signer holds a leaf account (a root defaults to "0'/0/0"), so we sign directly with it.
     const network = networks[this._config.network] || networks.testnet
     return signPsbtWithKey(psbtInstance, this._account, this._bip, network)
-  }
-
-  /**
-   * Signs a transaction. For Bitcoin the generic transaction form is a PSBT, so this is a thin
-   * wrapper over {@link signPsbt}.
-   *
-   * @param {Psbt | string} tx - The PSBT instance or base64 string.
-   * @returns {Promise<string>} The signed PSBT in base64 format.
-   */
-  async signTransaction (tx) {
-    return this.signPsbt(tx)
   }
 
   /**

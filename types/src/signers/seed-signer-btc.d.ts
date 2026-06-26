@@ -79,14 +79,6 @@ export class ISignerBtc extends ISigner {
      */
     signPsbt(psbt: Psbt | string): Promise<string>;
     /**
-     * Signs a transaction. For Bitcoin, the generic transaction form is a PSBT, so this is a thin
-     * wrapper over {@link signPsbt}.
-     *
-     * @param {Psbt | string} tx - The PSBT instance or base64 string.
-     * @returns {Promise<string>} The signed PSBT in base64 format.
-     */
-    signTransaction(tx: Psbt | string): Promise<string>;
-    /**
      * Disposes the signer, securely erasing sensitive data from memory.
      */
     dispose(): void;
@@ -196,14 +188,6 @@ export default class SeedSignerBtc implements ISignerBtc {
      * @returns {Promise<string>} The signed PSBT in base64 format.
      */
     signPsbt(psbt: Psbt | string): Promise<string>;
-    /**
-     * Signs a transaction. For Bitcoin the generic transaction form is a PSBT, so this is a thin
-     * wrapper over {@link signPsbt}.
-     *
-     * @param {Psbt | string} tx - The PSBT instance or base64 string.
-     * @returns {Promise<string>} The signed PSBT in base64 format.
-     */
-    signTransaction(tx: Psbt | string): Promise<string>;
     /**
      * Signs a message.
      *

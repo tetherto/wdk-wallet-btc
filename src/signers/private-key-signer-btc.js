@@ -173,17 +173,6 @@ export default class PrivateKeySignerBtc {
   }
 
   /**
-   * Signs a transaction. For Bitcoin the generic transaction form is a PSBT, so this is a thin
-   * wrapper over {@link signPsbt}.
-   *
-   * @param {Psbt | string} tx - The PSBT instance or base64 string.
-   * @returns {Promise<string>} The signed PSBT in base64 format.
-   */
-  async signTransaction (tx) {
-    return this.signPsbt(tx)
-  }
-
-  /**
    * Disposes the signer, securely erasing the private key from memory.
    */
   dispose () {

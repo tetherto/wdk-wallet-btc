@@ -67,15 +67,6 @@ describe('SeedSignerBtc', () => {
     signer.dispose()
   })
 
-  test('signTransaction delegates to signPsbt', async () => {
-    const signer = new SeedSignerBtc(VALID_SEED_PHRASE, SEED_CONFIG, { path: "0'/0/0" })
-    const psbt = new Psbt({ network: networks.regtest })
-    const viaPsbt = await signer.signPsbt(psbt.toBase64())
-    const viaTx = await signer.signTransaction(psbt.toBase64())
-    expect(viaTx).toBe(viaPsbt)
-    signer.dispose()
-  })
-
   test('dispose should zero the private key material', () => {
     const signer = new SeedSignerBtc(VALID_SEED_PHRASE, {}, { path: "0'/0/0" })
     const kp = signer.keyPair
@@ -143,15 +134,6 @@ describe('PrivateKeySignerBtc', () => {
   test('should reject derive()', async () => {
     const signer = new PrivateKeySignerBtc(VALID_PRIVATE_KEY)
     await expect(signer.derive()).rejects.toThrow('does not support derivation')
-    signer.dispose()
-  })
-
-  test('signTransaction delegates to signPsbt', async () => {
-    const signer = new PrivateKeySignerBtc(VALID_PRIVATE_KEY, PK_CONFIG)
-    const psbt = new Psbt({ network: networks.regtest })
-    const viaPsbt = await signer.signPsbt(psbt.toBase64())
-    const viaTx = await signer.signTransaction(psbt.toBase64())
-    expect(viaTx).toBe(viaPsbt)
     signer.dispose()
   })
 
