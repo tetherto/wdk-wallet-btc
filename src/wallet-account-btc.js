@@ -72,7 +72,6 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    */
   async getAddress () {
     if (this._address) return this._address
-    // getAddress is part of the ISignerBtc contract, so the signer always resolves it.
     const addr = await this._signer.getAddress()
     // Cache inside the read-only base shape
     this.__address = addr
