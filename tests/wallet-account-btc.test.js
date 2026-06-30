@@ -222,6 +222,37 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
       expect(fee).toBe(BigInt(feeSats))
     })
 
+    test('should broadcast a signed raw transaction hex and quote it consistently', async () => {
+      const account = new WalletAccountBtc(SEED_PHRASE, "0'/0/0", CONFIGURATION)
+      const address = await account.getAddress()
+      bitcoin.sendToAddress(address, 0.01)
+      await waiter.mine()
+
+      const TRANSACTION = { to: recipient, value: 1_000, feeRate: 1 }
+
+      const signedHex = await account.signTransaction(TRANSACTION)
+
+      const { fee: quotedFee } = await account.quoteSendTransaction(signedHex)
+
+      const { hash, fee } = await account.sendTransaction(signedHex)
+
+      await waiter.mine()
+
+      const transaction = bitcoin.getTransaction(hash)
+      expect(transaction.txid).toBe(hash)
+      expect(transaction.details[0].address).toBe(TRANSACTION.to)
+
+      const amount = Math.round(transaction.details[0].amount * 1e+8)
+      expect(amount).toBe(TRANSACTION.value)
+
+      const feeSats = bitcoin.getTransactionFeeSats(hash)
+      expect(fee).toBe(BigInt(feeSats))
+      expect(quotedFee).toBe(BigInt(feeSats))
+
+      account.dispose()
+    })
+
+
     test('should successfully send a transaction (bigint)', async () => {
       const TRANSACTION = { to: recipient, value: 1000n, feeRate: 1 }
 
