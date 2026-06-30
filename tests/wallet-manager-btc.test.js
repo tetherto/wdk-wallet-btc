@@ -78,7 +78,6 @@ describe('WalletManagerBtc', () => {
   describe('signer management', () => {
     test('getSigner() returns the default signer registered at construction', () => {
       const def = wallet.getSigner()
-      expect(def).toBeDefined()
       expect(def.isDerivable).toBe(true)
     })
 

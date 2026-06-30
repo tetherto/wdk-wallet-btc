@@ -152,10 +152,10 @@ export default class PrivateKeySignerBtc extends ISignerBtc {
   /**
    * Not available for private key signers.
    *
-   * @throws {Error} Always throws since extended keys require HD derivation.
+   * @throws {SignerError} Always throws since extended keys require HD derivation.
    */
   async getExtendedPublicKey () {
-    throw new Error('Extended public key is unavailable for private-key imported signers.')
+    throw new SignerError('Extended public key is unavailable for private-key imported signers.')
   }
 
   /**

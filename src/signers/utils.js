@@ -21,6 +21,7 @@ const bitcoinMessage = bitcoinMessageModule.default ?? bitcoinMessageModule
 /** @typedef {import('bitcoinjs-lib').Network} Network */
 /** @typedef {import('bitcoinjs-lib').Psbt} Psbt */
 /** @typedef {import('../wallet-account-read-only-btc.js').BtcWalletConfig} BtcWalletConfig */
+/** @typedef {import('ecpair').ECPairInterface | import('bip32').BIP32Interface} SignerLike */
 /**
   * @typedef {Object} InputOwnershipResult
   * @property {Object} input - The raw PSBT input data.
@@ -106,7 +107,7 @@ function ensureWitnessUtxoIfNeeded (psbtInstance, i, bip, prevOut, input) {
  * The PSBT is not finalized, to support partially signed workflows.
  *
  * @param {Psbt} psbtInstance - The PSBT instance to sign (mutated in place).
- * @param {Object} account - A leaf signer exposing `publicKey` and a `sign` method (e.g. an ECPair or a BIP32 node).
+ * @param {SignerLike} account - A leaf signer exposing `publicKey` and a `sign` method (e.g. an ECPair or a BIP32 node).
  * @param {number} bip - The BIP standard (44 or 84).
  * @param {Network} network - The network configuration.
  * @returns {string} The (partially) signed PSBT in base64 format.

@@ -97,17 +97,9 @@ export default class SeedSignerBtc extends ISignerBtc {
      *
      * @param {string | Buffer} seed - The seed phrase (mnemonic) or seed buffer.
      * @param {BtcWalletConfig} [config] - The wallet configuration.
-     * @param {Object} [opts] - Internal options.
-     * @param {BIP32Interface} [opts.masterNode] - Pre-derived master node (e.g. from an extended private key).
-     * @param {string} [opts.path] - Relative derivation path of the account (default: "0'/0/0").
-     * @param {boolean} [opts.isChild] - When true, the signer is a derived child and does not retain the
-     *   master node, so it cannot derive further.
+     * @param {SeedSignerBtcOpts} [opts] - Internal construction options for master-node reuse, child derivation or path definition.
      */
-    constructor(seed: string | Buffer, config?: BtcWalletConfig, opts?: {
-        masterNode?: import("bip32").BIP32Interface;
-        path?: string;
-        isChild?: boolean;
-    });
+    constructor(seed: string | Buffer, config?: BtcWalletConfig, opts?: SeedSignerBtcOpts);
     /**
      * @protected
      * @type {BtcWalletConfig}
@@ -200,5 +192,11 @@ export default class SeedSignerBtc extends ISignerBtc {
 export type BtcWalletConfig = import("../wallet-account-read-only-btc.js").BtcWalletConfig;
 export type KeyPair = import("@tetherto/wdk-wallet").KeyPair;
 export type BIP32Interface = import("bip32").BIP32Interface;
+export type Network = import("bitcoinjs-lib").Network;
+export type SeedSignerBtcOpts = {
+    masterNode?: import("bip32").BIP32Interface;
+    path?: string;
+    isChild?: boolean;
+};
 import { ISigner } from '@tetherto/wdk-wallet';
 import { Psbt } from 'bitcoinjs-lib';

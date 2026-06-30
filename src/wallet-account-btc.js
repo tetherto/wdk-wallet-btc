@@ -126,11 +126,11 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * Creates a new bitcoin wallet account from a seed phrase or seed buffer.
    *
    * @param {string | Buffer} seed - The seed phrase (mnemonic) or seed buffer.
-   * @param {BtcWalletConfig} [config] - The wallet configuration options (includes bip, network, etc.).
    * @param {string} [path] - The derivation path relative to the BIP root (default: "0'/0/0").
+   * @param {BtcWalletConfig} [config] - The wallet configuration options (includes bip, network, etc.).
    * @returns {Promise<WalletAccountBtc>} The wallet account.
    */
-  static async fromSeed (seed, config = {}, path = "0'/0/0") {
+  static async fromSeed (seed, path = "0'/0/0", config = {}) {
     const { client, ...signerConfig } = config
     const root = new SeedSignerBtc(seed, signerConfig)
     const signer = await root.derive(path)

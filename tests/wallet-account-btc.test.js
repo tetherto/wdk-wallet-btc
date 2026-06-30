@@ -120,6 +120,29 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     })
   })
 
+  describe('fromSeed', () => {
+    test('should create the account at the given path from a seed phrase', async () => {
+      const seededAccount = await WalletAccountBtc.fromSeed(SEED_PHRASE, "0'/0/0", SIGNER_CONFIG)
+
+      expect(await seededAccount.getAddress()).toBe(ACCOUNTS[bip].address)
+      expect(seededAccount.path).toBe(ACCOUNTS[bip].path)
+      expect(seededAccount.index).toBe(ACCOUNTS[bip].index)
+
+      seededAccount.dispose()
+    })
+
+    test('should derive the same account as a manually derived signer', async () => {
+      const seededAccount = await WalletAccountBtc.fromSeed(SEED_PHRASE, "0'/0/0", SIGNER_CONFIG)
+      const signer = await new SeedSignerBtc(SEED_PHRASE, SIGNER_CONFIG).derive("0'/0/0")
+      const signerAccount = new WalletAccountBtc(signer, {})
+
+      expect(await seededAccount.getAddress()).toBe(await signerAccount.getAddress())
+
+      seededAccount.dispose()
+      signerAccount.dispose()
+    })
+  })
+
   describe('getAddress', () => {
     test('should return the correct address', async () => {
       const result = await account.getAddress()

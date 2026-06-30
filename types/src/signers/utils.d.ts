@@ -1,6 +1,7 @@
 /** @typedef {import('bitcoinjs-lib').Network} Network */
 /** @typedef {import('bitcoinjs-lib').Psbt} Psbt */
 /** @typedef {import('../wallet-account-read-only-btc.js').BtcWalletConfig} BtcWalletConfig */
+/** @typedef {import('ecpair').ECPairInterface | import('bip32').BIP32Interface} SignerLike */
 /**
  * Signs every PSBT input owned by the given leaf key, in place.
  *
@@ -10,12 +11,12 @@
  * The PSBT is not finalized, to support partially signed workflows.
  *
  * @param {Psbt} psbtInstance - The PSBT instance to sign (mutated in place).
- * @param {Object} account - A leaf signer exposing `publicKey` and a `sign` method (e.g. an ECPair or a BIP32 node).
+ * @param {SignerLike} account - A leaf signer exposing `publicKey` and a `sign` method (e.g. an ECPair or a BIP32 node).
  * @param {number} bip - The BIP standard (44 or 84).
  * @param {Network} network - The network configuration.
  * @returns {string} The (partially) signed PSBT in base64 format.
  */
-export function signPsbtWithKey(psbtInstance: Psbt, account: any, bip: number, network: Network): string;
+export function signPsbtWithKey(psbtInstance: Psbt, account: SignerLike, bip: number, network: Network): string;
 /**
  * Normalizes wallet configuration with defaults.
  *
@@ -45,3 +46,4 @@ export function signMessage(message: string, privateKey: Buffer, bip: number): s
 export type Network = import("bitcoinjs-lib").Network;
 export type Psbt = import("bitcoinjs-lib").Psbt;
 export type BtcWalletConfig = import("../wallet-account-read-only-btc.js").BtcWalletConfig;
+export type SignerLike = import("ecpair").ECPairInterface | import("bip32").BIP32Interface;

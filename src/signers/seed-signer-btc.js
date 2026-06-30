@@ -27,6 +27,15 @@ import { sodium_memzero } from 'sodium-universal'
 /** @typedef {import('../wallet-account-read-only-btc.js').BtcWalletConfig} BtcWalletConfig */
 /** @typedef {import('@tetherto/wdk-wallet').KeyPair} KeyPair */
 /** @typedef {import('bip32').BIP32Interface} BIP32Interface */
+/** @typedef {import('bitcoinjs-lib').Network} Network */
+
+/**
+ * @typedef {Object} SeedSignerBtcOpts
+ * @property {BIP32Interface} [masterNode] - Pre-derived master node (e.g. from an extended private key).
+ * @property {string} [path] - Relative derivation path of the account (default: "0'/0/0").
+ * @property {boolean} [isChild] - When true, the signer is a derived child and does not retain the
+ *   master node, so it cannot derive further.
+ */
 
 import {
   normalizeConfig,
@@ -49,8 +58,16 @@ const bip32 = BIP32Factory(ecc)
 
 initEccLib(ecc)
 
-/** @private */
-function deriveMasterNode (seed) {
+/**
+ * Derives the BIP32 master node from a seed buffer, securely erasing the intermediate key
+ * material once the node is built. The node carries the given network's version bytes, so any
+ * extended keys serialized from it (xpub/tpub) reflect the configured network.
+ *
+ * @param {Buffer} seed - The seed buffer.
+ * @param {Network} [network] - The network whose version bytes the node should carry (default: bitcoin mainnet).
+ * @returns {BIP32Interface} The master node.
+ */
+function deriveMasterNode (seed, network = BITCOIN) {
   const masterKeyAndChainCodeBuffer = hmac(sha512, MASTER_SECRET, seed)
 
   const privateKey = masterKeyAndChainCodeBuffer.slice(0, 32)
@@ -59,7 +76,7 @@ function deriveMasterNode (seed) {
   const masterNode = bip32.fromPrivateKey(
     Buffer.from(privateKey),
     Buffer.from(chainCode),
-    BITCOIN
+    network
   )
 
   sodium_memzero(masterKeyAndChainCodeBuffer)
@@ -195,11 +212,7 @@ export default class SeedSignerBtc extends ISignerBtc {
    *
    * @param {string | Buffer} seed - The seed phrase (mnemonic) or seed buffer.
    * @param {BtcWalletConfig} [config] - The wallet configuration.
-   * @param {Object} [opts] - Internal options.
-   * @param {BIP32Interface} [opts.masterNode] - Pre-derived master node (e.g. from an extended private key).
-   * @param {string} [opts.path] - Relative derivation path of the account (default: "0'/0/0").
-   * @param {boolean} [opts.isChild] - When true, the signer is a derived child and does not retain the
-   *   master node, so it cannot derive further.
+   * @param {SeedSignerBtcOpts} [opts] - Internal construction options for master-node reuse, child derivation or path definition.
    */
   constructor (seed, config = {}, opts = {}) {
     super()
@@ -214,6 +227,8 @@ export default class SeedSignerBtc extends ISignerBtc {
     /** @private */
     this._bip = config.bip
 
+    const network = networks[config.network] || networks.bitcoin
+
     let masterNode
     if (opts.masterNode) {
       masterNode = opts.masterNode
@@ -224,14 +239,13 @@ export default class SeedSignerBtc extends ISignerBtc {
         }
         seed = bip39.mnemonicToSeedSync(seed)
       }
-      masterNode = deriveMasterNode(seed)
+      masterNode = deriveMasterNode(seed, network)
     }
 
     // Every signer holds an account; default to "0'/0/0" so it can always back a wallet account.
     const netdp = config.network === 'bitcoin' ? 0 : 1
     const fullPath = `m/${config.bip}'/${netdp}'/${opts.path || "0'/0/0"}`
     const account = masterNode.derivePath(fullPath)
-    const network = networks[config.network] || networks.bitcoin
 
     /** @private */
     this._account = account
@@ -345,18 +359,7 @@ export default class SeedSignerBtc extends ISignerBtc {
    * @returns {Promise<string>} The extended public key in base58 format.
    */
   async getExtendedPublicKey () {
-    const network = networks[this._config.network] || networks.bitcoin
-    const src = this._account.neutered()
-    const node = bip32.fromPublicKey(
-      Buffer.from(src.publicKey),
-      Buffer.from(src.chainCode),
-      network
-    )
-    node.depth = src.depth
-    node.index = src.index
-    node.parentFingerprint = src.parentFingerprint
-
-    return node.toBase58()
+    return this._account.neutered().toBase58()
   }
 
   /**
