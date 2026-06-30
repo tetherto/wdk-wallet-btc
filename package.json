@@ -34,11 +34,12 @@
     "@bitcoinerlab/secp256k1": "1.2.0",
     "@mempool/electrum-client": "1.1.9",
     "@tetherto/wdk-failover-provider": "1.0.0-beta.2",
-    "@tetherto/wdk-wallet": "1.0.0-beta.11",
+    "@tetherto/wdk-wallet": "1.0.0-beta.12",
     "bare-node-runtime": "^1.5.0",
     "bip32": "4.0.0",
     "bip39": "3.1.0",
     "bitcoinjs-lib": "6.1.7",
+    "ecpair": "2.1.0",
     "bitcoinjs-message": "2.2.0",
     "lru-cache": "11.5.1",
     "p-limit": "7.3.0",
@@ -56,6 +57,11 @@
       "types": "./types/index.d.ts",
       "bare": "./bare.js",
       "default": "./index.js"
+    },
+    "./signers": {
+      "types": "./types/src/signers/index.d.ts",
+      "bare": "./src/signers/bare.js",
+      "default": "./src/signers/index.js"
     },
     "./package": {
       "default": "./package.json"
