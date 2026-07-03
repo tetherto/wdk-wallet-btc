@@ -90,7 +90,7 @@ function derivePath (seed, path) {
   return { masterNode, account }
 }
 
-/** @implements {IWalletAccount} */
+/** @implements {IWalletAccount<string>} */
 export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
   /**
    * Creates a new bitcoin wallet account.
@@ -214,6 +214,25 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     }
 
     return tx.hex
+  }
+
+  /**
+   * Quotes the costs of a send transaction operation.
+   *
+   * @param {BtcTransaction | string} tx - The transaction, or a signed raw transaction as a hex string.
+   * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transaction's quotes.
+   */
+  async quoteSendTransaction (tx) {
+    if (typeof tx === 'string') {
+      await this._ensureConnected()
+
+      const transaction = Transaction.fromHex(tx)
+      const fee = await this._getSignedTransactionFee(transaction)
+
+      return { fee }
+    }
+
+    return await super.quoteSendTransaction(tx)
   }
 
   /**

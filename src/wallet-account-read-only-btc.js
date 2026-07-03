@@ -203,18 +203,11 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
   /**
    * Quotes the costs of a send transaction operation.
    *
-   * @param {BtcTransaction | string} tx - The transaction, or a signed raw transaction as a hex string.
+   * @param {BtcTransaction} tx - The transaction.
    * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transaction's quotes.
    */
   async quoteSendTransaction (tx) {
     await this._ensureConnected()
-
-    if (typeof tx === 'string') {
-      const transaction = Transaction.fromHex(tx)
-      const fee = await this._getSignedTransactionFee(transaction)
-
-      return { fee }
-    }
 
     const { to, value, confirmationTarget = 1 } = tx
     let { feeRate } = tx

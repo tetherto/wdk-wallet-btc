@@ -1,5 +1,5 @@
 /** @implements {IWalletAccount} */
-export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implements IWalletAccount {
+export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implements IWalletAccount<string> {
     /**
      * Creates a new bitcoin wallet account.
      *
@@ -53,6 +53,13 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      * @throws {Error} If the transaction's cost exceeds the maximum transaction fee option.
      */
     signTransaction({ to, value, feeRate, confirmationTarget }: BtcTransaction): Promise<string>;
+    /**
+     * Quotes the costs of a send transaction operation.
+     *
+     * @param {BtcTransaction | string} tx - The transaction, or a signed raw transaction as a hex string.
+     * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transaction's quotes.
+     */
+    quoteSendTransaction(tx: BtcTransaction | string): Promise<Omit<TransactionResult, "hash">>;
     /**
      * Sends a transaction.
      *
