@@ -191,6 +191,46 @@ describe.each([44, 84])('@wdk/wallet-btc (BIP %i)', (bip) => {
     expect(Math.round(transaction.details[0].amount * 1e+8)).toBe(Number(TRANSACTION.value))
   })
 
+  test('should sign a transaction and broadcast the resulting signed raw transaction hex', async () => {
+    const account0 = await wallet.getAccount(2)
+    const account1 = await wallet.getAccount(3)
+    const TRANSACTION = {
+      to: await account1.getAddress(),
+      value: 1_000n,
+      feeRate: 1
+    }
+
+    const signedHex = await account0.signTransaction(TRANSACTION)
+
+    const { hash, fee } = await account0.sendTransaction(signedHex)
+
+    await waiter.mine()
+
+    const actualFee = await bitcoin.getTransactionFeeSats(hash)
+    expect(Number(fee)).toBe(actualFee)
+
+    const transaction = parseRawTransaction(bitcoin.getRawTransaction(hash), TRANSACTION.to)
+    expect(transaction.txid).toBe(hash)
+    expect(transaction.details[0].address).toBe(TRANSACTION.to)
+    expect(Math.round(transaction.details[0].amount * 1e+8)).toBe(Number(TRANSACTION.value))
+  })
+
+  test('should sign a transaction and quote the resulting signed raw transaction hex without broadcasting', async () => {
+    const account0 = await wallet.getAccount(2)
+    const account1 = await wallet.getAccount(3)
+    const TRANSACTION = {
+      to: await account1.getAddress(),
+      value: 1_000n,
+      feeRate: 1
+    }
+
+    const signedHex = await account0.signTransaction(TRANSACTION)
+
+    const { fee } = await account0.quoteSendTransaction(signedHex)
+
+    expect(fee).toBeGreaterThan(0n)
+  })
+
   test('should get a max spendable amount that is actually spendable', async () => {
     const account0 = await wallet.getAccount(2)
     const account1 = await wallet.getAccount(3)

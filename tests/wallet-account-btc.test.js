@@ -230,7 +230,8 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
 
       const TRANSACTION = { to: recipient, value: 1_000, feeRate: 1 }
 
-      const signedHex = await account.signTransaction(TRANSACTION)
+      const { tx: builtTx } = await account._buildSignedTransaction(TRANSACTION)
+      const signedHex = builtTx.hex
 
       const { fee: quotedFee } = await account.quoteSendTransaction(signedHex)
 
