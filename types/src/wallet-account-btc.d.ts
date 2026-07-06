@@ -1,21 +1,38 @@
 /** @implements {IWalletAccount} */
 export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implements IWalletAccount {
     /**
-     * Creates a new bitcoin wallet account.
+     * Creates a new bitcoin wallet account from a raw private key.
      *
-     * @param {string | Uint8Array} seed - The wallet's [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) seed phrase.
-     * @param {string} path - The derivation path suffix (e.g. "0'/0/0").
+     * @param {string | Uint8Array | Buffer} privateKey - The raw private key (hex string or 32 bytes).
+     * @param {BtcWalletConfig} [config] - The wallet configuration options.
+     * @returns {WalletAccountBtc} The wallet account.
+     */
+    static fromPrivateKey(privateKey: string | Uint8Array | Buffer, config?: BtcWalletConfig): WalletAccountBtc;
+    /**
+     * Creates a new bitcoin wallet account from a BIP-39 seed, deriving the account's key at the
+     * given derivation path.
+     *
+     * @param {string | Uint8Array} seed - The wallet's BIP-39 seed phrase or seed bytes.
+     * @param {string} path - The derivation path relative to the BIP root (e.g. "0'/0/0").
      * @param {BtcWalletConfig} [config] - The configuration object.
      */
     constructor(seed: string | Uint8Array, path: string, config?: BtcWalletConfig);
+    /**
+     * Creates a new bitcoin wallet account using a signer.
+     *
+     * @param {ISignerBtc} signer - The signer.
+     * @param {BtcWalletConfig} [config] - The configuration object.
+     */
+    constructor(signer: ISignerBtc, config?: BtcWalletConfig);
     /** @private */
-    private _path;
-    /** @private */
-    private _bip;
-    /** @private */
-    private _masterNode;
-    /** @private */
-    private _account;
+    private _signer;
+    /**
+     * Returns the account's address. If not set at construction time (e.g. lazy hardware signers),
+     * it asks the underlying signer to resolve it, then caches it locally.
+     *
+     * @returns {Promise<string>} The account's address.
+     */
+    getAddress(): Promise<string>;
     /**
      * The derivation path's index of this account.
      *
@@ -95,6 +112,8 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
     dispose(): void;
     /** @private */
     private _getRawTransaction;
+    /** @private */
+    private _buildSignedTransaction;
 }
 export type IWalletAccount = import("@tetherto/wdk-wallet").IWalletAccount;
 export type KeyPair = import("@tetherto/wdk-wallet").KeyPair;
@@ -103,6 +122,7 @@ export type TransferOptions = import("@tetherto/wdk-wallet").TransferOptions;
 export type TransferResult = import("@tetherto/wdk-wallet").TransferResult;
 export type BtcTransaction = import("./wallet-account-read-only-btc.js").BtcTransaction;
 export type BtcWalletConfig = import("./wallet-account-read-only-btc.js").BtcWalletConfig;
+export type ISignerBtc = import("./signers/seed-signer-btc.js").ISignerBtc;
 export type BtcTransfer = {
     /**
      * - The transaction's id.
