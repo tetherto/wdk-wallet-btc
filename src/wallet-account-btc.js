@@ -52,13 +52,35 @@ const POLLING_INTERVAL = 300
 /** @implements {IWalletAccount} */
 export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
   /**
-   * Creates a new bitcoin wallet account.
+   * Creates a new bitcoin wallet account from a BIP-39 seed, deriving the account's key at the
+   * given derivation path.
    *
+   * @overload
+   * @param {string | Uint8Array} seed - The wallet's BIP-39 seed phrase or seed bytes.
+   * @param {string} path - The derivation path relative to the BIP root (e.g. "0'/0/0").
+   * @param {BtcWalletConfig} [config] - The configuration object.
+   */
+
+  /**
+   * Creates a new bitcoin wallet account using a signer.
+   *
+   * @overload
    * @param {ISignerBtc} signer - The signer.
    * @param {BtcWalletConfig} [config] - The configuration object.
    */
-  constructor (signer, config = {}) {
-    super(signer.address, { network: signer.config.network, bip: signer.config.bip, ...config })
+
+  constructor (seedOrSigner, pathOrConfig = {}, config = {}) {
+    let signer, configuration
+    if (typeof seedOrSigner === 'string' || seedOrSigner instanceof Uint8Array) {
+      const { client, ...signerConfig } = config
+      signer = new SeedSignerBtc(seedOrSigner, signerConfig, { path: pathOrConfig, isChild: true })
+      configuration = config
+    } else {
+      signer = seedOrSigner
+      configuration = pathOrConfig
+    }
+
+    super(signer.address, { network: signer.config.network, bip: signer.config.bip, ...configuration })
 
     /** @private */
     this._signer = signer
@@ -119,22 +141,6 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
   static fromPrivateKey (privateKey, config = {}) {
     const { client, ...signerConfig } = config
     const signer = new PrivateKeySignerBtc(privateKey, signerConfig)
-    return new WalletAccountBtc(signer, { client })
-  }
-
-  /**
-   * Creates a new bitcoin wallet account from a seed phrase or seed buffer.
-   *
-   * @param {string | Buffer} seed - The seed phrase (mnemonic) or seed buffer.
-   * @param {string} [path] - The derivation path relative to the BIP root (default: "0'/0/0").
-   * @param {BtcWalletConfig} [config] - The wallet configuration options (includes bip, network, etc.).
-   * @returns {Promise<WalletAccountBtc>} The wallet account.
-   */
-  static async fromSeed (seed, path = "0'/0/0", config = {}) {
-    const { client, ...signerConfig } = config
-    const root = new SeedSignerBtc(seed, signerConfig)
-    const signer = await root.derive(path)
-    root.dispose()
     return new WalletAccountBtc(signer, { client })
   }
 

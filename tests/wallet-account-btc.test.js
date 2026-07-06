@@ -17,6 +17,8 @@ import * as ecc from '@bitcoinerlab/secp256k1'
 
 const SEED_PHRASE = 'cook voyage document eight skate token alien guide drink uncle term abuse'
 
+const INVALID_SEED_PHRASE = 'invalid seed phrase'
+
 const SEED = mnemonicToSeedSync(SEED_PHRASE)
 
 const ACCOUNTS = {
@@ -120,19 +122,57 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     })
   })
 
-  describe('fromSeed', () => {
-    test('should create the account at the given path from a seed phrase', async () => {
-      const seededAccount = await WalletAccountBtc.fromSeed(SEED_PHRASE, "0'/0/0", SIGNER_CONFIG)
+  describe('constructor (seed overload)', () => {
+    test('should successfully initialize an account for the given seed phrase and path', () => {
+      const account = new WalletAccountBtc(SEED_PHRASE, "0'/0/0", { ...SIGNER_CONFIG, ...CLIENT_CONFIG })
 
-      expect(await seededAccount.getAddress()).toBe(ACCOUNTS[bip].address)
-      expect(seededAccount.path).toBe(ACCOUNTS[bip].path)
-      expect(seededAccount.index).toBe(ACCOUNTS[bip].index)
+      expect(account.index).toBe(ACCOUNTS[bip].index)
 
-      seededAccount.dispose()
+      expect(account.path).toBe(ACCOUNTS[bip].path)
+
+      expect(account.keyPair).toEqual({
+        privateKey: Buffer.from(ACCOUNTS[bip].keyPair.privateKey, 'hex'),
+        publicKey: Buffer.from(ACCOUNTS[bip].keyPair.publicKey, 'hex')
+      })
+
+      account.dispose()
+    })
+
+    test('should successfully initialize an account for the given seed and path', () => {
+      const account = new WalletAccountBtc(SEED, "0'/0/0", { ...SIGNER_CONFIG, ...CLIENT_CONFIG })
+
+      expect(account.index).toBe(ACCOUNTS[bip].index)
+
+      expect(account.path).toBe(ACCOUNTS[bip].path)
+
+      expect(account.keyPair).toEqual({
+        privateKey: Buffer.from(ACCOUNTS[bip].keyPair.privateKey, 'hex'),
+        publicKey: Buffer.from(ACCOUNTS[bip].keyPair.publicKey, 'hex')
+      })
+
+      account.dispose()
+    })
+
+    test('should throw if the seed phrase is invalid', () => {
+      // eslint-disable-next-line no-new
+      expect(() => { new WalletAccountBtc(INVALID_SEED_PHRASE, "0'/0/0", { ...SIGNER_CONFIG, ...CLIENT_CONFIG }) })
+        .toThrow('The seed phrase is invalid.')
+    })
+
+    test('should throw if the path is invalid', () => {
+      // eslint-disable-next-line no-new
+      expect(() => { new WalletAccountBtc(SEED_PHRASE, "a'/b/c", { ...SIGNER_CONFIG, ...CLIENT_CONFIG }) })
+        .toThrow(/Expected BIP32Path/)
+    })
+
+    test('should throw for unsupported bip specifications', () => {
+      // eslint-disable-next-line no-new
+      expect(() => { new WalletAccountBtc(SEED_PHRASE, "0'/0/0", { bip: 1 }) })
+        .toThrow(/Invalid bip specification/)
     })
 
     test('should derive the same account as a manually derived signer', async () => {
-      const seededAccount = await WalletAccountBtc.fromSeed(SEED_PHRASE, "0'/0/0", SIGNER_CONFIG)
+      const seededAccount = new WalletAccountBtc(SEED_PHRASE, "0'/0/0", SIGNER_CONFIG)
       const signer = await new SeedSignerBtc(SEED_PHRASE, SIGNER_CONFIG).derive("0'/0/0")
       const signerAccount = new WalletAccountBtc(signer, {})
 

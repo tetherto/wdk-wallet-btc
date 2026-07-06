@@ -9,16 +9,16 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      */
     static fromPrivateKey(privateKey: string | Uint8Array | Buffer, config?: BtcWalletConfig): WalletAccountBtc;
     /**
-     * Creates a new bitcoin wallet account from a seed phrase or seed buffer.
+     * Creates a new bitcoin wallet account from a BIP-39 seed, deriving the account's key at the
+     * given derivation path.
      *
-     * @param {string | Buffer} seed - The seed phrase (mnemonic) or seed buffer.
-     * @param {string} [path] - The derivation path relative to the BIP root (default: "0'/0/0").
-     * @param {BtcWalletConfig} [config] - The wallet configuration options (includes bip, network, etc.).
-     * @returns {Promise<WalletAccountBtc>} The wallet account.
+     * @param {string | Uint8Array} seed - The wallet's BIP-39 seed phrase or seed bytes.
+     * @param {string} path - The derivation path relative to the BIP root (e.g. "0'/0/0").
+     * @param {BtcWalletConfig} [config] - The configuration object.
      */
-    static fromSeed(seed: string | Buffer, path?: string, config?: BtcWalletConfig): Promise<WalletAccountBtc>;
+    constructor(seed: string | Uint8Array, path: string, config?: BtcWalletConfig);
     /**
-     * Creates a new bitcoin wallet account.
+     * Creates a new bitcoin wallet account using a signer.
      *
      * @param {ISignerBtc} signer - The signer.
      * @param {BtcWalletConfig} [config] - The configuration object.

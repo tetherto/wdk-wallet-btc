@@ -247,6 +247,13 @@ export default class SeedSignerBtc extends ISignerBtc {
     const fullPath = `m/${config.bip}'/${netdp}'/${opts.path || "0'/0/0"}`
     const account = masterNode.derivePath(fullPath)
 
+    // A detached child created from a locally-built master node erases its key material,
+    // since the master node is dropped right below and would otherwise linger in memory.
+    if (opts.isChild && !opts.masterNode) {
+      sodium_memzero(masterNode.privateKey)
+      sodium_memzero(masterNode.chainCode)
+    }
+
     /** @private */
     this._account = account
     /** @private */

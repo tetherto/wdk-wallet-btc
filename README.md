@@ -129,6 +129,17 @@ const address = await account.getAddress();
 console.log("Account address:", address);
 ```
 
+#### Single Account (no manager): Seed + path
+
+```javascript
+import { WalletAccountBtc } from "@tetherto/wdk-wallet-btc";
+
+// From a BIP-39 seed phrase (or seed bytes) and a derivation path
+const account = new WalletAccountBtc(seedPhrase, "0'/0/0", {
+  network: "bitcoin", // 'bitcoin', 'testnet', or 'regtest'
+});
+```
+
 **Note**: This implementation uses BIP-84 derivation paths by default and generates Native SegWit (bech32) addresses. BIP-44 (legacy) addresses are also supported via the `bip` configuration option.
 
 **Important Note about Electrum Servers**:
