@@ -3,13 +3,13 @@ export default class WalletManagerBtc extends WalletManager {
      * Creates a new wallet manager for the bitcoin blockchain.
      *
      * Accepts either a BIP-39 seed (string mnemonic or raw Uint8Array) for
-     * backwards compatibility, or an {@link ISignerBtc} instance for the new
+     * backwards compatibility, or an {@link ISigner} instance for the new
      * signer-based workflow.
      *
-     * @param {string | Uint8Array | ISignerBtc} seedOrSigner - A BIP-39 seed phrase, raw seed bytes, or a root signer.
+     * @param {string | Uint8Array | ISigner} seedOrSigner - A BIP-39 seed phrase, raw seed bytes, or a root signer. Root signers must be derivable — non-derivable signers (e.g. private-key signers) can only be registered by name via {@link addSigner}.
      * @param {BtcWalletConfig} [config] - The configuration object.
      */
-    constructor(seedOrSigner: string | Uint8Array | ISignerBtc, config?: BtcWalletConfig);
+    constructor(seedOrSigner: string | Uint8Array | ISigner, config?: BtcWalletConfig);
     /**
      * A list of all the bitcoin client options.
      *
@@ -90,6 +90,7 @@ export default class WalletManagerBtc extends WalletManager {
     dispose(): void;
 }
 export type FeeRates = import("@tetherto/wdk-wallet").FeeRates;
+export type ISigner = import("@tetherto/wdk-wallet").ISigner;
 export type BtcWalletConfig = import("./wallet-account-btc.js").BtcWalletConfig;
 export type ISignerBtc = import("./signers/seed-signer-btc.js").ISignerBtc;
 export type IBtcClient = import("./transports/index.js").IBtcClient;

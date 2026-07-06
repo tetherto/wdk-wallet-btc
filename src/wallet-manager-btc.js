@@ -21,6 +21,7 @@ import WalletAccountBtc from './wallet-account-btc.js'
 import SeedSignerBtc from './signers/seed-signer-btc.js'
 
 /** @typedef {import('@tetherto/wdk-wallet').FeeRates} FeeRates */
+/** @typedef {import('@tetherto/wdk-wallet').ISigner} ISigner */
 
 /** @typedef {import('./wallet-account-btc.js').BtcWalletConfig} BtcWalletConfig */
 
@@ -34,10 +35,10 @@ export default class WalletManagerBtc extends WalletManager {
    * Creates a new wallet manager for the bitcoin blockchain.
    *
    * Accepts either a BIP-39 seed (string mnemonic or raw Uint8Array) for
-   * backwards compatibility, or an {@link ISignerBtc} instance for the new
+   * backwards compatibility, or an {@link ISigner} instance for the new
    * signer-based workflow.
    *
-   * @param {string | Uint8Array | ISignerBtc} seedOrSigner - A BIP-39 seed phrase, raw seed bytes, or a root signer.
+   * @param {string | Uint8Array | ISigner} seedOrSigner - A BIP-39 seed phrase, raw seed bytes, or a root signer. Root signers must be derivable — non-derivable signers (e.g. private-key signers) can only be registered by name via {@link addSigner}.
    * @param {BtcWalletConfig} [config] - The configuration object.
    */
   constructor (seedOrSigner, config = {}) {

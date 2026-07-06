@@ -133,6 +133,13 @@ describe('WalletManagerBtc', () => {
       pk.dispose()
     })
 
+    test('should throw if the default signer is a bare ISigner without isDerivable', () => {
+      const bareSigner = { derive: async () => {}, signTransaction: async () => {}, getAddress: async () => '', dispose: () => {} }
+
+      expect(() => new WalletManagerBtc(bareSigner)) // eslint-disable-line no-new
+        .toThrow(/must be derivable/)
+    })
+
     test('getAccount(name) derives a detached child for a derivable named signer', async () => {
       const altSigner = new SeedSignerBtc(SEED_PHRASE)
       wallet.addSigner('alt', altSigner)
