@@ -72,9 +72,36 @@ const REQUEST_BATCH_SIZE = 64
 
 const POLLING_INTERVAL = 300
 
+// Bitcoin Core standardness limit for OP_RETURN payloads on relay
+// (MAX_OP_RETURN_RELAY in policy.h). Transactions with larger payloads
+// are valid by consensus but won't propagate on the default mempool.
+export const MAX_OP_RETURN_BYTES = 80
+
 const bip32 = BIP32Factory(ecc)
 
 initEccLib(ecc)
+
+/**
+ * Normalizes a memo payload into a Buffer of raw bytes for embedding in
+ * an OP_RETURN output, or `null` when no memo is supplied.
+ *
+ * @param {string | Uint8Array | Buffer | null | undefined} memo - The memo bytes.
+ * @returns {Buffer | null} The memo as a Buffer, or null when omitted.
+ * @throws {RangeError} When the memo exceeds the OP_RETURN standardness cap.
+ */
+export function _normalizeMemo (memo) {
+  if (memo === undefined || memo === null) return null
+  const buf = typeof memo === 'string'
+    ? Buffer.from(memo, 'utf8')
+    : Buffer.from(memo)
+  if (buf.length === 0) return null
+  if (buf.length > MAX_OP_RETURN_BYTES) {
+    throw new RangeError(
+      `OP_RETURN memo is ${buf.length} bytes; the standardness rule caps it at ${MAX_OP_RETURN_BYTES} bytes.`
+    )
+  }
+  return buf
+}
 
 function derivePath (seed, path) {
   const masterKeyAndChainCodeBuffer = hmac(sha512, MASTER_SECRET, seed)
@@ -206,8 +233,8 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @returns {Promise<string>} The signed raw transaction as a hex string.
    * @throws {Error} If the transaction's cost exceeds the maximum transaction fee option.
    */
-  async signTransaction ({ to, value, feeRate, confirmationTarget = 1 }) {
-    const { tx } = await this._buildSignedTransaction({ to, value, feeRate, confirmationTarget })
+  async signTransaction ({ to, value, feeRate, confirmationTarget = 1, memo }) {
+    const { tx } = await this._buildSignedTransaction({ to, value, feeRate, confirmationTarget, memo })
 
     if (this._config.transactionMaxFee !== undefined && tx.fee > this._config.transactionMaxFee) {
       throw new Error('Exceeded maximum fee cost for transaction operation.')
@@ -224,8 +251,8 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @returns {Promise<TransactionResult>} The transaction's result.
    * @throws {Error} If the transaction's cost exceeds the maximum transaction fee option.
    */
-  async sendTransaction ({ to, value, feeRate, confirmationTarget = 1 }, timeoutMs = 10000) {
-    const { tx, utxos } = await this._buildSignedTransaction({ to, value, feeRate, confirmationTarget })
+  async sendTransaction ({ to, value, feeRate, confirmationTarget = 1, memo }, timeoutMs = 10000) {
+    const { tx, utxos } = await this._buildSignedTransaction({ to, value, feeRate, confirmationTarget, memo })
 
     if (this._config.transactionMaxFee !== undefined && tx.fee > this._config.transactionMaxFee) {
       throw new Error('Exceeded maximum fee cost for transaction operation.')
@@ -441,12 +468,17 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
   }
 
   /** @private */
-  async _getRawTransaction ({ utxos, to, value, fee, feeRate, changeValue }) {
+  async _getRawTransaction ({ utxos, to, value, fee, feeRate, changeValue, memo }) {
     feeRate = this._toBigInt(feeRate)
     if (feeRate < 1n) feeRate = 1n
     value = this._toBigInt(value)
     changeValue = this._toBigInt(changeValue)
     fee = this._toBigInt(fee)
+
+    const memoBytes = _normalizeMemo(memo)
+    const opReturnScript = memoBytes
+      ? payments.embed({ data: [memoBytes] }).output
+      : null
 
     const legacyPrevTxCache = new Map()
     const getPrevTxHex = async (txid) => {
@@ -489,6 +521,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
 
       psbt.addOutput({ address: to, value: rcptVal })
       if (chgVal > 0n) psbt.addOutput({ address: await this.getAddress(), value: chgVal })
+      if (opReturnScript) psbt.addOutput({ script: opReturnScript, value: 0n })
 
       utxos.forEach((_, index) => psbt.signInputHD(index, this._masterNode))
       psbt.finalizeAllInputs()
@@ -534,17 +567,18 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
   }
 
   /** @private */
-  async _buildSignedTransaction ({ to, value, feeRate, confirmationTarget = 1 }) {
+  async _buildSignedTransaction ({ to, value, feeRate, confirmationTarget = 1, memo }) {
     await this._ensureConnected()
     const address = await this.getAddress()
     if (!feeRate) {
       const feeEstimate = await this._client.estimateFee(confirmationTarget)
       feeRate = this._toBigInt(Math.max(feeEstimate * 100_000, 1))
     }
+    const memoBytes = _normalizeMemo(memo)
     const { utxos, fee, changeValue } = await this._planSpend({
-      fromAddress: address, toAddress: to, amount: value, feeRate
+      fromAddress: address, toAddress: to, amount: value, feeRate, memo: memoBytes
     })
-    const tx = await this._getRawTransaction({ utxos, to, value, fee, feeRate, changeValue })
+    const tx = await this._getRawTransaction({ utxos, to, value, fee, feeRate, changeValue, memo: memoBytes })
     return { tx, utxos }
   }
 }

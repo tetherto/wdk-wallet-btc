@@ -51,6 +51,7 @@ const bitcoinMessage = MessageFactory(ecc)
  * @property {number | bigint} value - The amount of bitcoins to send to the recipient (in satoshis).
  * @property {number} [confirmationTarget] - Optional confirmation target in blocks (default: 1).
  * @property {number | bigint} [feeRate] - Optional fee rate in satoshis per virtual byte. If provided, this value overrides the fee rate estimated from the blockchain (default: undefined).
+ * @property {string | Uint8Array | Buffer} [memo] - Optional OP_RETURN memo payload. Strings are UTF-8 encoded; binary buffers are used verbatim. Capped at 80 bytes (Bitcoin Core's standardness relay limit).
  */
 
 /**
@@ -98,6 +99,22 @@ const { Output } = DescriptorsFactory(ecc)
 
 const MIN_TX_FEE_SATS = 141
 const MAX_UTXO_INPUTS = 200
+
+// Tx-level vbytes contributed by an OP_RETURN output carrying `dataLen`
+// bytes of payload:
+//   8  (value u64)
+// + 1  (script-length varint — always 1 byte for OP_RETURN scripts)
+// + 1  (OP_RETURN opcode)
+// + 1  (OP_PUSHBYTES_n for n ≤ 75, OP_PUSHDATA1 for 76 ≤ n ≤ 80)
+// + 1  (extra byte for OP_PUSHDATA1's length prefix when n ≥ 76)
+// + n  (payload)
+// Upper-bounded by `12 + dataLen` for n ≤ 75 and `13 + dataLen` for
+// 76 ≤ n ≤ 80; we use the larger of the two so coin-selection always
+// over-provisions rather than under-provisions the fee.
+export function _opReturnVBytes (dataLen) {
+  if (!dataLen || dataLen <= 0) return 0
+  return dataLen >= 76 ? 13 + dataLen : 12 + dataLen
+}
 
 const BIP_BY_ADDRESS_PREFIX = {
   1: 44,
@@ -208,7 +225,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * @param {BtcTransaction} tx - The transaction.
    * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transaction's quotes.
    */
-  async quoteSendTransaction ({ to, value, feeRate, confirmationTarget = 1 }) {
+  async quoteSendTransaction ({ to, value, feeRate, confirmationTarget = 1, memo }) {
     await this._ensureConnected()
 
     const address = await this.getAddress()
@@ -222,7 +239,8 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
       fromAddress: address,
       toAddress: to,
       amount: value,
-      feeRate
+      feeRate,
+      memo
     })
 
     return { fee: BigInt(fee) }
@@ -277,6 +295,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    *
    * @param {Object} [opts] - Options.
    * @param {number | bigint} [opts.feeRate] - Fee rate in sat/vB. If omitted, estimated via the client.
+   * @param {string | Uint8Array | Buffer} [opts.memo] - Optional OP_RETURN memo bytes to account for. When supplied, the spendable target leaves room for the OP_RETURN output.
    * @returns {Promise<BtcMaxSpendableResult>} The estimated maximum spendable result.
    */
   async getMaxSpendable (opts = {}) {
@@ -321,7 +340,13 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     const txOverheadVBytes = 11
     const outputVBytes = 34
 
-    const twoOutputsVSize = txOverheadVBytes + (inputCount * inputVBytes) + (2 * outputVBytes)
+    const memoVBytes = opts.memo !== undefined && opts.memo !== null
+      ? _opReturnVBytes(typeof opts.memo === 'string'
+        ? Buffer.byteLength(opts.memo, 'utf8')
+        : opts.memo.length)
+      : 0
+
+    const twoOutputsVSize = txOverheadVBytes + (inputCount * inputVBytes) + (2 * outputVBytes) + memoVBytes
     const twoOutputsFeeSats = Math.max(Math.ceil(twoOutputsVSize * feeRate), MIN_TX_FEE_SATS)
     const twoOutputsRecipientAmountSats = totalInputValueSats - twoOutputsFeeSats - Number(this._dustLimit)
     if (twoOutputsRecipientAmountSats > Number(this._dustLimit)) {
@@ -332,7 +357,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
       }
     }
 
-    const oneOutputVSize = txOverheadVBytes + (inputCount * inputVBytes) + outputVBytes
+    const oneOutputVSize = txOverheadVBytes + (inputCount * inputVBytes) + outputVBytes + memoVBytes
     const oneOutputFeeSats = Math.max(Math.ceil(oneOutputVSize * feeRate), MIN_TX_FEE_SATS)
     const oneOutputRecipientAmountSats = totalInputValueSats - oneOutputFeeSats
     if (oneOutputRecipientAmountSats <= this._dustLimit) {
@@ -445,9 +470,10 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * @param {string} tx.toAddress - The recipient's address.
    * @param {number | bigint} tx.amount - The amount to send (in satoshis).
    * @param {number | bigint} tx.feeRate - The fee rate (in sats/vB).
+   * @param {string | Uint8Array | Buffer} [tx.memo] - Optional OP_RETURN memo bytes; when supplied, the fee is padded for the extra output.
    * @returns {Promise<{ utxos: OutputWithValue[], fee: number, changeValue: number }>} - The funding plan.
    */
-  async _planSpend ({ fromAddress, toAddress, amount, feeRate }) {
+  async _planSpend ({ fromAddress, toAddress, amount, feeRate, memo }) {
     amount = this._toBigInt(amount)
     feeRate = this._toBigInt(feeRate)
     if (feeRate < 1n) feeRate = 1n
@@ -455,6 +481,13 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     if (amount <= this._dustLimit) {
       throw new Error(`The amount must be bigger than the dust limit (= ${this._dustLimit}).`)
     }
+
+    const memoBytesLen = memo === undefined || memo === null
+      ? 0
+      : (typeof memo === 'string' ? Buffer.byteLength(memo, 'utf8') : memo.length)
+    const opReturnFee = memoBytesLen > 0
+      ? this._toBigInt(Math.ceil(_opReturnVBytes(memoBytesLen) * Number(feeRate)))
+      : 0n
 
     const network = this._network
 
@@ -489,7 +522,11 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
       throw new Error('Exceeded maximum allowed inputs for transaction.')
     }
 
-    const fee = result.fee > BigInt(MIN_TX_FEE_SATS) ? result.fee : BigInt(MIN_TX_FEE_SATS)
+    // coinselect was unaware of the OP_RETURN output (it isn't a
+    // spendable target); pad the fee here so the change covers it. If
+    // the inputs don't cover the bump, fall through to the existing
+    // insufficient-balance branch below.
+    const fee = (result.fee > BigInt(MIN_TX_FEE_SATS) ? result.fee : BigInt(MIN_TX_FEE_SATS)) + opReturnFee
 
     const utxos = result.utxos.map(({ __ref }) => ({
       ...__ref,
