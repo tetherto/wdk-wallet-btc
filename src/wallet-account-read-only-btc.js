@@ -206,11 +206,8 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * @param {BtcTransaction} tx - The transaction.
    * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transaction's quotes.
    */
-  async quoteSendTransaction (tx) {
+  async quoteSendTransaction ({ to, value, feeRate, confirmationTarget = 1 }) {
     await this._ensureConnected()
-
-    const { to, value, confirmationTarget = 1 } = tx
-    let { feeRate } = tx
 
     const address = await this.getAddress()
 
@@ -227,34 +224,6 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     })
 
     return { fee: BigInt(fee) }
-  }
-
-  /**
-   * Computes the fee of a signed raw transaction by resolving the value of each
-   * spent input from the blockchain and subtracting the total output value.
-   *
-   * @protected
-   * @param {Transaction} transaction - The decoded signed transaction.
-   * @returns {Promise<bigint>} The fee (in satoshis).
-   */
-  async _getSignedTransactionFee (transaction) {
-    let totalInput = 0n
-
-    for (const input of transaction.ins) {
-      const prevTxId = Buffer.from(input.hash).reverse().toString('hex')
-      const prevHex = await this._client.getTransaction(prevTxId)
-      const prevTx = Transaction.fromHex(prevHex)
-
-      totalInput += BigInt(prevTx.outs[input.index].value)
-    }
-
-    let totalOutput = 0n
-
-    for (const output of transaction.outs) {
-      totalOutput += BigInt(output.value)
-    }
-
-    return totalInput - totalOutput
   }
 
   /**

@@ -101,6 +101,8 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      */
     dispose(): void;
     /** @private */
+    private _getSignedTransactionFee;
+    /** @private */
     private _getRawTransaction;
 }
 export type IWalletAccount<TSignedTransaction> = import("@tetherto/wdk-wallet").IWalletAccount<TSignedTransaction>;

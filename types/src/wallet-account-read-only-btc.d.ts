@@ -67,16 +67,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @param {BtcTransaction} tx - The transaction.
      * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transaction's quotes.
      */
-    quoteSendTransaction(tx: BtcTransaction): Promise<Omit<TransactionResult, "hash">>;
-    /**
-     * Computes the fee of a signed raw transaction by resolving the value of each
-     * spent input from the blockchain and subtracting the total output value.
-     *
-     * @protected
-     * @param {Transaction} transaction - The decoded signed transaction.
-     * @returns {Promise<bigint>} The fee (in satoshis).
-     */
-    protected _getSignedTransactionFee(transaction: import("bitcoinjs-lib").Transaction): Promise<bigint>;
+    quoteSendTransaction({ to, value, feeRate, confirmationTarget }: BtcTransaction): Promise<Omit<TransactionResult, "hash">>;
     /**
      * Quotes the costs of a transfer operation.
      *

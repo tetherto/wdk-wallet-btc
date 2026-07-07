@@ -228,7 +228,8 @@ describe.each([44, 84])('@wdk/wallet-btc (BIP %i)', (bip) => {
 
     const { fee } = await account0.quoteSendTransaction(signedHex)
 
-    expect(fee).toBeGreaterThan(0n)
+    const actualFee = bitcoin.getRawTransactionFeeSats(signedHex)
+    expect(Number(fee)).toBe(actualFee)
   })
 
   test('should get a max spendable amount that is actually spendable', async () => {
