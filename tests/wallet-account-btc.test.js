@@ -203,6 +203,27 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     })
   })
 
+  describe('quoteSendTransaction', () => {
+    test('should quote an already-signed transaction without broadcasting', async () => {
+      const account = new WalletAccountBtc(SEED_PHRASE, "0'/0/0", CONFIGURATION)
+      const address = await account.getAddress()
+      bitcoin.sendToAddress(address, 0.01)
+      await waiter.mine()
+
+      const TRANSACTION = { to: recipient, value: 1_000, feeRate: 1 }
+
+      const { tx: builtTx } = await account._buildSignedTransaction(TRANSACTION)
+      const signedHex = builtTx.hex
+
+      const { fee: quotedFee } = await account.quoteSendTransaction(signedHex)
+
+      const feeSats = bitcoin.getRawTransactionFeeSats(signedHex)
+      expect(quotedFee).toBe(BigInt(feeSats))
+
+      account.dispose()
+    })
+  })
+
   describe('sendTransaction', () => {
     test('should successfully send a transaction', async () => {
       const TRANSACTION = { to: recipient, value: 1_000, feeRate: 1 }
@@ -222,7 +243,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
       expect(fee).toBe(BigInt(feeSats))
     })
 
-    test('should broadcast a signed raw transaction hex and quote it consistently', async () => {
+    test('should broadcast an already-signed transaction', async () => {
       const account = new WalletAccountBtc(SEED_PHRASE, "0'/0/0", CONFIGURATION)
       const address = await account.getAddress()
       bitcoin.sendToAddress(address, 0.01)
@@ -232,8 +253,6 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
 
       const { tx: builtTx } = await account._buildSignedTransaction(TRANSACTION)
       const signedHex = builtTx.hex
-
-      const { fee: quotedFee } = await account.quoteSendTransaction(signedHex)
 
       const { hash, fee } = await account.sendTransaction(signedHex)
 
@@ -248,11 +267,9 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
 
       const feeSats = bitcoin.getTransactionFeeSats(hash)
       expect(fee).toBe(BigInt(feeSats))
-      expect(quotedFee).toBe(BigInt(feeSats))
 
       account.dispose()
     })
-
 
     test('should successfully send a transaction (bigint)', async () => {
       const TRANSACTION = { to: recipient, value: 1000n, feeRate: 1 }
