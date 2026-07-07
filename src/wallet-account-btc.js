@@ -17,19 +17,21 @@ import { hmac } from '@noble/hashes/hmac'
 import { sha512 } from '@noble/hashes/sha2'
 import { address as btcAddress, initEccLib, networks, payments, Psbt, Transaction } from 'bitcoinjs-lib'
 import { BIP32Factory } from 'bip32'
+import bitcoinMessageModule from '@bitcoinerlab/btcmessage'
 import pLimit from 'p-limit'
 import { LRUCache } from 'lru-cache'
+import { compare, fromHex, toBase64, toHex } from 'uint8array-tools'
 
 import * as bip39 from 'bip39'
 import * as ecc from '@bitcoinerlab/secp256k1'
-import bitcoinMessageModule from 'bitcoinjs-message'
 
 // eslint-disable-next-line camelcase
 import { sodium_memzero } from 'sodium-universal'
 
 import WalletAccountReadOnlyBtc from './wallet-account-read-only-btc.js'
 
-const bitcoinMessage = bitcoinMessageModule.default ?? bitcoinMessageModule
+const { MessageFactory } = bitcoinMessageModule.default ?? bitcoinMessageModule
+const bitcoinMessage = MessageFactory(ecc)
 
 /** @typedef {import('@tetherto/wdk-wallet').IWalletAccount} IWalletAccount */
 
@@ -53,7 +55,7 @@ const bitcoinMessage = bitcoinMessageModule.default ?? bitcoinMessageModule
  * @property {string} [recipient] - The receiving address for outgoing transfers.
  */
 
-const MASTER_SECRET = Buffer.from('Bitcoin seed', 'utf8')
+const MASTER_SECRET = Uint8Array.from('Bitcoin seed', char => char.charCodeAt(0))
 
 const BITCOIN = {
   wif: 0x80,
@@ -80,7 +82,7 @@ function derivePath (seed, path) {
   const privateKey = masterKeyAndChainCodeBuffer.slice(0, 32)
   const chainCode = masterKeyAndChainCodeBuffer.slice(32)
 
-  const masterNode = bip32.fromPrivateKey(Buffer.from(privateKey), Buffer.from(chainCode), BITCOIN)
+  const masterNode = bip32.fromPrivateKey(Uint8Array.from(privateKey), Uint8Array.from(chainCode), BITCOIN)
   const account = masterNode.derivePath(path)
 
   sodium_memzero(masterKeyAndChainCodeBuffer)
@@ -189,14 +191,12 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @returns {Promise<string>} The message's signature.
    */
   async sign (message) {
-    return bitcoinMessage
-      .sign(
-        message,
-        this._account.privateKey,
-        true,
-        this._bip === 84 ? { segwitType: 'p2wpkh' } : undefined
-      )
-      .toString('base64')
+    return toBase64(bitcoinMessage.sign(
+      message,
+      this._account.privateKey,
+      true,
+      this._bip === 84 ? { segwitType: 'p2wpkh' } : undefined
+    ))
   }
 
   /**
@@ -302,7 +302,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     }
 
     const getPrevUtxo = async (input) => {
-      const prevTxId = Buffer.from(input.hash).reverse().toString('hex')
+      const prevTxId = toHex(Uint8Array.from(input.hash).reverse())
       const prevKey = `${prevTxId}:${input.index}`
       const cached = prevUtxoCache.get(prevKey)
       if (cached !== undefined) return cached
@@ -335,7 +335,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
       for (const prevUtxo of prevUtxos) {
         if (!prevUtxo || typeof prevUtxo.value !== 'bigint') continue
         totalInputValue += prevUtxo.value
-        const isOurPrevUtxo = prevUtxo.script && prevUtxo.script.equals(myScript)
+        const isOurPrevUtxo = prevUtxo.script && compare(prevUtxo.script, myScript) === 0
         isOutgoingTx = isOutgoingTx || isOurPrevUtxo
       }
 
@@ -349,7 +349,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
       for (let vout = 0; vout < utxos.length; vout++) {
         const utxo = utxos[vout]
         const utxoValue = BigInt(utxo.value)
-        const isSelfUtxo = utxo.script.equals(myScript)
+        const isSelfUtxo = compare(utxo.script, myScript) === 0
         let directionType = null
         if (isSelfUtxo && !isOutgoingTx) directionType = 'incoming'
         else if (!isSelfUtxo && isOutgoingTx) directionType = 'outgoing'
@@ -474,21 +474,21 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
           psbt.addInput({
             ...baseInput,
             witnessUtxo: {
-              script: Buffer.from(utxo.vout.scriptPubKey.hex, 'hex'),
-              value: Number(utxo.value)
+              script: fromHex(utxo.vout.scriptPubKey.hex),
+              value: utxo.vout.value
             }
           })
         } else {
           const prevHex = await getPrevTxHex(utxo.tx_hash)
           psbt.addInput({
             ...baseInput,
-            nonWitnessUtxo: Buffer.from(prevHex, 'hex')
+            nonWitnessUtxo: fromHex(prevHex)
           })
         }
       }
 
-      psbt.addOutput({ address: to, value: Number(rcptVal) })
-      if (chgVal > 0n) psbt.addOutput({ address: await this.getAddress(), value: Number(chgVal) })
+      psbt.addOutput({ address: to, value: rcptVal })
+      if (chgVal > 0n) psbt.addOutput({ address: await this.getAddress(), value: chgVal })
 
       utxos.forEach((_, index) => psbt.signInputHD(index, this._masterNode))
       psbt.finalizeAllInputs()

@@ -15,6 +15,7 @@
 
 import { NotImplementedError } from '@tetherto/wdk-wallet'
 import { address as btcAddress, crypto } from 'bitcoinjs-lib'
+import { toHex } from 'uint8array-tools'
 
 /**
  * @typedef {Object} BtcClientConfig
@@ -144,5 +145,5 @@ export default class IBtcClient {
 export function toScriptHash (address, network) {
   const script = btcAddress.toOutputScript(address, network)
   const hash = crypto.sha256(script)
-  return Buffer.from(hash).reverse().toString('hex')
+  return toHex(Uint8Array.from(hash).reverse())
 }
