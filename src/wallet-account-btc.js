@@ -92,7 +92,7 @@ function derivePath (seed, path) {
   return { masterNode, account }
 }
 
-/** @implements {IWalletAccount} */
+/** @implements {IWalletAccount<string>} */
 export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
   /**
    * Creates a new bitcoin wallet account.
@@ -217,25 +217,64 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
   }
 
   /**
+   * Quotes the costs of a send transaction operation.
+   *
+   * @param {BtcTransaction | string} tx - The transaction, or a signed raw transaction as a hex string.
+   * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transaction's quotes.
+   */
+  async quoteSendTransaction (tx) {
+    if (typeof tx === 'string') {
+      await this._ensureConnected()
+
+      const transaction = Transaction.fromHex(tx)
+      const fee = await this._getSignedTransactionFee(transaction)
+
+      return { fee }
+    }
+
+    return await super.quoteSendTransaction(tx)
+  }
+
+  /**
    * Sends a transaction.
    *
-   * @param {BtcTransaction} tx - The transaction.
+   * @param {BtcTransaction | string} tx - The transaction, or a signed raw transaction as a hex string.
    * @param {number} [timeoutMs] - Maximum milliseconds to poll for spent inputs to disappear from unspent outputs after broadcast.
    * @returns {Promise<TransactionResult>} The transaction's result.
    * @throws {Error} If the transaction's cost exceeds the maximum transaction fee option.
    */
-  async sendTransaction ({ to, value, feeRate, confirmationTarget = 1 }, timeoutMs = 10000) {
-    const { tx, utxos } = await this._buildSignedTransaction({ to, value, feeRate, confirmationTarget })
+  async sendTransaction (tx, timeoutMs = 10000) {
+    await this._ensureConnected()
 
-    if (this._config.transactionMaxFee !== undefined && tx.fee > this._config.transactionMaxFee) {
+    let hex, txid, fee, spentOutpoints
+
+    if (typeof tx === 'string') {
+      const transaction = Transaction.fromHex(tx)
+
+      hex = tx
+      txid = transaction.getId()
+      fee = await this._getSignedTransactionFee(transaction)
+      spentOutpoints = new Set(
+        transaction.ins.map((input) => `${Buffer.from(input.hash).reverse().toString('hex')}:${input.index}`)
+      )
+    } else {
+      const { to, value, feeRate, confirmationTarget = 1 } = tx
+      const { tx: builtTx, utxos } = await this._buildSignedTransaction({ to, value, feeRate, confirmationTarget })
+
+      hex = builtTx.hex
+      txid = builtTx.txid
+      fee = builtTx.fee
+      spentOutpoints = new Set(utxos.map(({ tx_hash: txHash, tx_pos: txPos }) => `${txHash}:${txPos}`))
+    }
+
+    if (this._config.transactionMaxFee !== undefined && fee > this._config.transactionMaxFee) {
       throw new Error('Exceeded maximum fee cost for transaction operation.')
     }
 
     const address = await this.getAddress()
     let retries = Math.ceil(timeoutMs / POLLING_INTERVAL)
-    const spentOutpoints = new Set(utxos.map(({ tx_hash: txHash, tx_pos: txPos }) => `${txHash}:${txPos}`))
 
-    await this._client.broadcast(tx.hex)
+    await this._client.broadcast(hex)
 
     while (retries > 0) {
       retries -= 1
@@ -249,7 +288,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
       if (!hasSpentOutpoints) break
     }
 
-    return { hash: tx.txid, fee: tx.fee }
+    return { hash: txid, fee }
   }
 
   /**
@@ -438,6 +477,34 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     })
 
     super.dispose()
+  }
+
+  /**
+   * Computes the fee of a signed raw transaction by resolving the value of each
+   * spent input from the blockchain and subtracting the total output value.
+   *
+   * @private
+   * @param {Transaction} transaction - The decoded signed transaction.
+   * @returns {Promise<bigint>} The fee (in satoshis).
+   */
+  async _getSignedTransactionFee (transaction) {
+    let totalInput = 0n
+
+    for (const input of transaction.ins) {
+      const prevTxId = Buffer.from(input.hash).reverse().toString('hex')
+      const prevHex = await this._client.getTransaction(prevTxId)
+      const prevTx = Transaction.fromHex(prevHex)
+
+      totalInput += BigInt(prevTx.outs[input.index].value)
+    }
+
+    let totalOutput = 0n
+
+    for (const output of transaction.outs) {
+      totalOutput += BigInt(output.value)
+    }
+
+    return totalInput - totalOutput
   }
 
   /** @private */

@@ -117,9 +117,11 @@ export default class BitcoinCli {
     return Math.max(Math.round(feeRate * 100_000), 1)
   }
 
-  getTransactionFeeSats (txid) {
-    const tx = this.getRawTransactionVerbose(txid)
+  decodeRawTransaction (hex) {
+    return this.call(`decoderawtransaction ${hex}`)
+  }
 
+  _computeFeeSats (tx) {
     const inputTotal = tx.vin.reduce((sum, vin) => {
       const prev = this.getRawTransactionVerbose(vin.txid)
       const prevOut = prev.vout[vin.vout]
@@ -130,8 +132,14 @@ export default class BitcoinCli {
       return sum + Math.round(out.value * 1e8)
     }, 0)
 
-    const feeSats = inputTotal - outputTotal
+    return inputTotal - outputTotal
+  }
 
-    return feeSats
+  getTransactionFeeSats (txid) {
+    return this._computeFeeSats(this.getRawTransactionVerbose(txid))
+  }
+
+  getRawTransactionFeeSats (hex) {
+    return this._computeFeeSats(this.decodeRawTransaction(hex))
   }
 }

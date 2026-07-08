@@ -1,5 +1,5 @@
 /** @implements {IWalletAccount} */
-export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implements IWalletAccount {
+export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implements IWalletAccount<string> {
     /**
      * Creates a new bitcoin wallet account.
      *
@@ -54,14 +54,21 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      */
     signTransaction({ to, value, feeRate, confirmationTarget }: BtcTransaction): Promise<string>;
     /**
+     * Quotes the costs of a send transaction operation.
+     *
+     * @param {BtcTransaction | string} tx - The transaction, or a signed raw transaction as a hex string.
+     * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transaction's quotes.
+     */
+    quoteSendTransaction(tx: BtcTransaction | string): Promise<Omit<TransactionResult, "hash">>;
+    /**
      * Sends a transaction.
      *
-     * @param {BtcTransaction} tx - The transaction.
+     * @param {BtcTransaction | string} tx - The transaction, or a signed raw transaction as a hex string.
      * @param {number} [timeoutMs] - Maximum milliseconds to poll for spent inputs to disappear from unspent outputs after broadcast.
      * @returns {Promise<TransactionResult>} The transaction's result.
      * @throws {Error} If the transaction's cost exceeds the maximum transaction fee option.
      */
-    sendTransaction({ to, value, feeRate, confirmationTarget }: BtcTransaction, timeoutMs?: number): Promise<TransactionResult>;
+    sendTransaction(tx: BtcTransaction | string, timeoutMs?: number): Promise<TransactionResult>;
     /**
      * Transfers a token to another address.
      *
@@ -94,9 +101,11 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      */
     dispose(): void;
     /** @private */
+    private _getSignedTransactionFee;
+    /** @private */
     private _getRawTransaction;
 }
-export type IWalletAccount = import("@tetherto/wdk-wallet").IWalletAccount;
+export type IWalletAccount<TSignedTransaction> = import("@tetherto/wdk-wallet").IWalletAccount<TSignedTransaction>;
 export type KeyPair = import("@tetherto/wdk-wallet").KeyPair;
 export type TransactionResult = import("@tetherto/wdk-wallet").TransactionResult;
 export type TransferOptions = import("@tetherto/wdk-wallet").TransferOptions;
