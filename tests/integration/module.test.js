@@ -226,7 +226,7 @@ describe.each([44, 84])('@wdk/wallet-btc (BIP %i)', (bip) => {
     for (const account of [account0, account1]) {
       expect(account.keyPair.privateKey).toEqual(null)
       await expect(account.sendTransaction({ to: await account.getAddress(), value: 1_000n })).rejects.toThrow()
-      await expect(account.sign(MESSAGE)).rejects.toThrow("private key should be a Buffer")
+      await expect(account.sign(MESSAGE)).rejects.toThrow('Expected Private')
     }
   })
 })
