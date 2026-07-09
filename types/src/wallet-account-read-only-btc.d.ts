@@ -47,7 +47,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @private
      * @type {bigint}
      */
-    private _dustLimit;
+    private _dustLimit: bigint;
     /**
      * Returns the account's bitcoin balance.
      *
@@ -83,21 +83,25 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      */
     getTransactionReceipt(hash: string): Promise<BtcTransactionReceipt | null>;
     /**
-     * Returns the maximum spendable amount (in satoshis) that can be sent in
+     * Returns an estimation of the maximum spendable amount (in satoshis) that can be sent in
      * a single transaction, after subtracting estimated transaction fees.
      *
-     * The maximum spendable amount can differ from the wallet's total balance.
+     * The estimated maximum spendable amount can differ from the wallet's total balance.
      * A transaction can only include up to MAX_UTXO_INPUTS (default: 200) unspents.
      * Wallets holding more than this limit cannot spend their full balance in a
-     * single transaction.
+     * single transaction. There will likely be some satoshis left over as change.
      *
      * @param {Object} [opts] - Options.
      * @param {number | bigint} [opts.feeRate] - Fee rate in sat/vB. If omitted, estimated via the client.
-     * @returns {Promise<BtcMaxSpendableResult>} The maximum spendable result.
+     * @returns {Promise<BtcMaxSpendableResult>} The estimated maximum spendable result.
      */
     getMaxSpendable(opts?: {
         feeRate?: number | bigint;
     }): Promise<BtcMaxSpendableResult>;
+    /**
+     * Closes any internal connection with the server.
+     */
+    dispose(): void;
     /**
      * Ensures the client is connected.
      *
@@ -156,6 +160,8 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 export type MempoolElectrumConfig = import("./transports/index.js").MempoolElectrumConfig;
 export type MempoolElectrumClient = import("./transports/index.js").MempoolElectrumClient;
 export type IBtcClient = import("./transports/index.js").IBtcClient;
+export type BlockbookClientConfig = import("./transports/blockbook-client.js").BlockbookClientConfig;
+export type ElectrumWsConfig = import("./transports/ws.js").ElectrumWsConfig;
 export type OutputWithValue = import("@bitcoinerlab/coinselect").OutputWithValue;
 export type Network = import("bitcoinjs-lib").Network;
 export type BtcTransactionReceipt = import("bitcoinjs-lib").Transaction;
@@ -180,13 +186,40 @@ export type BtcTransaction = {
      */
     feeRate?: number | bigint;
 };
-export type BtcClientDescriptor =
-    | { type: 'blockbook-http', clientConfig: import("./transports/blockbook-client.js").BlockbookClientConfig }
-    | { type: 'electrum-ws', clientConfig: import("./transports/ws.js").ElectrumWsConfig }
-    | { type: 'electrum', clientConfig: MempoolElectrumConfig };
+export type BtcClientDescriptor = BtcBlockbookHttpClientDescriptor | BtcElectrumClientDescriptor | BtcElectrumWsClientDescriptor;
+export type BtcBlockbookHttpClientDescriptor = {
+    /**
+     * - The client's type.
+     */
+    type: "blockbook-http";
+    /**
+     * - The client's configuration.
+     */
+    clientConfig: BlockbookClientConfig;
+};
+export type BtcElectrumWsClientDescriptor = {
+    /**
+     * - Use a WebSocket Electrum client.
+     */
+    type: "electrum-ws";
+    /**
+     * - The WebSocket client configuration.
+     */
+    clientConfig: Omit<ElectrumWsConfig, "network">;
+};
+export type BtcElectrumClientDescriptor = {
+    /**
+     * - Use a TCP/TLS/SSL Electrum client.
+     */
+    type: "electrum";
+    /**
+     * - The Electrum client configuration.
+     */
+    clientConfig: Omit<MempoolElectrumConfig, "network">;
+};
 export type BtcWalletConfig = {
     /**
-     * - The bitcoin client: a pre-built IBtcClient, a descriptor { type, config }, or an array for failover.
+     * - The bitcoin client, or a list of bitcoin client options for connection fallback.
      */
     client?: IBtcClient | BtcClientDescriptor | Array<IBtcClient | BtcClientDescriptor>;
     /**
@@ -195,9 +228,9 @@ export type BtcWalletConfig = {
     network?: "bitcoin" | "regtest" | "testnet";
     /**
      * - The BIP address type used for key and address derivation.
-     *   - 44: [BIP-44 (P2PKH / legacy)](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)
-     *   - 84: [BIP-84 (P2WPKH / native SegWit)](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki)
-     *   - Default: 84 (P2WPKH).
+     * - 44: [BIP-44 (P2PKH / legacy)](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)
+     * - 84: [BIP-84 (P2WPKH / native SegWit)](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki)
+     * - Default: 84 (P2WPKH).
      */
     bip?: 44 | 84;
     /**

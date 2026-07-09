@@ -1,12 +1,4 @@
 /**
- * @typedef {Object} BlockbookClientConfig
- * @property {string} url - The Blockbook server base URL (e.g., 'https://btc1.trezor.io/api').
- */
-/** @typedef {import('./btc-client.js').default} IBtcClient */
-/** @typedef {import('./btc-client.js').BtcBalance} BtcBalance */
-/** @typedef {import('./btc-client.js').BtcUtxo} BtcUtxo */
-/** @typedef {import('./btc-client.js').BtcHistoryItem} BtcHistoryItem */
-/**
  * Stateless BTC client backed by the Blockbook v2 REST API.
  *
  * @implements {IBtcClient}
@@ -22,7 +14,7 @@ export default class BlockbookClient implements IBtcClient {
      * @private
      * @type {string}
      */
-    private _baseUrl;
+    private _baseUrl: string;
     /**
      * Establishes the connection to the server.
      * Blockbook is a stateless REST API, so clients don't need to call this method.
@@ -90,20 +82,29 @@ export default class BlockbookClient implements IBtcClient {
      * @throws {Error} If fee estimation is unavailable from both sources.
      */
     estimateFee(blocks: number): Promise<number>;
-    /** @private */
+    /**
+     * @private
+     * @param {number} blocks
+     * @returns {Promise<number | null>} Fee rate in BTC/kB, or null if unavailable.
+     */
     private _estimateFeeFromBlockbook;
-    /** @private */
+    /**
+     * @private
+     * @param {number} blocks
+     * @returns {Promise<number>} Fee rate in BTC/kB.
+     * @throws {Error} If fee estimation is unavailable.
+     */
     private _estimateFeeFromMempool;
     /** @private */
     private _get;
 }
-export type BlockbookClientConfig = {
-    /**
-     * - The Blockbook server base URL (e.g., 'https://btc1.trezor.io/api').
-     */
-    url: string;
-};
 export type IBtcClient = import("./btc-client.js").default;
 export type BtcBalance = import("./btc-client.js").BtcBalance;
 export type BtcUtxo = import("./btc-client.js").BtcUtxo;
 export type BtcHistoryItem = import("./btc-client.js").BtcHistoryItem;
+export type BlockbookClientConfig = {
+    /**
+     * - The Blockbook server API base URL (e.g., 'https://btc1.trezor.io/api').
+     */
+    url: string;
+};

@@ -1,24 +1,3 @@
-/**
- * @typedef {Object} BtcClientConfig
- * @property {number} [timeout] - Connection timeout in milliseconds (default: 15_000).
- */
-/**
- * @typedef {Object} BtcBalance
- * @property {number} confirmed - Confirmed balance in satoshis.
- * @property {number} [unconfirmed] - Unconfirmed balance in satoshis.
- */
-/**
- * @typedef {Object} BtcUtxo
- * @property {string} tx_hash - The transaction hash containing this UTXO.
- * @property {number} tx_pos - The output index within the transaction.
- * @property {number} value - The UTXO value in satoshis.
- * @property {number} [height] - The block height (0 if unconfirmed).
- */
-/**
- * @typedef {Object} BtcHistoryItem
- * @property {string} tx_hash - The transaction hash.
- * @property {number} height - The block height (0 or negative if unconfirmed).
- */
 /** @interface */
 export default interface IBtcClient {
     /**
