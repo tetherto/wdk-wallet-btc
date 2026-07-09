@@ -178,6 +178,9 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
   /**
    * Returns the account's bitcoin balance.
    *
+   * Unconfirmed incoming funds aren't counted, since they aren't spendable
+   * yet. Unconfirmed outgoing funds are subtracted immediately
+   * 
    * @returns {Promise<bigint>} The bitcoin balance (in satoshis).
    */
   async getBalance () {
@@ -185,9 +188,9 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
     const address = await this.getAddress()
 
-    const { confirmed, unconfirmed } = await this._client.getBalance(address)
+    const { confirmed, unconfirmedOutgoing } = await this._client.getBalance(address)
 
-    return BigInt(confirmed + (unconfirmed || 0))
+    return BigInt(confirmed - (unconfirmedOutgoing || 0))
   }
 
   /**

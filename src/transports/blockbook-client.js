@@ -21,6 +21,37 @@
 const MEMPOOL_SPACE_URL = 'https://mempool.space'
 
 /**
+ * Sums the amount leaving an address through its unconfirmed transactions,
+ * excluding change returned to the same address.
+ *
+ * @param {Array<Object>} [transactions] - Transactions returned for the address.
+ * @param {string} address - The bitcoin address.
+ * @returns {number} Unconfirmed outgoing amount in satoshis.
+ */
+function getUnconfirmedOutgoing (transactions, address) {
+  return (transactions || [])
+    .filter(tx => tx.blockHeight === -1)
+    .reduce((total, tx) => {
+      const spent = sumOwnedValues(tx.vin, address)
+      if (spent === 0) return total
+
+      const change = sumOwnedValues(tx.vout, address)
+      return total + (spent - change)
+    }, 0)
+}
+
+/**
+ * @param {Array<Object>} [entries] - Transaction vin or vout entries.
+ * @param {string} address - The bitcoin address.
+ * @returns {number} Sum of entry values belonging to the address.
+ */
+function sumOwnedValues (entries, address) {
+  return (entries || [])
+    .filter(entry => entry.isAddress && entry.addresses?.includes(address))
+    .reduce((total, entry) => total + Number(entry.value), 0)
+}
+
+/**
  * @typedef {Object} BlockbookClientConfig
  * @property {string} url - The Blockbook server API base URL (e.g., 'https://btc1.trezor.io/api').
  */
@@ -77,11 +108,14 @@ export default class BlockbookClient {
    * @returns {Promise<BtcBalance>} The balance information.
    */
   async getBalance (address) {
-    const data = await this._get(`/v2/address/${address}?details=basic`)
+    const data = await this._get(`/v2/address/${address}?details=txs`)
+
+    const unconfirmedOutgoing = getUnconfirmedOutgoing(data.transactions, address)
 
     return {
       confirmed: Number(data.balance),
-      unconfirmed: Number(data.unconfirmedBalance)
+      unconfirmed: Number(data.unconfirmedBalance),
+      unconfirmedOutgoing
     }
   }
 

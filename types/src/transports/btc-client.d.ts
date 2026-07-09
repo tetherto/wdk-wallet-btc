@@ -108,6 +108,10 @@ export type BtcBalance = {
      * - Unconfirmed balance in satoshis.
      */
     unconfirmed?: number;
+    /**
+     * - Amount leaving the address through unconfirmed transactions, in satoshis.
+     */
+    unconfirmedOutgoing?: number;
 };
 export type BtcUtxo = {
     /**

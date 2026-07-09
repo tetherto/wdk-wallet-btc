@@ -25,6 +25,7 @@ import { address as btcAddress, crypto } from 'bitcoinjs-lib'
  * @typedef {Object} BtcBalance
  * @property {number} confirmed - Confirmed balance in satoshis.
  * @property {number} [unconfirmed] - Unconfirmed balance in satoshis.
+ * @property {number} [unconfirmedOutgoing] - Amount leaving the address through unconfirmed transactions, in satoshis.
  */
 
 /**
