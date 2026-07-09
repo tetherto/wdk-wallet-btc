@@ -180,7 +180,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    *
    * Unconfirmed incoming funds aren't counted, since they aren't spendable
    * yet. Unconfirmed outgoing funds are subtracted immediately
-   * 
+   *
    * @returns {Promise<bigint>} The bitcoin balance (in satoshis).
    */
   async getBalance () {

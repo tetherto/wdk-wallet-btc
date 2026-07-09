@@ -14,6 +14,118 @@ describe('BlockbookClient', () => {
     client = new BlockbookClient({ url: 'https://example.com/api' })
   })
 
+  describe('getBalance', () => {
+    const ADDRESS = 'MOCK_ADDRESS'
+
+    function mockBlockbookAddress (data) {
+      return {
+        ok: true,
+        json: jest.fn().mockResolvedValue(data)
+      }
+    }
+
+    test('should return the confirmed balance with no outgoing when there are no pending transactions', async () => {
+      fetchMock.mockResolvedValueOnce(mockBlockbookAddress({
+        balance: '100000',
+        unconfirmedBalance: '0',
+        transactions: []
+      }))
+
+      const balance = await client.getBalance(ADDRESS)
+
+      expect(fetchMock).toHaveBeenCalledWith(`https://example.com/api/v2/address/${ADDRESS}?details=txs`)
+      expect(balance).toEqual({ confirmed: 100000, unconfirmed: 0, unconfirmedOutgoing: 0 })
+    })
+
+    test('should not count a pending incoming transaction as outgoing', async () => {
+      fetchMock.mockResolvedValueOnce(mockBlockbookAddress({
+        balance: '100000',
+        unconfirmedBalance: '50000',
+        transactions: [{
+          blockHeight: -1,
+          vin: [{ isAddress: true, addresses: ['ANOTHER_MOCK_ADDRESS'], value: '50000' }],
+          vout: [{ isAddress: true, addresses: [ADDRESS], value: '50000' }]
+        }]
+      }))
+
+      const balance = await client.getBalance(ADDRESS)
+
+      expect(balance.unconfirmedOutgoing).toBe(0)
+    })
+
+    test('should compute the outgoing amount for a pending send with change back to the same address', async () => {
+      fetchMock.mockResolvedValueOnce(mockBlockbookAddress({
+        balance: '100000',
+        unconfirmedBalance: '-45000',
+        transactions: [{
+          blockHeight: -1,
+          vin: [{ isAddress: true, addresses: [ADDRESS], value: '50000' }],
+          vout: [
+            { isAddress: true, addresses: [ADDRESS], value: '5000' },
+            { isAddress: true, addresses: ['MOCK_RECIPIENT'], value: '44000' }
+          ]
+        }]
+      }))
+
+      const balance = await client.getBalance(ADDRESS)
+
+      expect(balance.unconfirmedOutgoing).toBe(45000)
+    })
+
+    test('should only count the outgoing side when a pending receive and a pending send happen together', async () => {
+      fetchMock.mockResolvedValueOnce(mockBlockbookAddress({
+        balance: '100000',
+        unconfirmedBalance: '55000',
+        transactions: [
+          {
+            blockHeight: -1,
+            vin: [{ isAddress: true, addresses: ['someone-else'], value: '200000' }],
+            vout: [{ isAddress: true, addresses: [ADDRESS], value: '200000' }]
+          },
+          {
+            blockHeight: -1,
+            vin: [{ isAddress: true, addresses: [ADDRESS], value: '150000' }],
+            vout: [
+              { isAddress: true, addresses: [ADDRESS], value: '5000' },
+              { isAddress: true, addresses: ['recipient'], value: '144000' }
+            ]
+          }
+        ]
+      }))
+
+      const balance = await client.getBalance(ADDRESS)
+
+      expect(balance.unconfirmedOutgoing).toBe(145000)
+    })
+
+    test('should ignore confirmed transactions when computing the outgoing amount', async () => {
+      fetchMock.mockResolvedValueOnce(mockBlockbookAddress({
+        balance: '100000',
+        unconfirmedBalance: '0',
+        transactions: [{
+          blockHeight: 800000,
+          vin: [{ isAddress: true, addresses: [ADDRESS], value: '50000' }],
+          vout: [{ isAddress: true, addresses: ['recipient'], value: '49000' }]
+        }]
+      }))
+
+      const balance = await client.getBalance(ADDRESS)
+
+      expect(balance.unconfirmedOutgoing).toBe(0)
+    })
+
+    test('should default to no outgoing when the transactions field is missing', async () => {
+      fetchMock.mockResolvedValueOnce(mockBlockbookAddress({
+        balance: '100000',
+        unconfirmedBalance: '0'
+      }))
+
+      const balance = await client.getBalance(ADDRESS)
+
+      expect(balance.unconfirmedOutgoing).toBe(0)
+    })
+  })
+
   describe('estimateFee', () => {
     const MEMPOOL_FEES = {
       fastestFee: 50,
