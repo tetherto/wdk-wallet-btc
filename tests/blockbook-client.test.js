@@ -42,8 +42,9 @@ describe('BlockbookClient', () => {
         balance: '100000',
         unconfirmedBalance: '50000',
         transactions: [{
+          txid: 'tx1',
           blockHeight: -1,
-          vin: [{ isAddress: true, addresses: ['ANOTHER_MOCK_ADDRESS'], value: '50000' }],
+          vin: [{ isAddress: true, addresses: ['ANOTHER_MOCK_ADDRESS'], value: '50000', txid: 'prev-confirmed-tx' }],
           vout: [{ isAddress: true, addresses: [ADDRESS], value: '50000' }]
         }]
       }))
@@ -58,8 +59,9 @@ describe('BlockbookClient', () => {
         balance: '100000',
         unconfirmedBalance: '-45000',
         transactions: [{
+          txid: 'tx1',
           blockHeight: -1,
-          vin: [{ isAddress: true, addresses: [ADDRESS], value: '50000' }],
+          vin: [{ isAddress: true, addresses: [ADDRESS], value: '50000', txid: 'prev-confirmed-tx' }],
           vout: [
             { isAddress: true, addresses: [ADDRESS], value: '5000' },
             { isAddress: true, addresses: ['MOCK_RECIPIENT'], value: '44000' }
@@ -78,13 +80,15 @@ describe('BlockbookClient', () => {
         unconfirmedBalance: '55000',
         transactions: [
           {
+            txid: 'tx1',
             blockHeight: -1,
-            vin: [{ isAddress: true, addresses: ['someone-else'], value: '200000' }],
+            vin: [{ isAddress: true, addresses: ['someone-else'], value: '200000', txid: 'prev-someone-else-tx' }],
             vout: [{ isAddress: true, addresses: [ADDRESS], value: '200000' }]
           },
           {
+            txid: 'tx2',
             blockHeight: -1,
-            vin: [{ isAddress: true, addresses: [ADDRESS], value: '150000' }],
+            vin: [{ isAddress: true, addresses: [ADDRESS], value: '150000', txid: 'prev-confirmed-tx' }],
             vout: [
               { isAddress: true, addresses: [ADDRESS], value: '5000' },
               { isAddress: true, addresses: ['recipient'], value: '144000' }
@@ -96,6 +100,66 @@ describe('BlockbookClient', () => {
       const balance = await client.getBalance(ADDRESS)
 
       expect(balance.unconfirmedOutgoing).toBe(145000)
+    })
+
+    test('should not go negative when a pending send spends the address\'s own pending receive (0-conf chaining)', async () => {
+      fetchMock.mockResolvedValueOnce(mockBlockbookAddress({
+        balance: '0',
+        unconfirmedBalance: '9000',
+        transactions: [
+          {
+            txid: 'tx1',
+            blockHeight: -1,
+            vin: [{ isAddress: true, addresses: ['someone-else'], value: '50000', txid: 'prev-someone-else-tx' }],
+            vout: [{ isAddress: true, addresses: [ADDRESS], value: '50000' }]
+          },
+          {
+            txid: 'tx2',
+            blockHeight: -1,
+            vin: [{ isAddress: true, addresses: [ADDRESS], value: '50000', txid: 'tx1' }],
+            vout: [
+              { isAddress: true, addresses: [ADDRESS], value: '29000' },
+              { isAddress: true, addresses: ['recipient'], value: '20000' }
+            ]
+          }
+        ]
+      }))
+
+      const balance = await client.getBalance(ADDRESS)
+
+      expect(balance.unconfirmedOutgoing).toBe(0)
+      expect(balance.confirmed - balance.unconfirmedOutgoing).toBe(0)
+    })
+
+    test('should only count the confirmed-sourced input when a pending send mixes a confirmed and a chained input', async () => {
+      fetchMock.mockResolvedValueOnce(mockBlockbookAddress({
+        balance: '500000',
+        unconfirmedBalance: '460000',
+        transactions: [
+          {
+            txid: 'tx1',
+            blockHeight: -1,
+            vin: [{ isAddress: true, addresses: ['someone-else'], value: '50000', txid: 'prev-someone-else-tx' }],
+            vout: [{ isAddress: true, addresses: [ADDRESS], value: '50000' }]
+          },
+          {
+            txid: 'tx2',
+            blockHeight: -1,
+            vin: [
+              { isAddress: true, addresses: [ADDRESS], value: '500000', txid: 'prev-confirmed-tx' },
+              { isAddress: true, addresses: [ADDRESS], value: '50000', txid: 'tx1' }
+            ],
+            vout: [
+              { isAddress: true, addresses: [ADDRESS], value: '40000' },
+              { isAddress: true, addresses: ['recipient'], value: '510000' }
+            ]
+          }
+        ]
+      }))
+
+      const balance = await client.getBalance(ADDRESS)
+
+      expect(balance.unconfirmedOutgoing).toBe(460000)
     })
 
     test('should ignore confirmed transactions when computing the outgoing amount', async () => {

@@ -22,22 +22,26 @@ const MEMPOOL_SPACE_URL = 'https://mempool.space'
 
 /**
  * Sums the amount leaving an address through its unconfirmed transactions,
- * excluding change returned to the same address.
+ * excluding change returned to the same address and inputs that spend the
+ * address's own other unconfirmed transactions (0-conf chaining), since that
+ * value was never part of the confirmed balance to begin with.
  *
  * @param {Array<Object>} [transactions] - Transactions returned for the address.
  * @param {string} address - The bitcoin address.
  * @returns {number} Unconfirmed outgoing amount in satoshis.
  */
 function getUnconfirmedOutgoing (transactions, address) {
-  return (transactions || [])
-    .filter(tx => tx.blockHeight === -1)
-    .reduce((total, tx) => {
-      const spent = sumOwnedValues(tx.vin, address)
-      if (spent === 0) return total
+  const pending = (transactions || []).filter(tx => tx.blockHeight === -1)
+  const pendingTxids = new Set(pending.map(tx => tx.txid))
 
-      const change = sumOwnedValues(tx.vout, address)
-      return total + (spent - change)
-    }, 0)
+  return pending.reduce((total, tx) => {
+    const vin = (tx.vin || []).filter(entry => !pendingTxids.has(entry.txid))
+    const spent = sumOwnedValues(vin, address)
+    if (spent === 0) return total
+
+    const change = sumOwnedValues(tx.vout, address)
+    return total + (spent - change)
+  }, 0)
 }
 
 /**
