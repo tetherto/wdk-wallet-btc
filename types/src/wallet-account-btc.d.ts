@@ -30,7 +30,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
     get path(): string;
     /**
      * The account's key pair.
-     * 
+     *
      * The uint8 arrays are bound to the wallet account, so any external change will reflect to the internal representation. For this reason,
      * it's strongly recommended to treat the key pair as a read-only view of the keys. While it's still technically possible to alter their
      * content, client code should never do so.
@@ -96,14 +96,13 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      * @returns {Promise<WalletAccountReadOnlyBtc>} The read-only account.
      */
     toReadOnlyAccount(): Promise<WalletAccountReadOnlyBtc>;
-    /**
-     * Disposes the wallet account, erasing the private key from memory and closing the connection with the server.
-     */
-    dispose(): void;
+    _btcReadOnlyAccount: WalletAccountReadOnlyBtc;
     /** @private */
     private _getSignedTransactionFee;
     /** @private */
     private _getRawTransaction;
+    /** @private */
+    private _buildSignedTransaction;
 }
 export type IWalletAccount<TSignedTransaction> = import("@tetherto/wdk-wallet").IWalletAccount<TSignedTransaction>;
 export type KeyPair = import("@tetherto/wdk-wallet").KeyPair;

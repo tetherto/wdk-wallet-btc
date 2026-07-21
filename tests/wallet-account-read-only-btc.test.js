@@ -210,3 +210,30 @@ describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
     })
   })
 })
+
+describe('WalletAccountReadOnlyBtc getBalance formula', () => {
+  function stubClient (balance) {
+    return {
+      connect: async () => {},
+      getBalance: async () => balance
+    }
+  }
+
+  test('should subtract unconfirmedOutgoing when the client reports it', async () => {
+    const account = new WalletAccountReadOnlyBtc(ADDRESSES[84], { network: 'regtest' })
+    account._client = stubClient({ confirmed: 100_000, unconfirmed: 999_999, unconfirmedOutgoing: 30_000 })
+
+    const balance = await account.getBalance()
+
+    expect(balance).toBe(70_000n)
+  })
+
+  test('should fall back to netting the raw unconfirmed balance when the client does not report unconfirmedOutgoing', async () => {
+    const account = new WalletAccountReadOnlyBtc(ADDRESSES[84], { network: 'regtest' })
+    account._client = stubClient({ confirmed: 100_000, unconfirmed: -30_000 })
+
+    const balance = await account.getBalance()
+
+    expect(balance).toBe(70_000n)
+  })
+})

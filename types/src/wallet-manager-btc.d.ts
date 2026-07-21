@@ -21,13 +21,6 @@ export default class WalletManagerBtc extends WalletManager {
      */
     protected _client: IBtcClient;
     /**
-     * A list that maps each client to a flag that is true only if the client was externally provided.
-     *
-     * @protected
-     * @type {Array<boolean>}
-     */
-    get _isExternalClient(): Array<boolean>;
-    /**
      * Returns the wallet account at a specific index (defaults to [BIP-84](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki); set config.bip=44 for [BIP-44](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)).
      *
      * @example
@@ -52,15 +45,12 @@ export default class WalletManagerBtc extends WalletManager {
      */
     getAccountByPath(path: string): Promise<WalletAccountBtc>;
     /**
-     * Returns the current fee rates.
+     * A list that maps each client to a flag that is true only if the client was externally provided.
      *
-     * @returns {Promise<FeeRates>} The fee rates (in satoshis).
+     * @protected
+     * @type {Array<boolean>}
      */
-    getFeeRates(): Promise<FeeRates>;
-    /**
-     * Disposes all the wallet accounts, erasing their private keys from the memory and closing all internal connections.
-     */
-    dispose(): void;
+    protected get _isExternalClient(): Array<boolean>;
 }
 export type FeeRates = import("@tetherto/wdk-wallet").FeeRates;
 export type BtcWalletConfig = import("./wallet-account-btc.js").BtcWalletConfig;
