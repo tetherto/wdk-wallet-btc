@@ -21,25 +21,64 @@
 const MEMPOOL_SPACE_URL = 'https://mempool.space'
 
 /**
- * Sums the amount leaving an address through its unconfirmed transactions,
- * excluding change returned to the same address and inputs that spend the
- * address's own other unconfirmed transactions (0-conf chaining), since that
- * value was never part of the confirmed balance to begin with.
+ * Sums the amount leaving an address through its unconfirmed transactions.
  *
  * @param {Array<Object>} [transactions] - Transactions returned for the address.
  * @param {string} address - The bitcoin address.
  * @returns {number} Unconfirmed outgoing amount in satoshis.
  */
 function getUnconfirmedOutgoing (transactions, address) {
-  const pending = (transactions || []).filter(tx => tx.blockHeight === -1)
-  const pendingTxids = new Set(pending.map(tx => tx.txid))
+  const pendingTxs = (transactions || []).filter(tx => tx.blockHeight === -1)
+  const pendingTxids = new Set(pendingTxs.map(tx => tx.txid))
+  const pendingTxsById = new Map(pendingTxs.map(tx => [tx.txid, tx]))
 
-  return pending.reduce((total, tx) => {
+  const rootedTxMap = new Map()
+
+  // A tx only counts if its money traces back to confirmed funds - directly,
+  // or by spending another pending tx that is itself rooted. A tx built
+  // entirely from other unconfirmed deposits (nothing rooted upstream) is
+  // ignored, since none of that value was ever part of the confirmed balance.
+  function isRooted (tx) {
+    if (rootedTxMap.has(tx.txid)) return rootedTxMap.get(tx.txid)
+
+    // Assume unrooted while resolving, to guard against any (invalid) cycle.
+    rootedTxMap.set(tx.txid, false)
+
+    const ownedVins = (tx.vin || []).filter(entry => entry.isAddress && entry.addresses?.includes(address))
+
+    const rooted = ownedVins.some(vin => {
+      if (!pendingTxids.has(vin.txid)) return true // spends an already-confirmed output
+
+      const parent = pendingTxsById.get(vin.txid)
+      return isRooted(parent)
+    })
+
+    rootedTxMap.set(tx.txid, rooted)
+    return rooted
+  }
+
+  const rootedTxs = pendingTxs.filter(isRooted)
+
+  // Track every pending output that gets spent further by another rooted tx,
+  // so it's excluded from change below - only the final, unspent tip of a
+  // chain should count as change, not an intermediate hop.
+  const consumedOutpoints = new Set()
+  for (const tx of rootedTxs) {
+    for (const vin of tx.vin || []) {
+      if (pendingTxids.has(vin.txid)) consumedOutpoints.add(`${vin.txid}:${vin.vout}`)
+    }
+  }
+
+  return rootedTxs.reduce((total, tx) => {
+    // Exclude inputs that spend another pending tx's output - that value is
+    // already accounted for by whichever tx produced it (or was never real,
+    // if that tx isn't rooted).
     const vin = (tx.vin || []).filter(entry => !pendingTxids.has(entry.txid))
     const spent = sumOwnedValues(vin, address)
-    if (spent === 0) return total
 
-    const change = sumOwnedValues(tx.vout, address)
+    const vout = (tx.vout || []).filter(entry => !consumedOutpoints.has(`${tx.txid}:${entry.n}`))
+    const change = sumOwnedValues(vout, address)
+
     return total + (spent - change)
   }, 0)
 }
