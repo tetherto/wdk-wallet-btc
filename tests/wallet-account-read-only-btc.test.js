@@ -91,7 +91,7 @@ describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
 
       const vsize = TX_OVERHEAD_VBYTES + INPUT_VBYTES + (2 * OUTPUT_VBYTES)
       const expectedFee = BigInt(Math.max(Math.ceil(vsize * satsPerVByte), MIN_TX_FEE))
-      const dustLimit = account._dustLimit
+      const dustLimit = bip === 44 ? 546n : 294n
       const expectedAmount = STARTING_BALANCE - expectedFee - dustLimit
 
       const result = await account.getMaxSpendable({ feeRate: satsPerVByte })
@@ -110,7 +110,7 @@ describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
         ? bitcoin.call('getnewaddress "" legacy', { rawResult: true })
         : bitcoin.call('getnewaddress "" bech32', { rawResult: true })
       const tmpAccount = new WalletAccountReadOnlyBtc(tmpAddress, CONFIGURATION)
-      const dustLimit = Number(tmpAccount._dustLimit)
+      const dustLimit = bip === 44 ? 546 : 294
 
       const vsizeOneOutput = TX_OVERHEAD_VBYTES + INPUT_VBYTES + OUTPUT_VBYTES
       const feeOneOutput = Math.max(Math.ceil(vsizeOneOutput * satsPerVByte), MIN_TX_FEE)

@@ -42,12 +42,14 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      */
     get _isExternalClient(): Array<boolean>;
     /**
-     * The dust limit in satoshis based on the BIP type.
+     * The dust limit in satoshis based on the BIP type, cached after the first computation.
      *
      * @private
-     * @type {bigint}
+     * @type {bigint | undefined}
      */
-    private _dustLimit: bigint;
+    private _dustLimit: bigint | undefined;
+    /** @private */
+    private _getDustLimit;
     /**
      * Returns the account's bitcoin balance.
      *
@@ -185,7 +187,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @param {string} tx.toAddress - The recipient's address.
      * @param {number | bigint} tx.amount - The amount to send (in satoshis).
      * @param {number | bigint} tx.feeRate - The fee rate (in sats/vB).
-     * @returns {Promise<{ utxos: OutputWithValue[], fee: number, changeValue: number }>} - The funding plan.
+     * @returns {Promise<{ utxos: OutputWithValue[], fee: bigint, changeValue: bigint }>} - The funding plan.
      * @throws {ValueError} If the amount doesn't clear the dust limit, or the spend requires more inputs than allowed.
      * @throws {TransactionError} If the account has no unspent outputs, or its balance doesn't cover the amount and its fees.
      */
@@ -196,8 +198,8 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
         feeRate: number | bigint;
     }): Promise<{
         utxos: OutputWithValue[];
-        fee: number;
-        changeValue: number;
+        fee: bigint;
+        changeValue: bigint;
     }>;
     /**
      * Verifies a message's signature.
@@ -287,22 +289,25 @@ export type BtcElectrumClientDescriptor = {
      */
     clientConfig: Omit<MempoolElectrumConfig, "network">;
 };
-export type BtcWalletConfig = {
-    /**
-     * - The bitcoin client, or a list of bitcoin client options for connection fallback.
-     */
-    client?: IBtcClient | BtcClientDescriptor | Array<IBtcClient | BtcClientDescriptor>;
+/**
+ * The wallet-level key configuration. Wallet classes map `bip` to the signer's address type
+ * (44 → "legacy", 84 → "segwit") when constructing signers.
+ */
+export type BtcKeyConfig = {
     /**
      * - The name of the network to use (default: "bitcoin").
      */
     network?: "bitcoin" | "regtest" | "testnet";
     /**
-     * - The BIP address type used for key and address derivation.
-     * - 44: [BIP-44 (P2PKH / legacy)](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)
-     * - 84: [BIP-84 (P2WPKH / native SegWit)](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki)
-     * - Default: 84 (P2WPKH).
+     * - The BIP address type: 44 (P2PKH / legacy) or 84 (P2WPKH / native SegWit) (default: 84).
      */
     bip?: 44 | 84;
+};
+export type BtcAccountConfig = {
+    /**
+     * - The bitcoin client, or a list of bitcoin client options for connection fallback.
+     */
+    client?: IBtcClient | BtcClientDescriptor | Array<IBtcClient | BtcClientDescriptor>;
     /**
      * - The number of retries in the failover mechanism.
      */
@@ -312,6 +317,10 @@ export type BtcWalletConfig = {
      */
     transactionMaxFee?: number | bigint;
 };
+/**
+ * The wallet configuration, joining the key configuration (network, bip) with the account configuration (client, retries, transactionMaxFee).
+ */
+export type BtcWalletConfig = BtcKeyConfig & BtcAccountConfig;
 export type BtcMaxSpendableResult = {
     /**
      * - The maximum spendable amount in satoshis.

@@ -124,6 +124,7 @@ export default class MempoolElectrumClient {
    */
   async close () {
     this._client.close()
+    this._client.reconnect = () => Promise.resolve()
     this._connected = false
     this._connecting = null
   }
