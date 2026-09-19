@@ -17,6 +17,7 @@ import { ProviderError, ProviderErrorReason } from '@tetherto/wdk-wallet'
 
 import MempoolClient from '@mempool/electrum-client'
 import { networks } from 'bitcoinjs-lib'
+import * as tls from 'node:tls'
 import { toScriptHash } from './btc-client.js'
 
 /**
@@ -35,6 +36,31 @@ import { toScriptHash } from './btc-client.js'
 /** @typedef {import('./btc-client.js').BtcBalance} BtcBalance */
 /** @typedef {import('./btc-client.js').BtcUtxo} BtcUtxo */
 /** @typedef {import('./btc-client.js').BtcHistoryItem} BtcHistoryItem */
+
+const CERTIFICATE_ERROR_CODES = new Set([
+  'CERT_HAS_EXPIRED',
+  'CERT_NOT_YET_VALID',
+  'DEPTH_ZERO_SELF_SIGNED_CERT',
+  'ERR_TLS_CERT_ALTNAME_INVALID',
+  'SELF_SIGNED_CERT_IN_CHAIN',
+  'UNABLE_TO_VERIFY_LEAF_SIGNATURE'
+])
+
+function isCertificateError (error) {
+  return CERTIFICATE_ERROR_CODES.has(error?.code) || /certificate/i.test(error?.message || '')
+}
+
+function createSecureTlsModule (host) {
+  return {
+    connect (options, callback) {
+      return tls.connect({
+        ...options,
+        rejectUnauthorized: true,
+        servername: host
+      }, callback)
+    }
+  }
+}
 
 /**
  * Electrum client using @mempool/electrum-client.
@@ -60,6 +86,12 @@ export default class MempoolElectrumClient {
     } = config
 
     /** @private */
+    this._host = host
+
+    /** @private */
+    this._protocol = protocol
+
+    /** @private */
     this._network = networks[network]
 
     /**
@@ -67,6 +99,21 @@ export default class MempoolElectrumClient {
      * @type {MempoolClient}
      */
     this._client = new MempoolClient(port, host, protocol)
+
+    if (protocol === 'tls' || protocol === 'ssl') {
+      const secureTls = createSecureTlsModule(host)
+      const initSocket = this._client.initSocket.bind(this._client)
+
+      // @mempool/electrum-client@1.1.9 hardcodes rejectUnauthorized: false
+      // in its private TLS wrapper. Keep the replacement scoped to this client.
+      const initSecureSocket = (...args) => {
+        initSocket(...args)
+        this._client.conn._tls = secureTls
+      }
+
+      this._client.initSocket = initSecureSocket
+      this._client.conn._tls = secureTls
+    }
 
     /**
      * @private
@@ -109,6 +156,18 @@ export default class MempoolElectrumClient {
       .initElectrum(this._electrumConfig, this._persistencePolicy)
       .then(() => {
         this._connected = true
+      })
+      .catch(error => {
+        if (this._protocol !== 'tls' && this._protocol !== 'ssl') throw error
+
+        const detail = error instanceof Error ? error.message : String(error)
+        const message = isCertificateError(error)
+          ? `TLS certificate rejected for ${this._host}: ${detail}`
+          : `TLS connection to ${this._host} failed: ${detail}`
+
+        throw new ProviderError(message, {
+          reason: ProviderErrorReason.NETWORK_ERROR
+        })
       })
       .finally(() => {
         this._connecting = null
