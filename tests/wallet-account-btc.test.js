@@ -2,14 +2,14 @@ import { afterAll, beforeAll, describe, expect, test } from '@jest/globals'
 
 import { mnemonicToSeedSync } from 'bip39'
 
-import { address as btcAddress, networks, Transaction } from 'bitcoinjs-lib'
+import { address as btcAddress, networks, payments, Transaction } from 'bitcoinjs-lib'
 
 import { HOST, PORT, ELECTRUM_PORT, ZMQ_PORT, DATA_DIR } from './config.js'
 
 import { BitcoinCli, Waiter } from './helpers/index.js'
 
 import { WalletAccountBtc, WalletAccountReadOnlyBtc } from '../index.js'
-import { MaximumFeeExceededError, TransactionError, TransactionErrorReason, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
+import { AssertionError, MaximumFeeExceededError, TransactionError, TransactionErrorReason, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
 
 const SEED_PHRASE = 'cook voyage document eight skate token alien guide drink uncle term abuse'
 
@@ -648,5 +648,56 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
 
       readOnlyAccount._client.close()
     })
+  })
+})
+
+describe('WalletAccountBtc legacy UTXO verification', () => {
+  const REAL_VALUE = 50_000
+
+  const account = new WalletAccountBtc(SEED_PHRASE, "0'/0/0", {
+    network: 'regtest',
+    bip: 44,
+    client: { connect: async () => {} }
+  })
+
+  const ownScript = btcAddress.toOutputScript(ACCOUNTS[44].address, networks.regtest)
+  const foreignScript = payments.p2pkh({ hash: Buffer.alloc(20, 1), network: networks.regtest }).output
+
+  const buildPrevTxHex = (script, value) => {
+    const tx = new Transaction()
+    tx.addInput(Buffer.alloc(32), 0)
+    tx.addOutput(script, BigInt(value))
+    return tx.toHex()
+  }
+
+  afterAll(() => {
+    account.dispose()
+  })
+
+  test('should throw if a rogue provider points a UTXO at an output that is not the account\'s own', async () => {
+    const prevHex = buildPrevTxHex(foreignScript, REAL_VALUE)
+    const utxo = { tx_hash: 'a'.repeat(64), tx_pos: 0, vout: { value: REAL_VALUE } }
+
+    const promise = account._verifyLegacyUtxos([utxo], async () => prevHex)
+
+    await expect(promise).rejects.toThrow(AssertionError)
+    await expect(promise).rejects.toThrow('Previous output script mismatch')
+  })
+
+  test('should throw if a rogue provider misreports a UTXO\'s real value', async () => {
+    const prevHex = buildPrevTxHex(ownScript, REAL_VALUE)
+    const utxo = { tx_hash: 'b'.repeat(64), tx_pos: 0, vout: { value: REAL_VALUE - 1 } }
+
+    const promise = account._verifyLegacyUtxos([utxo], async () => prevHex)
+
+    await expect(promise).rejects.toThrow(AssertionError)
+    await expect(promise).rejects.toThrow('Previous output value mismatch')
+  })
+
+  test('should not throw when the provider reports the real script and value', async () => {
+    const prevHex = buildPrevTxHex(ownScript, REAL_VALUE)
+    const utxo = { tx_hash: 'c'.repeat(64), tx_pos: 0, vout: { value: REAL_VALUE } }
+
+    await expect(account._verifyLegacyUtxos([utxo], async () => prevHex)).resolves.toBeUndefined()
   })
 })
