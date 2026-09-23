@@ -1,35 +1,62 @@
-/** @implements {IWalletAccount} */
+/** @implements {IWalletAccount<string>} */
 export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implements IWalletAccount<string> {
     /**
-     * Creates a new bitcoin wallet account.
+     * Creates a new bitcoin wallet account from a raw private key.
      *
-     * @param {string | Uint8Array} seed - The wallet's [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) seed phrase.
-     * @param {string} path - The derivation path suffix (e.g. "0'/0/0").
+     * @param {string | Uint8Array} privateKey - The raw private key (hex string or 32 bytes).
+     * @param {Omit<BtcWalletConfig, 'bip'> & Pick<BtcSignerConfig, 'type'>} [config] - The wallet configuration options.
+     * @returns {WalletAccountBtc} The wallet account.
+     * @throws {ValueError} If the private key is not 32 bytes.
+     */
+    static fromPrivateKey(privateKey: string | Uint8Array, config?: Omit<BtcWalletConfig, "bip"> & Pick<BtcSignerConfig, "type">): WalletAccountBtc;
+    /**
+     * Creates a new bitcoin wallet account from a BIP-39 seed, deriving the account's key at the
+     * given derivation path.
+     *
+     * @param {string | Uint8Array} seed - The wallet's BIP-39 seed phrase or seed bytes.
+     * @param {string} path - The derivation path relative to the BIP root (e.g. "0'/0/0").
      * @param {BtcWalletConfig} [config] - The configuration object.
-     * @throws {ValueError} If the seed is a string but not a valid BIP-39 mnemonic.
-     * @throws {ValueError} If the configured bip is not supported.
+     * @throws {ValueError} If the given seed phrase is invalid, or the configured bip is not supported.
      */
     constructor(seed: string | Uint8Array, path: string, config?: BtcWalletConfig);
-    /** @private */
-    private _path;
-    /** @private */
-    private _bip;
-    /** @private */
-    private _masterNode;
-    /** @private */
-    private _account;
     /**
-     * The derivation path's index of this account.
+     * Creates a new bitcoin wallet account from a BIP-39 seed, deriving the account's key at the
+     * first account ("0'/0/0") of the configured network and bip.
      *
-     * @type {number}
+     * @param {string | Uint8Array} seed - The wallet's BIP-39 seed phrase or seed bytes.
+     * @param {BtcWalletConfig} [config] - The configuration object.
+     * @throws {ValueError} If the given seed phrase is invalid, or the configured bip is not supported.
      */
-    get index(): number;
+    constructor(seed: string | Uint8Array, config?: BtcWalletConfig);
     /**
-     * The derivation path of this account.
+     * Creates a new bitcoin wallet account using a signer.
      *
-     * @type {string}
+     * @param {ISignerBtc} signer - The signer.
+     * @param {Omit<BtcWalletConfig, 'network' | 'bip'> & SignerOptions} [config] - The configuration object. The network and address type are taken from the signer.
      */
-    get path(): string;
+    constructor(signer: ISignerBtc, config?: Omit<BtcWalletConfig, "network" | "bip"> & SignerOptions);
+    /**
+     * If true, disposes the signer on calls to the 'dispose' method.
+     *
+     * @protected
+     * @type {boolean}
+     */
+    protected _shouldWipeSignerOnDisposal: boolean;
+    /** @private */
+    private _signer;
+    /**
+     * Returns the account's address.
+     *
+     * @returns {Promise<string>} The account's address.
+     */
+    getAddress(): Promise<string>;
+    /**
+     * The derivation path of this account, or null if the account's signer is not bound to a
+     * derivation position (e.g. private-key signers).
+     *
+     * @type {string | null}
+     */
+    get path(): string | null;
     /**
      * The account's key pair.
      *
@@ -37,9 +64,9 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      * it's strongly recommended to treat the key pair as a read-only view of the keys. While it's still technically possible to alter their
      * content, client code should never do so.
      *
-     * @type {KeyPair}
+     * @type {KeyPair | null}
      */
-    get keyPair(): KeyPair;
+    get keyPair(): KeyPair | null;
     /**
      * Signs a message.
      *
@@ -108,6 +135,11 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      */
     toReadOnlyAccount(): Promise<WalletAccountReadOnlyBtc>;
     _btcReadOnlyAccount: WalletAccountReadOnlyBtc;
+    /**
+     * Disposes the wallet account, erasing the private key from memory and closing the connection with the server.
+     * The signer given at construction is wiped only if the account owns it (see {@link SignerOptions}).
+     */
+    dispose(): void;
     /** @private */
     private _getSignedTransactionFee;
     /** @private */
@@ -122,6 +154,14 @@ export type TransferOptions = import("@tetherto/wdk-wallet").TransferOptions;
 export type TransferResult = import("@tetherto/wdk-wallet").TransferResult;
 export type BtcTransaction = import("./wallet-account-read-only-btc.js").BtcTransaction;
 export type BtcWalletConfig = import("./wallet-account-read-only-btc.js").BtcWalletConfig;
+export type ISignerBtc = import("./signers/signer-btc.js").ISignerBtc;
+export type BtcSignerConfig = import("./signers/signer-btc.js").BtcSignerConfig;
+export type SignerOptions = {
+    /**
+     * - If true, wipes the signer given at construction on calls to the 'dispose' method.
+     */
+    shouldWipeSignerOnDisposal?: boolean;
+};
 export type BtcTransfer = {
     /**
      * - The transaction's id.
