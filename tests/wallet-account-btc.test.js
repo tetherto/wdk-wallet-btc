@@ -2,14 +2,14 @@ import { afterAll, beforeAll, describe, expect, test } from '@jest/globals'
 
 import { mnemonicToSeedSync } from 'bip39'
 
-import { address as btcAddress, networks, Transaction } from 'bitcoinjs-lib'
+import { address as btcAddress, networks, payments, Transaction } from 'bitcoinjs-lib'
 
 import { HOST, PORT, ELECTRUM_PORT, ZMQ_PORT, DATA_DIR } from './config.js'
 
 import { BitcoinCli, Waiter } from './helpers/index.js'
 
 import { WalletAccountBtc, WalletAccountReadOnlyBtc } from '../index.js'
-import { MaximumFeeExceededError, TransactionError, TransactionErrorReason, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
+import { AssertionError, MaximumFeeExceededError, TransactionError, TransactionErrorReason, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
 
 const SEED_PHRASE = 'cook voyage document eight skate token alien guide drink uncle term abuse'
 
@@ -648,5 +648,86 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
 
       readOnlyAccount._client.close()
     })
+  })
+})
+
+describe('WalletAccountBtc legacy UTXO verification', () => {
+  const REAL_VALUE = 50_000
+  const RECIPIENT = ACCOUNTS[84].address
+  const TRANSACTION = { to: RECIPIENT, value: 1_000, feeRate: 1 }
+
+  const ownScript = btcAddress.toOutputScript(ACCOUNTS[44].address, networks.regtest)
+  const foreignScript = payments.p2pkh({ hash: Buffer.alloc(20, 1), network: networks.regtest }).output
+
+  const buildPrevTx = (script, value) => {
+    const tx = new Transaction()
+    tx.addInput(Buffer.alloc(32), 0)
+    tx.addOutput(script, BigInt(value))
+    return tx
+  }
+
+  // A rogue provider can misreport `vout.value` via listUnspent, hand back a fabricated
+  // previous transaction via getTransaction, or claim a txid that doesn't match what
+  // getTransaction actually returns — these three calls/fields model each independently.
+  const createAccount = ({ reportedValue, prevTx, claimedTxHash = prevTx.getId() }) => new WalletAccountBtc(SEED_PHRASE, "0'/0/0", {
+    network: 'regtest',
+    bip: 44,
+    client: {
+      connect: async () => {},
+      listUnspent: async () => [{ tx_hash: claimedTxHash, tx_pos: 0, value: reportedValue }],
+      getTransaction: async () => prevTx.toHex()
+    }
+  })
+
+  test('should throw if a rogue provider returns a transaction that doesn\'t match the claimed txid', async () => {
+    const prevTx = buildPrevTx(ownScript, REAL_VALUE)
+    const account = createAccount({ reportedValue: REAL_VALUE, prevTx, claimedTxHash: 'a'.repeat(64) })
+
+    const promise = account.signTransaction(TRANSACTION)
+
+    await expect(promise).rejects.toThrow(AssertionError)
+    await expect(promise).rejects.toThrow('Previous transaction id mismatch')
+
+    account.dispose()
+  })
+
+  test('should throw if a rogue provider points a UTXO at an output that is not the account\'s own', async () => {
+    const prevTx = buildPrevTx(foreignScript, REAL_VALUE)
+    const account = createAccount({ reportedValue: REAL_VALUE, prevTx })
+
+    const promise = account.signTransaction(TRANSACTION)
+
+    await expect(promise).rejects.toThrow(AssertionError)
+    await expect(promise).rejects.toThrow('Previous output script mismatch')
+
+    account.dispose()
+  })
+
+  test('should throw if a rogue provider misreports a UTXO\'s real value', async () => {
+    const prevTx = buildPrevTx(ownScript, REAL_VALUE)
+    const account = createAccount({ reportedValue: REAL_VALUE - 1, prevTx })
+
+    const promise = account.signTransaction(TRANSACTION)
+
+    await expect(promise).rejects.toThrow(AssertionError)
+    await expect(promise).rejects.toThrow('Previous output value mismatch')
+
+    account.dispose()
+  })
+
+  test('should sign successfully when the provider reports the real script and value', async () => {
+    const prevTx = buildPrevTx(ownScript, REAL_VALUE)
+    const account = createAccount({ reportedValue: REAL_VALUE, prevTx })
+
+    const signedHex = await account.signTransaction(TRANSACTION)
+    const decoded = Transaction.fromHex(signedHex)
+    const recipientScript = btcAddress.toOutputScript(RECIPIENT, networks.regtest)
+
+    const paysRecipient = decoded.outs.some(out =>
+      Buffer.from(out.script).equals(Buffer.from(recipientScript)) && out.value === BigInt(TRANSACTION.value)
+    )
+    expect(paysRecipient).toBe(true)
+
+    account.dispose()
   })
 })
