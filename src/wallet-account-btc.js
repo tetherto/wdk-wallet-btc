@@ -580,6 +580,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
         const baseInput = {
           hash: utxo.tx_hash,
           index: utxo.tx_pos,
+          sequence: 0xfffffffd,
           bip32Derivation: [{
             masterFingerprint: this._masterNode.fingerprint,
             path: this._path,

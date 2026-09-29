@@ -404,6 +404,27 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
       account.dispose()
     })
 
+    test('should signal BIP-125 replaceability on every input', async () => {
+      const account = new WalletAccountBtc(SEED_PHRASE, "0'/0/6", CONFIGURATION)
+      const address = await account.getAddress()
+      bitcoin.sendToAddress(address, 0.01)
+      await waiter.mine()
+
+      const { hash } = await account.sendTransaction({ to: recipient, value: 1_000, feeRate: 1 })
+
+      const mempoolEntry = bitcoin.getMempoolEntry(hash)
+      expect(mempoolEntry['bip125-replaceable']).toBe(true)
+
+      const rawTransaction = bitcoin.getRawTransaction(hash)
+      for (const vin of rawTransaction.vin) {
+        expect(vin.sequence).toBe(0xfffffffd)
+      }
+
+      await waiter.mine()
+
+      account.dispose()
+    })
+
     test('should throw if transaction fee exceeds the transaction max fee configuration', async () => {
       const TRANSACTION = { to: recipient, value: 1_000, feeRate: 1 }
 
