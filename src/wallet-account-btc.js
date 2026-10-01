@@ -28,7 +28,7 @@ import * as ecc from '@bitcoinerlab/secp256k1'
 // eslint-disable-next-line camelcase
 import { sodium_memzero } from 'sodium-universal'
 
-import { AssertionError, MaximumFeeExceededError, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
+import { AssertionError, DisposalError, MaximumFeeExceededError, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
 
 import WalletAccountReadOnlyBtc from './wallet-account-read-only-btc.js'
 
@@ -152,6 +152,18 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
 
     /** @private */
     this._account = account
+
+    /** @private */
+    this._disposed = false
+  }
+
+  /**
+   * True if the account has been disposed.
+   *
+   * @type {boolean}
+   */
+  get disposed () {
+    return this._disposed
   }
 
   /**
@@ -193,8 +205,13 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    *
    * @param {string} message - The message to sign.
    * @returns {Promise<string>} The message's signature.
+   * @throws {DisposalError} If the account has been disposed.
    */
   async sign (message) {
+    if (this.disposed) {
+      throw new DisposalError('The account has been disposed.')
+    }
+
     return toBase64(bitcoinMessage.sign(
       message,
       this._account.privateKey,
@@ -211,8 +228,13 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @throws {MaximumFeeExceededError} If the transaction's cost exceeds the maximum transaction fee option.
    * @throws {ValueError} If the amount doesn't clear the dust limit, or the spend requires more inputs than allowed.
    * @throws {TransactionError} If the account has no unspent outputs, or its balance doesn't cover the amount and its fees.
+   * @throws {DisposalError} If the account has been disposed.
    */
   async signTransaction ({ to, value, feeRate, confirmationTarget = 1 }) {
+    if (this.disposed) {
+      throw new DisposalError('The account has been disposed.')
+    }
+
     const { tx } = await this._buildSignedTransaction({ to, value, feeRate, confirmationTarget })
 
     if (this._config.transactionMaxFee !== undefined && tx.fee > this._config.transactionMaxFee) {
@@ -252,8 +274,13 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @throws {MaximumFeeExceededError} If the transaction's cost exceeds the maximum transaction fee option.
    * @throws {ValueError} If the amount doesn't clear the dust limit, or the spend requires more inputs than allowed.
    * @throws {TransactionError} If the account has no unspent outputs, or its balance doesn't cover the amount and its fees.
+   * @throws {DisposalError} If the account has been disposed.
    */
   async sendTransaction (tx, timeoutMs = 10000) {
+    if (this.disposed) {
+      throw new DisposalError('The account has been disposed.')
+    }
+
     await this._ensureConnected()
 
     let hex, txid, fee, spentOutpoints
@@ -477,6 +504,8 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * Disposes the wallet account, erasing the private key from memory and closing the connection with the server.
    */
   dispose () {
+    if (this._disposed) return
+
     sodium_memzero(this._account.privateKey)
     sodium_memzero(this._account.chainCode)
 
@@ -490,6 +519,8 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     })
 
     super.dispose()
+
+    this._disposed = true
   }
 
   /**

@@ -30,6 +30,7 @@ export default class WalletManagerBtc extends WalletManager {
      * const account = await wallet.getAccount(1);
      * @param {number} [index] - The index of the account to get (default: 0).
      * @returns {Promise<WalletAccountBtc>} The account.
+     * @throws {DisposalError} If the wallet manager has been disposed.
      */
     getAccount(index?: number): Promise<WalletAccountBtc>;
     /**
@@ -42,6 +43,7 @@ export default class WalletManagerBtc extends WalletManager {
      * const account = await wallet.getAccountByPath("0'/0/1");
      * @param {string} path - The derivation path (e.g. "0'/0/0").
      * @returns {Promise<WalletAccountBtc>} The account.
+     * @throws {DisposalError} If the wallet manager has been disposed.
      */
     getAccountByPath(path: string): Promise<WalletAccountBtc>;
     /**
