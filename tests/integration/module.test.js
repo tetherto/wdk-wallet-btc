@@ -5,6 +5,7 @@ import { HOST, PORT, ELECTRUM_PORT, ZMQ_PORT, DATA_DIR } from '../config.js'
 import { BitcoinCli, Waiter } from '../helpers/index.js'
 
 import WalletManagerBtc from '../../index.js'
+import SeedSignerBtc from '../../src/signers/index.js'
 
 function parseRawTransaction (rawTransaction, recipientAddress) {
   const getAddress = (vout) => vout.scriptPubKey.address || vout.scriptPubKey.addresses?.[0]
@@ -25,7 +26,6 @@ const fees = {
 const SEED_PHRASE = 'cook voyage document eight skate token alien guide drink uncle term abuse'
 
 const ACCOUNT_0 = {
-  index: 2,
   path: "0'/0/2",
   address: {
     44: 'mkpULF63ogDJnCvHXpiV64VkjLFXSrs7n5',
@@ -34,7 +34,6 @@ const ACCOUNT_0 = {
 }
 
 const ACCOUNT_1 = {
-  index: 3,
   path: "0'/0/3",
   address: {
     44: 'mqgYPCauaQ6s13kGRii3Vp9AHh1vn5Lwxt',
@@ -66,7 +65,8 @@ describe.each([44, 84])('@wdk/wallet-btc (BIP %i)', (bip) => {
   let wallet
 
   beforeAll(async () => {
-    wallet = new WalletManagerBtc(SEED_PHRASE, CONFIGURATION)
+    const signer = new SeedSignerBtc(SEED_PHRASE, `m/${bip}'/1'`, { network: CONFIGURATION.network, type: bip === 44 ? 'legacy' : 'segwit' })
+    wallet = new WalletManagerBtc(signer, CONFIGURATION)
 
     bitcoin.sendToAddress(ACCOUNT_0.address[bip], 1)
     bitcoin.sendToAddress(ACCOUNT_1.address[bip], 1)
@@ -266,8 +266,12 @@ describe.each([44, 84])('@wdk/wallet-btc (BIP %i)', (bip) => {
 
     for (const account of [account0, account1]) {
       expect(account.keyPair.privateKey).toEqual(null)
-      await expect(account.sendTransaction({ to: await account.getAddress(), value: 1_000n })).rejects.toThrow()
-      await expect(account.sign(MESSAGE)).rejects.toThrow('Expected Private')
+      // Disposing the wallet closes its clients and wipes the signers, so sending fails either
+      // before signing (the closed client reports no spendable outputs) or at signing (the wiped
+      // signer leaves the transaction unsigned, making it impossible to finalize).
+      await expect(account.sendTransaction({ to: await account.getAddress(), value: 1_000n, feeRate: 1 }))
+        .rejects.toThrow(/Can not finalize input #0|Insufficient balance to send the transaction\./)
+      await expect(account.sign(MESSAGE)).rejects.toThrow(/Cannot read properties of undefined \(reading 'privateKey'\)/)
     }
   })
 })

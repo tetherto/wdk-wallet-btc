@@ -30,6 +30,7 @@
 /** @typedef {import('./src/wallet-account-read-only-btc.js').BtcWalletConfig} BtcWalletConfig */
 /** @typedef {import('./src/wallet-account-read-only-btc.js').BtcMaxSpendableResult} BtcMaxSpendableResult */
 /** @typedef {import('./src/wallet-account-btc.js').BtcTransfer} BtcTransfer */
+/** @typedef {import('./src/wallet-account-btc.js').SignerOptions} SignerOptions */
 
 /** @typedef {import('./src/transports/index.js').BtcClientConfig} BtcClientConfig */
 /** @typedef {import('./src/transports/index.js').BtcBalance} BtcBalance */
@@ -44,3 +45,5 @@ export { default as WalletAccountReadOnlyBtc } from './src/wallet-account-read-o
 export { default as WalletAccountBtc } from './src/wallet-account-btc.js'
 
 export { IBtcClient, BlockbookClient, MempoolElectrumClient, ElectrumTcp, ElectrumSsl, ElectrumTls, ElectrumWs } from './src/transports/index.js'
+
+export { ISigner } from '@tetherto/wdk-wallet'

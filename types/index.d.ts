@@ -1,6 +1,7 @@
 export { default } from "./src/wallet-manager-btc.js";
 export { default as WalletAccountReadOnlyBtc } from "./src/wallet-account-read-only-btc.js";
 export { default as WalletAccountBtc } from "./src/wallet-account-btc.js";
+export { ISigner } from "@tetherto/wdk-wallet";
 export type BtcTransactionReceipt = import("bitcoinjs-lib").Transaction;
 export type FeeRates = import("@tetherto/wdk-wallet").FeeRates;
 export type KeyPair = import("@tetherto/wdk-wallet").KeyPair;
@@ -16,6 +17,7 @@ export type BtcTransactionDetails = import("./src/wallet-account-read-only-btc.j
 export type BtcWalletConfig = import("./src/wallet-account-read-only-btc.js").BtcWalletConfig;
 export type BtcMaxSpendableResult = import("./src/wallet-account-read-only-btc.js").BtcMaxSpendableResult;
 export type BtcTransfer = import("./src/wallet-account-btc.js").BtcTransfer;
+export type SignerOptions = import("./src/wallet-account-btc.js").SignerOptions;
 export type BtcClientConfig = import("./src/transports/index.js").BtcClientConfig;
 export type BtcBalance = import("./src/transports/index.js").BtcBalance;
 export type BtcUtxo = import("./src/transports/index.js").BtcUtxo;

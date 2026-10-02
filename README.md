@@ -46,10 +46,13 @@ wallet.dispose()
 
 Call `dispose()` when finished to erase account private-key material and close internally managed client connections. Never log or expose the seed phrase or `account.keyPair.privateKey`.
 
+Passing a seed phrase wraps it in a `SeedSignerBtc` for you as the default signer. To supply your own signer, register a `PrivateKeySignerBtc` or `SeedSignerBtc` by name with `addSigner`, or create a standalone account from a raw private key with `WalletAccountBtc.fromPrivateKey`.
+
 ## Key Capabilities
 
 - **BIP-39 Wallets**: Derive multiple Bitcoin accounts from a seed phrase
 - **BIP-84 and BIP-44 Support**: Use Native SegWit addresses by default or retain legacy P2PKH derivation
+- **Multiple Signers**: Use `SeedSignerBtc` for HD derivation, register `PrivateKeySignerBtc` instances by name, or import custom signers implementing `ISignerBtc`
 - **Bitcoin Transactions**: Quote, sign, and broadcast single-recipient BTC transactions
 - **UTXO Account Data**: Query balances, transfer history, confirmed receipts, and maximum spendable amounts
 - **Message Signing**: Sign messages and verify signatures for Bitcoin accounts
