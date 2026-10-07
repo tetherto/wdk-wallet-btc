@@ -6,6 +6,7 @@ import { BitcoinCli, Waiter } from '../helpers/index.js'
 
 import WalletManagerBtc from '../../index.js'
 import SeedSignerBtc from '../../src/signers/index.js'
+import { DisposalError } from '@tetherto/wdk-wallet'
 
 function parseRawTransaction (rawTransaction, recipientAddress) {
   const getAddress = (vout) => vout.scriptPubKey.address || vout.scriptPubKey.addresses?.[0]
@@ -266,12 +267,11 @@ describe.each([44, 84])('@wdk/wallet-btc (BIP %i)', (bip) => {
 
     for (const account of [account0, account1]) {
       expect(account.keyPair.privateKey).toEqual(null)
-      // Disposing the wallet closes its clients and wipes the signers, so sending fails either
-      // before signing (the closed client reports no spendable outputs) or at signing (the wiped
-      // signer leaves the transaction unsigned, making it impossible to finalize).
+      // Once the wallet is disposed, every account rejects signing operations fast with a
+      // DisposalError before touching the (now closed) client or the wiped signer.
       await expect(account.sendTransaction({ to: await account.getAddress(), value: 1_000n, feeRate: 1 }))
-        .rejects.toThrow(/Can not finalize input #0|Insufficient balance to send the transaction\./)
-      await expect(account.sign(MESSAGE)).rejects.toThrow(/Cannot read properties of undefined \(reading 'privateKey'\)/)
+        .rejects.toThrow(DisposalError)
+      await expect(account.sign(MESSAGE)).rejects.toThrow(DisposalError)
     }
   })
 })

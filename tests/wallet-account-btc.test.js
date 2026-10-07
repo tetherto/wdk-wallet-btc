@@ -10,7 +10,7 @@ import { BitcoinCli, Waiter } from './helpers/index.js'
 
 import { WalletAccountBtc, WalletAccountReadOnlyBtc } from '../index.js'
 import SeedSignerBtc from '../src/signers/index.js'
-import { AssertionError, MaximumFeeExceededError, TransactionError, TransactionErrorReason, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
+import { AssertionError, DisposalError, MaximumFeeExceededError, TransactionError, TransactionErrorReason, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
 
 const SEED_PHRASE = 'cook voyage document eight skate token alien guide drink uncle term abuse'
 
@@ -811,6 +811,28 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
       account.dispose()
 
       expect(account.keyPair.privateKey).toBeNull()
+    })
+
+    test('should expose the disposed state', () => {
+      const account = new WalletAccountBtc(SEED_PHRASE, "0'/0/0", CONFIG)
+
+      expect(account.disposed).toBe(false)
+
+      account.dispose()
+
+      expect(account.disposed).toBe(true)
+    })
+
+    test('should throw DisposalError from signing methods once disposed', async () => {
+      const account = new WalletAccountBtc(SEED_PHRASE, "0'/0/0", CONFIG)
+
+      account.dispose()
+
+      const to = 'bcrt1q8dqnpagwt9rtl7k38nuaa2ahf690avzkm74nhn'
+
+      await expect(account.sign('message')).rejects.toThrow(DisposalError)
+      await expect(account.signTransaction({ to, value: 1000 })).rejects.toThrow(DisposalError)
+      await expect(account.sendTransaction({ to, value: 1000 })).rejects.toThrow(DisposalError)
     })
 
     test('should not dispose a caller-supplied signer', () => {

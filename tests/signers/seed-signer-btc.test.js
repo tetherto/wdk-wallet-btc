@@ -3,7 +3,7 @@ import { describe, expect, test } from '@jest/globals'
 import * as bip39 from 'bip39'
 import { Psbt, networks, payments, Transaction, address as btcAddress } from 'bitcoinjs-lib'
 
-import { ValueError } from '@tetherto/wdk-wallet'
+import { DisposalError, ValueError } from '@tetherto/wdk-wallet'
 
 import SeedSignerBtc from '../../src/signers/seed-signer-btc.js'
 
@@ -420,6 +420,30 @@ describe('SeedSignerBtc', () => {
   })
 
   describe('dispose', () => {
+    test('should throw when deriving from a disposed signer', async () => {
+      const root = new SeedSignerBtc(VALID_SEED_PHRASE)
+      root.dispose()
+
+      const promise = root.derive("0'/0/0")
+
+      await expect(promise).rejects.toThrow(DisposalError)
+      await expect(promise).rejects.toThrow('The signer has been disposed.')
+    })
+
+    test('should throw DisposalError from signing methods once disposed', async () => {
+      const signer = new SeedSignerBtc(VALID_SEED_PHRASE, ACCOUNT_PATH, REGTEST_CONFIG)
+      const psbt = buildMixedPsbt(await signer.getAddress())
+
+      expect(signer.disposed).toBe(false)
+
+      signer.dispose()
+
+      expect(signer.disposed).toBe(true)
+
+      await expect(signer.sign(MESSAGE)).rejects.toThrow(DisposalError)
+      await expect(signer.signPsbt(psbt)).rejects.toThrow(DisposalError)
+    })
+
     test('should clear secrets on dispose', async () => {
       const signer = new SeedSignerBtc(VALID_SEED_PHRASE)
 

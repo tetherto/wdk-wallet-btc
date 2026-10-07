@@ -26,12 +26,20 @@ export default class PrivateKeySignerBtc implements ISignerBtc {
     private _publicKey;
     /** @private */
     private _address;
+    /** @private */
+    private _disposed;
     /**
      * Whether this signer can derive child signers.
      *
      * @type {false}
      */
     get isDerivable(): false;
+    /**
+     * True if the signer has been disposed.
+     *
+     * @type {boolean}
+     */
+    get disposed(): boolean;
     /**
      * The derivation path. Always null for private-key signers.
      *
@@ -69,6 +77,7 @@ export default class PrivateKeySignerBtc implements ISignerBtc {
      *
      * @param {string} path - The relative derivation path.
      * @returns {Promise<never>} The derived signer.
+     * @throws {DisposalError} If the signer has been disposed.
      * @throws {UnsupportedOperationError} If the signer does not support account derivation.
      * @throws {ValueError} If the path is not valid.
      */
@@ -91,6 +100,7 @@ export default class PrivateKeySignerBtc implements ISignerBtc {
      *
      * @param {string} message - The message to sign.
      * @returns {Promise<string>} The message's signature.
+     * @throws {DisposalError} If the signer has been disposed.
      */
     sign(message: string): Promise<string>;
     /**
@@ -99,6 +109,7 @@ export default class PrivateKeySignerBtc implements ISignerBtc {
      * @param {Psbt | string} psbt - The PSBT instance or base64 string.
      * @returns {Promise<string>} The (partially) signed PSBT in base64 format.
      * @throws {Error} If the signer cannot sign any input of the PSBT.
+     * @throws {DisposalError} If the signer has been disposed.
      */
     signPsbt(psbt: Psbt | string): Promise<string>;
     /**
