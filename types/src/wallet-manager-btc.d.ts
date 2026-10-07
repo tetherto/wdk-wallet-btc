@@ -57,6 +57,7 @@ export default class WalletManagerBtc extends WalletManager<ISignerBtc> {
      * @returns {Promise<WalletAccountBtc>} The account.
      * @throws {NoSuchElementError} If a signer name is given but no signer exists with that name.
      * @throws {InvalidSignerError} If the signer doesn't support account derivation.
+     * @throws {DisposalError} If the wallet manager or the given signer has been disposed.
      * @example
      * // Returns the account with derivation path
      * // For mainnet (bitcoin): m/84'/0'/0'/0/1
@@ -77,6 +78,7 @@ export default class WalletManagerBtc extends WalletManager<ISignerBtc> {
      * @param {string} signerName - The signer name registered via {@link addSigner}.
      * @returns {Promise<WalletAccountBtc>} The account.
      * @throws {NoSuchElementError} If no signer exists with the given name.
+     * @throws {DisposalError} If the wallet manager or the given signer has been disposed.
      */
     getAccount(signerName: string): Promise<WalletAccountBtc>;
     /**
@@ -93,6 +95,7 @@ export default class WalletManagerBtc extends WalletManager<ISignerBtc> {
      * @returns {Promise<WalletAccountBtc>} The account.
      * @throws {NoSuchElementError} If a signer name is given but no signer exists with that name.
      * @throws {InvalidSignerError} If the signer doesn't support account derivation.
+     * @throws {DisposalError} If the wallet manager or the given signer has been disposed.
      */
     getAccountByPath(path: string, options?: {
         signerName?: string;

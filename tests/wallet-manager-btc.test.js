@@ -4,7 +4,7 @@ import { HOST, PORT, ELECTRUM_PORT, ZMQ_PORT, DATA_DIR } from './config.js'
 
 import { BitcoinCli, Waiter } from './helpers/index.js'
 
-import { InvalidSignerError, NoSuchElementError } from '@tetherto/wdk-wallet'
+import { DisposalError, InvalidSignerError, NoSuchElementError } from '@tetherto/wdk-wallet'
 
 import WalletManagerBtc, { WalletAccountBtc } from '../index.js'
 import SeedSignerBtc, { PrivateKeySignerBtc } from '../src/signers/index.js'
@@ -296,11 +296,17 @@ describe('WalletManagerBtc', () => {
       for (const account of [account0, account1]) {
         expect(account.keyPair.privateKey).toBeNull()
 
-        // Once disposed, the underlying signer is cleared, so any signing operation
-        // fails when it reaches the now-undefined signer rather than for some other reason.
+        // Once disposed, any signing operation fails fast with a DisposalError.
         await expect(account.sign(MESSAGE))
-          .rejects.toThrow(/Cannot read properties of undefined \(reading 'privateKey'\)/)
+          .rejects.toThrow(DisposalError)
       }
+    })
+
+    test('should throw DisposalError when getting an account after disposal', async () => {
+      wallet.dispose()
+
+      await expect(wallet.getAccount(0)).rejects.toThrow(DisposalError)
+      await expect(wallet.getAccountByPath("0'/0/0")).rejects.toThrow(DisposalError)
     })
 
     test('should dispose the internally created default signer when constructed from a seed', () => {
