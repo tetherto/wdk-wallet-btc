@@ -47,6 +47,8 @@ export default class SeedSignerBtc implements ISignerBtc {
     private _publicKey;
     /** @private */
     private _address;
+    /** @private */
+    private _disposed;
     /**
      * Whether this signer can derive child signers. Always true: every seed signer holds an
      * HD node with a private key and can derive below its own path.
@@ -54,6 +56,12 @@ export default class SeedSignerBtc implements ISignerBtc {
      * @type {true}
      */
     get isDerivable(): true;
+    /**
+     * True if the signer has been disposed.
+     *
+     * @type {boolean}
+     */
+    get disposed(): boolean;
     /**
      * The signer's absolute derivation path.
      *
@@ -92,6 +100,7 @@ export default class SeedSignerBtc implements ISignerBtc {
      *
      * @param {string} relPath - The path segment to derive, relative to this signer's own path.
      * @returns {Promise<SeedSignerBtc>} The derived child signer.
+     * @throws {DisposalError} If the signer has been disposed.
      */
     derive(relPath: string): Promise<SeedSignerBtc>;
     /**
@@ -111,6 +120,7 @@ export default class SeedSignerBtc implements ISignerBtc {
      *
      * @param {string} message - The message to sign.
      * @returns {Promise<string>} The message's signature.
+     * @throws {DisposalError} If the signer has been disposed.
      */
     sign(message: string): Promise<string>;
     /**
@@ -119,6 +129,7 @@ export default class SeedSignerBtc implements ISignerBtc {
      * @param {Psbt | string} psbt - The PSBT instance or base64 string.
      * @returns {Promise<string>} The (partially) signed PSBT in base64 format.
      * @throws {Error} If the signer cannot sign any input of the PSBT.
+     * @throws {DisposalError} If the signer has been disposed.
      */
     signPsbt(psbt: Psbt | string): Promise<string>;
     /**

@@ -16,7 +16,7 @@ import { hmac } from '@noble/hashes/hmac'
 import { sha512 } from '@noble/hashes/sha2'
 import { initEccLib, networks, Psbt } from 'bitcoinjs-lib'
 import { BIP32Factory } from 'bip32'
-import { ValueError } from '@tetherto/wdk-wallet'
+import { DisposalError, ValueError } from '@tetherto/wdk-wallet'
 
 import * as bip39 from 'bip39'
 import * as ecc from '@bitcoinerlab/secp256k1'
@@ -117,6 +117,9 @@ export default class SeedSignerBtc {
   /** @private */
   _address
 
+  /** @private */
+  _disposed
+
   /**
    * Creates a SeedSignerBtc from a BIP-39 seed.
    *
@@ -189,6 +192,15 @@ export default class SeedSignerBtc {
   }
 
   /**
+   * True if the signer has been disposed.
+   *
+   * @type {boolean}
+   */
+  get disposed () {
+    return this._disposed
+  }
+
+  /**
    * The signer's absolute derivation path.
    *
    * @type {string}
@@ -244,8 +256,13 @@ export default class SeedSignerBtc {
    *
    * @param {string} relPath - The path segment to derive, relative to this signer's own path.
    * @returns {Promise<SeedSignerBtc>} The derived child signer.
+   * @throws {DisposalError} If the signer has been disposed.
    */
   async derive (relPath) {
+    if (this.disposed) {
+      throw new DisposalError('The signer has been disposed.')
+    }
+
     const signer = Object.create(SeedSignerBtc.prototype)
     const path = this._path === '/' ? `/${relPath}` : `${this._path}/${relPath}`
     SeedSignerBtc._init(signer, this._account.derivePath(relPath), this._config, path)
@@ -275,8 +292,13 @@ export default class SeedSignerBtc {
    *
    * @param {string} message - The message to sign.
    * @returns {Promise<string>} The message's signature.
+   * @throws {DisposalError} If the signer has been disposed.
    */
   async sign (message) {
+    if (this.disposed) {
+      throw new DisposalError('The signer has been disposed.')
+    }
+
     return signMessage(message, this._account.privateKey, this.type)
   }
 
@@ -286,8 +308,13 @@ export default class SeedSignerBtc {
    * @param {Psbt | string} psbt - The PSBT instance or base64 string.
    * @returns {Promise<string>} The (partially) signed PSBT in base64 format.
    * @throws {Error} If the signer cannot sign any input of the PSBT.
+   * @throws {DisposalError} If the signer has been disposed.
    */
   async signPsbt (psbt) {
+    if (this.disposed) {
+      throw new DisposalError('The signer has been disposed.')
+    }
+
     const psbtInstance = typeof psbt === 'string' ? Psbt.fromBase64(psbt) : psbt
     return signPsbtWithKey(psbtInstance, this._account)
   }
@@ -296,11 +323,15 @@ export default class SeedSignerBtc {
    * Disposes the signer, securely erasing its private key from memory.
    */
   dispose () {
+    if (this._disposed) return
+
     if (this._account) {
       sodium_memzero(this._account.privateKey)
       sodium_memzero(this._account.chainCode)
     }
     this._account = undefined
+
+    this._disposed = true
   }
 
   /** @private */
@@ -311,5 +342,6 @@ export default class SeedSignerBtc {
     signer._path = path
     signer._publicKey = account.publicKey
     signer._address = getAddressFromPublicKey(account.publicKey, network, signer.type)
+    signer._disposed = false
   }
 }
