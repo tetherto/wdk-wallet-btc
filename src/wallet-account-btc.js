@@ -72,6 +72,13 @@ const MAX_CONCURRENT_REQUESTS = 8
 const MAX_CACHE_ENTRIES = 1000
 const REQUEST_BATCH_SIZE = 64
 
+/**
+ * Assumed incremental relay fee (sat/vB) for BIP-125 rule 4. Bitcoin Core's `-incrementalrelayfee` is
+ * configurable: its default was 1 sat/vB before v30 and is 0.1 sat/vB since. 1 sat/vB is accepted by
+ * every default node.
+ */
+const INCREMENTAL_RELAY_FEE_RATE = 1n
+
 const POLLING_INTERVAL = 300
 
 const bip32 = BIP32Factory(ecc)
@@ -492,6 +499,104 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     super.dispose()
   }
 
+  async bumpFee (hash, { feeRate, confirmationTarget = 1 }) {
+    const txid = String(hash).trim().toLowerCase()
+
+    if (!/^[0-9a-f]{64}$/.test(txid)) {
+      throw new ValueError(`Invalid transaction hash: '${hash}'.`)
+    }
+
+    await this._ensureConnected()
+
+    const transaction = Transaction.fromHex(await this._client.getTransaction(txid))
+
+    if (transaction.getId() !== txid) {
+      throw new AssertionError(`Transaction id mismatch for '${txid}'.`)
+    }
+
+    const ownScript = btcAddress.toOutputScript(await this.getAddress(), this._network)
+    const limitConcurrency = pLimit(MAX_CONCURRENT_REQUESTS)
+    const inputs = transaction.ins.map(input => ({ ...input, prevTxId: toHex(Uint8Array.from(input.hash).reverse()) }))
+    const prevTxIds = [...new Set(inputs.map(input => input.prevTxId))]
+
+    const prevTxs = new Map(await Promise.all(prevTxIds.map(prevTxId => limitConcurrency(async () => {
+      const prevTx = Transaction.fromHex(await this._client.getTransaction(prevTxId))
+
+      if (prevTx.getId() !== prevTxId) {
+        throw new AssertionError(`Previous transaction id mismatch for '${prevTxId}'.`)
+      }
+
+      return [prevTxId, prevTx]
+    }))))
+
+    const utxos = []
+
+    for (const { prevTxId, index } of inputs) {
+      const prevOut = prevTxs.get(prevTxId).outs[index]
+
+      if (!prevOut || compare(prevOut.script, ownScript) !== 0) {
+        throw new ValueError(`Input ${prevTxId}:${index} of '${txid}' does not spend this account's output.`)
+      }
+
+      utxos.push({
+        tx_hash: prevTxId,
+        tx_pos: index,
+        vout: { value: prevOut.value, scriptPubKey: { hex: toHex(prevOut.script) } }
+      })
+    }
+
+    const originalFee = await this._getSignedTransactionFee(transaction)
+    const vsize = BigInt(transaction.virtualSize())
+
+    if (!feeRate) {
+      const feeEstimate = await this._client.estimateFee(confirmationTarget)
+      feeRate = Math.max(feeEstimate * 100_000, 1)
+    }
+
+    feeRate = this._toBigInt(feeRate)
+
+    if (feeRate * vsize <= originalFee) {
+      throw new ValueError(`The new fee rate must be higher than the original's (= ${originalFee} sats over ${vsize} vbytes).`)
+    }
+
+    const minReplacementFee = originalFee + INCREMENTAL_RELAY_FEE_RATE * vsize
+    const targetFee = feeRate * vsize
+    const fee = targetFee > minReplacementFee ? targetFee : minReplacementFee
+
+    const changeIndexes = transaction.outs.flatMap((output, index) => compare(output.script, ownScript) === 0 ? [index] : [])
+
+    if (changeIndexes.length !== 1) {
+      throw new ValueError(`Transaction '${txid}' must have exactly one change output paying this account (found ${changeIndexes.length}).`)
+    }
+
+    const [changeIndex] = changeIndexes
+    const changeValue = BigInt(transaction.outs[changeIndex].value)
+    const extraFee = fee - originalFee
+
+    if (changeValue < extraFee) {
+      throw new ValueError(`The change output (= ${changeValue}) cannot cover the extra fee (= ${extraFee}).`)
+    }
+
+    const newChangeValue = changeValue - extraFee
+
+    const outputs = transaction.outs
+      .map(({ script, value }, index) => ({
+        address: btcAddress.fromOutputScript(script, this._network),
+        value: index === changeIndex ? newChangeValue : BigInt(value)
+      }))
+      .filter((output, index) => index !== changeIndex || output.value > this._dustLimit)
+
+    const replacement = await this._buildAndSign({
+      utxos,
+      outputs,
+      getPrevTxHex: async (prevTxId) => prevTxs.get(prevTxId).toHex()
+    })
+
+    const replacementFee = newChangeValue > this._dustLimit ? fee : originalFee + changeValue
+
+    return { transaction: replacement, fee: replacementFee }
+  }
+
   /**
    * Computes the fee of a signed raw transaction by resolving the value of each
    * spent input from the blockchain and subtracting the total output value.
@@ -553,6 +658,58 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     }
   }
 
+  /**
+   * Builds, signs and finalizes a transaction spending the given outputs. Every input signals BIP-125
+   * replaceability (nSequence = 0xfffffffd). BIP-84 inputs carry a witnessUtxo; BIP-44 inputs carry the
+   * full previous transaction (nonWitnessUtxo).
+   *
+   * @private
+   * @param {Object} params
+   * @param {Array<{ tx_hash: string, tx_pos: number, vout: { value: bigint, scriptPubKey: { hex: string } } }>} params.utxos - The outputs to spend.
+   * @param {Array<{ address: string, value: bigint }>} params.outputs - The outputs to create, in order.
+   * @param {(txid: string) => Promise<string>} params.getPrevTxHex - Resolves a txid to its raw hex, cached. Only used for BIP-44 inputs.
+   * @returns {Promise<Transaction>} The signed transaction.
+   */
+  async _buildAndSign ({ utxos, outputs, getPrevTxHex }) {
+    const psbt = new Psbt({ network: this._network })
+
+    for (const utxo of utxos) {
+      const baseInput = {
+        hash: utxo.tx_hash,
+        index: utxo.tx_pos,
+        sequence: 0xfffffffd,
+        bip32Derivation: [{
+          masterFingerprint: this._masterNode.fingerprint,
+          path: this._path,
+          pubkey: this._account.publicKey
+        }]
+      }
+
+      if (this._bip === 84) {
+        psbt.addInput({
+          ...baseInput,
+          witnessUtxo: {
+            script: fromHex(utxo.vout.scriptPubKey.hex),
+            value: utxo.vout.value
+          }
+        })
+      } else {
+        const prevHex = await getPrevTxHex(utxo.tx_hash)
+        psbt.addInput({
+          ...baseInput,
+          nonWitnessUtxo: fromHex(prevHex)
+        })
+      }
+    }
+
+    for (const output of outputs) psbt.addOutput(output)
+
+    utxos.forEach((_, index) => psbt.signInputHD(index, this._masterNode))
+    psbt.finalizeAllInputs()
+
+    return psbt.extractTransaction()
+  }
+
   /** @private */
   async _getRawTransaction ({ utxos, to, value, fee, feeRate, changeValue }) {
     feeRate = this._toBigInt(feeRate)
@@ -574,44 +731,10 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     }
 
     const buildAndSign = async (rcptVal, chgVal) => {
-      const psbt = new Psbt({ network: this._network })
+      const outputs = [{ address: to, value: rcptVal }]
+      if (chgVal > 0n) outputs.push({ address: await this.getAddress(), value: chgVal })
 
-      for (const utxo of utxos) {
-        const baseInput = {
-          hash: utxo.tx_hash,
-          index: utxo.tx_pos,
-          sequence: 0xfffffffd,
-          bip32Derivation: [{
-            masterFingerprint: this._masterNode.fingerprint,
-            path: this._path,
-            pubkey: this._account.publicKey
-          }]
-        }
-
-        if (this._bip === 84) {
-          psbt.addInput({
-            ...baseInput,
-            witnessUtxo: {
-              script: fromHex(utxo.vout.scriptPubKey.hex),
-              value: utxo.vout.value
-            }
-          })
-        } else {
-          const prevHex = await getPrevTxHex(utxo.tx_hash)
-          psbt.addInput({
-            ...baseInput,
-            nonWitnessUtxo: fromHex(prevHex)
-          })
-        }
-      }
-
-      psbt.addOutput({ address: to, value: rcptVal })
-      if (chgVal > 0n) psbt.addOutput({ address: await this.getAddress(), value: chgVal })
-
-      utxos.forEach((_, index) => psbt.signInputHD(index, this._masterNode))
-      psbt.finalizeAllInputs()
-
-      return psbt.extractTransaction()
+      return this._buildAndSign({ utxos, outputs, getPrevTxHex })
     }
 
     let currentRecipientAmnt = value
