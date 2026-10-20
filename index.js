@@ -34,7 +34,13 @@
 
 /** @typedef {import('./src/transports/index.js').BtcClientConfig} BtcClientConfig */
 /** @typedef {import('./src/transports/index.js').BtcBalance} BtcBalance */
-/** @typedef {import('./src/transports/index.js').BtcUtxo} BtcUtxo */
+/** @typedef {import('./src/primitives/index.js').ScriptType} ScriptType */
+/** @typedef {import('./src/primitives/index.js').OutPoint} OutPoint */
+/** @typedef {import('./src/primitives/index.js').ChainUtxo} ChainUtxo */
+/** @typedef {import('./src/primitives/index.js').UtxoScript} UtxoScript */
+/** @typedef {import('./src/primitives/index.js').Utxo} Utxo */
+/** @typedef {import('./src/primitives/index.js').SpendOutput} SpendOutput */
+/** @typedef {import('./src/primitives/index.js').SpendPlan} SpendPlan */
 /** @typedef {import('./src/transports/index.js').BtcHistoryItem} BtcHistoryItem */
 /** @typedef {import('./src/transports/index.js').MempoolElectrumConfig} MempoolElectrumConfig */
 
