@@ -11,19 +11,24 @@ const VALID_SEED_PHRASE = 'cook voyage document eight skate token alien guide dr
 
 const MESSAGE = 'Dummy message to sign.'
 
-// Coin-type node ("m/84'/1'") of VALID_SEED_PHRASE with the default configuration: the constructor's default path.
-const COIN_NODE_PATH = "m/84'/1'"
-const COIN_NODE_ADDRESS = 'bc1qkkmxq4ucwk7wn8aenmfrmjry7judzc7m0378n7'
-const COIN_NODE_PRIVATE_KEY = 'ffefaf3c8fdf28b80cb82f9a4b1d372cbaa71284db639a5cffdf17ad827e8cea'
-const COIN_NODE_PUBLIC_KEY = '02322222bb6018f1ecf3d6112e3073773f2d2dde82ff76daa60445024e071cb3a6'
+// Coin-type node ("m/84'/0'") of VALID_SEED_PHRASE with the default configuration: the constructor's default path.
+// The default network is mainnet, so the default coin type is 0' (SLIP-0044), as in other BIP-84 wallets.
+const COIN_NODE_PATH = "m/84'/0'"
+const COIN_NODE_ADDRESS = 'bc1q82t6jj0td889z97r850zwm2x2mftf8d82cerxw'
+const COIN_NODE_PRIVATE_KEY = '988213c6d95536875e604e55900468768a53faa261edb812c19db423327eb59a'
+const COIN_NODE_PUBLIC_KEY = '035db6d40d930f25139197aa9e24d877cf19621d4cee7a02c26fee01ad0e25200f'
 
-// First account ("m/84'/1'/0'/0/0") of VALID_SEED_PHRASE with the default configuration.
+// First account ("m/84'/0'/0'/0/0") of VALID_SEED_PHRASE with the default configuration.
+const DEFAULT_ACCOUNT_PATH = "m/84'/0'/0'/0/0"
+const DEFAULT_ACCOUNT_ADDRESS = 'bc1qxn0te9ecv864wtu53cccjhuuy5dphvem6ykeyr'
+
+// The account at "m/84'/1'/0'/0/0" of VALID_SEED_PHRASE, encoded for mainnet.
 const ACCOUNT_PATH = "m/84'/1'/0'/0/0"
 const ACCOUNT_ADDRESS = 'bc1q8dqnpagwt9rtl7k38nuaa2ahf690avzkn3hdmf'
 const ACCOUNT_PRIVATE_KEY = '007335c465cb8183b8a43d3f4eb7dbeb65f51e3a94c4a42369f3d2979ffa35fa'
 const ACCOUNT_PUBLIC_KEY = '02e928d54a04833586b14e9c910884f589aebdc713a055e655c2fa13306c1b4f7f'
 
-// Other accounts of VALID_SEED_PHRASE with the default configuration.
+// Other accounts of VALID_SEED_PHRASE, encoded for mainnet.
 const PATH_005_ADDRESS = 'bc1qzlqkg0jy73dek6pj99lu4qa87v0mqlmjq3czvj'
 const CHILD_001_ADDRESS = 'bc1qkr67mkl07s5slnjzsesza3g75qhu4rx6zu3u24'
 const PAST_LEAF_ADDRESS = 'bc1qzfcza368u8nfmcfj9358ds4jws3qt0z9tw0mq3'
@@ -31,8 +36,8 @@ const CUSTOM_ROOT_ADDRESS = 'bc1qplyls7xzppmc3md439nft763ynylx6yzpkuxcq'
 const FROM_M_ADDRESS = 'bc1q908a7wncgavppdhkjl0qncx2889dal3t8km3xe'
 
 // The coin-type node of VALID_SEED_PHRASE with a legacy (P2PKH) configuration.
-const LEGACY_COIN_NODE_PATH = "m/44'/1'"
-const LEGACY_COIN_NODE_ADDRESS = '16LNuaHBz6NDmjyS3RjEbCRRvkLejcrLv2'
+const LEGACY_COIN_NODE_PATH = "m/44'/0'"
+const LEGACY_COIN_NODE_ADDRESS = '1HqWjBhB5nVQPwiVoqevJ3EqBX1BwhjdhK'
 
 // Fixtures of VALID_SEED_PHRASE with a regtest configuration.
 const REGTEST_CONFIG = { network: 'regtest' }
@@ -212,8 +217,8 @@ describe('SeedSignerBtc', () => {
 
       const child = await root.derive("0'/0/0")
 
-      expect(child.path).toBe(ACCOUNT_PATH)
-      expect(await child.getAddress()).toBe(ACCOUNT_ADDRESS)
+      expect(child.path).toBe(DEFAULT_ACCOUNT_PATH)
+      expect(await child.getAddress()).toBe(DEFAULT_ACCOUNT_ADDRESS)
 
       child.dispose()
       root.dispose()
@@ -462,6 +467,26 @@ describe('SeedSignerBtc', () => {
       expect(Buffer.from(child.keyPair.privateKey).toString('hex')).toBe(ACCOUNT_PRIVATE_KEY)
 
       child.dispose()
+    })
+  })
+
+  describe('network configuration', () => {
+    test('should derive mainnet addresses under the mainnet coin type when no network is given', async () => {
+      // BIP-84 test vector: https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki#test-vectors
+      const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
+      const root = new SeedSignerBtc(mnemonic)
+      const child = await root.derive("0'/0/0")
+
+      expect(child.path).toBe("m/84'/0'/0'/0/0")
+      expect(await child.getAddress()).toBe('bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu')
+
+      child.dispose()
+      root.dispose()
+    })
+
+    test('should throw for an unsupported network name', () => {
+      expect(() => new SeedSignerBtc(VALID_SEED_PHRASE, undefined, { network: 'mainnet' }))
+        .toThrow(ValueError)
     })
   })
 })
