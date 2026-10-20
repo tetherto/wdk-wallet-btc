@@ -15,6 +15,8 @@
 
 import { NoSuchElementError, ProviderError, ProviderErrorReason } from '@tetherto/wdk-wallet'
 
+import { toSatPerVb } from './btc-client.js'
+
 /** @typedef {import('./btc-client.js').default} IBtcClient */
 /** @typedef {import('./btc-client.js').BtcBalance} BtcBalance */
 /** @typedef {import('./btc-client.js').BtcHistoryItem} BtcHistoryItem */
@@ -293,7 +295,7 @@ export default class BlockbookClient {
    * falls back to mempool.space.
    *
    * @param {number} blocks - The confirmation target in blocks.
-   * @returns {Promise<number>} Fee rate in BTC/kB.
+   * @returns {Promise<number>} Fee rate in sat/vB (may be fractional).
    * @throws {ProviderError} If fee estimation is unavailable from both sources.
    */
   async estimateFee (blocks) {
@@ -306,13 +308,13 @@ export default class BlockbookClient {
   /**
    * @private
    * @param {number} blocks
-   * @returns {Promise<number | null>} Fee rate in BTC/kB, or null if unavailable.
+   * @returns {Promise<number | null>} Fee rate in sat/vB, or null if unavailable.
    */
   async _estimateFeeFromBlockbook (blocks) {
     try {
       const data = await this._get(`/v1/estimatefee/${blocks}`)
       const rate = Number(data.result ?? data)
-      if (rate > 0) return rate
+      if (rate > 0) return toSatPerVb(rate)
       return null
     } catch {
       return null
@@ -322,7 +324,7 @@ export default class BlockbookClient {
   /**
    * @private
    * @param {number} blocks
-   * @returns {Promise<number>} Fee rate in BTC/kB.
+   * @returns {Promise<number>} Fee rate in sat/vB.
    * @throws {ProviderError} If fee estimation is unavailable.
    */
   async _estimateFeeFromMempool (blocks) {
@@ -348,7 +350,7 @@ export default class BlockbookClient {
       })
     }
 
-    return satPerVB / 100_000
+    return satPerVB
   }
 
   /** @private */

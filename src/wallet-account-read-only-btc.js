@@ -261,7 +261,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
     if (!feeRate) {
       const feeEstimate = await this._client.estimateFee(confirmationTarget)
-      feeRate = this._toBigInt(Math.max(feeEstimate * 100_000, 1))
+      feeRate = Math.max(feeEstimate, 1)
     }
 
     const { fee } = await this._planSpend({
@@ -443,10 +443,10 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
     let feeRate
     if (opts.feeRate) {
-      feeRate = Number(opts.feeRate)
+      feeRate = Math.max(Number(opts.feeRate), 1)
     } else {
-      const feeRateRaw = await this._client.estimateFee(1)
-      feeRate = Math.max(Math.round(Number(feeRateRaw) * 100_000), 1)
+      const feeEstimate = await this._client.estimateFee(1)
+      feeRate = Math.max(feeEstimate, 1)
     }
 
     const unspent = await this._client.listUnspent(fromAddress)
@@ -614,8 +614,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    */
   async _planSpend ({ fromAddress, toAddress, amount, feeRate }) {
     amount = this._toBigInt(amount)
-    feeRate = this._toBigInt(feeRate)
-    if (feeRate < 1n) feeRate = 1n
+    feeRate = Math.max(Number(feeRate), 1)
 
     const dustLimit = await this._getDustLimit()
 
@@ -647,7 +646,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
       utxos: utxosForCoinSelect,
       remainder: fromAddressOutput,
       targets: [{ output: toAddressOutput, value: amount }],
-      feeRate: Number(feeRate)
+      feeRate
     })
 
     if (!result) {

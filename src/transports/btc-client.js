@@ -136,7 +136,7 @@ export default class IBtcClient {
    * Returns the estimated fee rate.
    *
    * @param {number} blocks - The confirmation target in blocks.
-   * @returns {Promise<number>} Fee rate in BTC/kB.
+   * @returns {Promise<number>} Fee rate in sat/vB (may be fractional).
    * @throws {ProviderError} If fee estimation is unavailable.
    */
   async estimateFee (blocks) {
@@ -169,4 +169,17 @@ export function fromElectrumUnspent (unspent) {
     value: BigInt(value),
     height
   }))
+}
+
+/**
+ * Converts a fee rate from BTC/kvB, as `estimatefee` reports it, to sat/vB.
+ *
+ * Rounds to whole sat/kvB before dividing, which removes float noise and keeps a resolution of 0.001 sat/vB.
+ * That is finer than the practical floor of 0.1 sat/vB, so no real fee rate loses precision.
+ *
+ * @param {number} btcPerKvb - The fee rate in BTC/kvB.
+ * @returns {number} The fee rate in sat/vB.
+ */
+export function toSatPerVb (btcPerKvb) {
+  return Math.round(btcPerKvb * 1e8) / 1000
 }

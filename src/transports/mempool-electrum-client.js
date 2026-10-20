@@ -18,7 +18,7 @@ import { ProviderError, ProviderErrorReason } from '@tetherto/wdk-wallet'
 import MempoolClient from '@mempool/electrum-client'
 import { networks } from 'bitcoinjs-lib'
 import * as tls from 'node:tls'
-import { fromElectrumUnspent, toScriptHash } from './btc-client.js'
+import { fromElectrumUnspent, toSatPerVb, toScriptHash } from './btc-client.js'
 
 /**
  * @typedef {Object} MempoolElectrumConfig
@@ -276,7 +276,7 @@ export default class MempoolElectrumClient {
    * Returns the estimated fee rate.
    *
    * @param {number} blocks - The confirmation target in blocks.
-   * @returns {Promise<number>} Fee rate in BTC/kB.
+   * @returns {Promise<number>} Fee rate in sat/vB (may be fractional).
    * @throws {ProviderError} If fee estimation is unavailable.
    * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-estimatefee
    */
@@ -287,6 +287,6 @@ export default class MempoolElectrumClient {
         reason: ProviderErrorReason.INTERNAL_SERVER_ERROR
       })
     }
-    return rate
+    return toSatPerVb(rate)
   }
 }
