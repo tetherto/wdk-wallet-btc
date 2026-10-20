@@ -523,8 +523,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
 
   /** @private */
   async _getRawTransaction ({ utxos, to, value, fee, feeRate, changeValue }) {
-    feeRate = this._toBigInt(feeRate)
-    if (feeRate < 1n) feeRate = 1n
+    feeRate = Math.max(Number(feeRate), 1)
     value = this._toBigInt(value)
     changeValue = this._toBigInt(changeValue)
     fee = this._toBigInt(fee)
@@ -584,7 +583,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     let unsigned = await buildUnsignedPsbt(currentRecipientAmnt, currentChange)
     let tx = await signAndFinalize(unsigned)
     let vsize = tx.virtualSize()
-    let requiredFee = BigInt(vsize) * feeRate
+    let requiredFee = BigInt(Math.ceil(vsize * feeRate))
 
     if (requiredFee <= fee) {
       return { txid: tx.getId(), hex: tx.toHex(), fee, vsize }
@@ -611,7 +610,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     }
 
     vsize = tx.virtualSize()
-    requiredFee = BigInt(vsize) * feeRate
+    requiredFee = BigInt(Math.ceil(vsize * feeRate))
     if (requiredFee > fee) throw new AssertionError('Fee shortfall after output rebalance.')
 
     return { txid: tx.getId(), hex: tx.toHex(), fee, vsize }
@@ -623,7 +622,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     const address = await this.getAddress()
     if (!feeRate) {
       const feeEstimate = await this._client.estimateFee(confirmationTarget)
-      feeRate = this._toBigInt(Math.max(feeEstimate * 100_000, 1))
+      feeRate = Math.max(feeEstimate, 1)
     }
     const { utxos, fee, changeValue } = await this._planSpend({
       fromAddress: address, toAddress: to, amount: value, feeRate

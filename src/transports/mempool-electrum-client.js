@@ -280,7 +280,7 @@ export default class MempoolElectrumClient {
    * Returns the estimated fee rate.
    *
    * @param {number} blocks - The confirmation target in blocks.
-   * @returns {Promise<number>} Fee rate in BTC/kB.
+   * @returns {Promise<number>} Fee rate in sat/vB (may be fractional).
    * @throws {ProviderError} If fee estimation is unavailable.
    * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-estimatefee
    */
@@ -291,6 +291,6 @@ export default class MempoolElectrumClient {
         reason: ProviderErrorReason.INTERNAL_SERVER_ERROR
       })
     }
-    return rate
+    return rate * 100_000
   }
 }

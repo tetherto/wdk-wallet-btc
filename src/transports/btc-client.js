@@ -135,7 +135,7 @@ export default class IBtcClient {
    * Returns the estimated fee rate.
    *
    * @param {number} blocks - The confirmation target in blocks.
-   * @returns {Promise<number>} Fee rate in BTC/kB.
+   * @returns {Promise<number>} Fee rate in sat/vB (may be fractional).
    * @throws {ProviderError} If fee estimation is unavailable.
    */
   async estimateFee (blocks) {

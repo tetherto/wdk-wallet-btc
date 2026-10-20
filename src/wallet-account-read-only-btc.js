@@ -60,7 +60,7 @@ const bitcoinMessage = MessageFactory(ecc)
  * @property {string} to - The transaction's recipient.
  * @property {number | bigint} value - The amount of bitcoins to send to the recipient (in satoshis).
  * @property {number} [confirmationTarget] - Optional confirmation target in blocks (default: 1).
- * @property {number | bigint} [feeRate] - Optional fee rate in satoshis per virtual byte. If provided, this value overrides the fee rate estimated from the blockchain (default: undefined).
+ * @property {number} [feeRate] - Optional fee rate in satoshis per virtual byte. If provided, this value overrides the fee rate estimated from the blockchain (default: undefined).
  */
 
 /**
@@ -242,7 +242,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
     if (!feeRate) {
       const feeEstimate = await this._client.estimateFee(confirmationTarget)
-      feeRate = this._toBigInt(Math.max(feeEstimate * 100_000, 1))
+      feeRate = Math.max(feeEstimate, 1)
     }
 
     const { fee } = await this._planSpend({
@@ -414,7 +414,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * single transaction. There will likely be some satoshis left over as change.
    *
    * @param {Object} [opts] - Options.
-   * @param {number | bigint} [opts.feeRate] - Fee rate in sat/vB. If omitted, estimated via the client.
+   * @param {number} [opts.feeRate] - Fee rate in sat/vB. If omitted, estimated via the client.
    * @returns {Promise<BtcMaxSpendableResult>} The estimated maximum spendable result.
    */
   async getMaxSpendable (opts = {}) {
@@ -424,10 +424,10 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
     let feeRate
     if (opts.feeRate) {
-      feeRate = Number(opts.feeRate)
+      feeRate = Math.max(Number(opts.feeRate), 1)
     } else {
-      const feeRateRaw = await this._client.estimateFee(1)
-      feeRate = Math.max(Math.round(Number(feeRateRaw) * 100_000), 1)
+      const feeEstimate = await this._client.estimateFee(1)
+      feeRate = Math.max(feeEstimate, 1)
     }
 
     const unspent = await this._client.listUnspent(fromAddress)
@@ -584,15 +584,14 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * @param {string} tx.fromAddress - The sender's address.
    * @param {string} tx.toAddress - The recipient's address.
    * @param {number | bigint} tx.amount - The amount to send (in satoshis).
-   * @param {number | bigint} tx.feeRate - The fee rate (in sats/vB).
+   * @param {number} tx.feeRate - The fee rate (in sats/vB).
    * @returns {Promise<{ utxos: OutputWithValue[], fee: bigint, changeValue: bigint }>} - The funding plan.
    * @throws {ValueError} If the amount doesn't clear the dust limit, or the spend requires more inputs than allowed.
    * @throws {TransactionError} If the account has no unspent outputs, or its balance doesn't cover the amount and its fees.
    */
   async _planSpend ({ fromAddress, toAddress, amount, feeRate }) {
     amount = this._toBigInt(amount)
-    feeRate = this._toBigInt(feeRate)
-    if (feeRate < 1n) feeRate = 1n
+    feeRate = Math.max(Number(feeRate), 1)
 
     const dustLimit = await this._getDustLimit()
 
@@ -624,7 +623,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
       utxos: utxosForCoinSelect,
       remainder: fromAddressOutput,
       targets: [{ output: toAddressOutput, value: amount }],
-      feeRate: Number(feeRate)
+      feeRate
     })
 
     if (!result) {
