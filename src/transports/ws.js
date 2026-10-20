@@ -26,8 +26,9 @@ import { toScriptHash } from './btc-client.js'
 
 /** @typedef {import('./btc-client.js').default} IBtcClient */
 /** @typedef {import('./btc-client.js').BtcBalance} BtcBalance */
-/** @typedef {import('./btc-client.js').BtcUtxo} BtcUtxo */
 /** @typedef {import('./btc-client.js').BtcHistoryItem} BtcHistoryItem */
+/** @typedef {import('../primitives/index.js').ChainUtxo} ChainUtxo */
+/** @typedef {import('./mempool-electrum-client.js').ElectrumUnspent} ElectrumUnspent */
 
 const isNodeOrBare =
   typeof Bare !== 'undefined' ||
@@ -256,10 +257,17 @@ export default class ElectrumWs {
    * Returns unspent transaction outputs for an address.
    *
    * @param {string} address - The bitcoin address.
-   * @returns {Promise<BtcUtxo[]>} List of UTXOs.
+   * @returns {Promise<ChainUtxo[]>} List of UTXOs.
    */
   async listUnspent (address) {
-    return this._request('blockchain.scripthash.listunspent', [toScriptHash(address, this._network)])
+    /** @type {ElectrumUnspent[]} */
+    const unspent = await this._request('blockchain.scripthash.listunspent', [toScriptHash(address, this._network)])
+
+    return unspent.map(({ tx_hash: txid, tx_pos: vout, value, height }) => ({
+      outpoint: { txid, vout },
+      value: BigInt(value),
+      height
+    }))
   }
 
   /**

@@ -33,7 +33,7 @@ import {
 
 /** @typedef {import('./signer-btc.js').ISignerBtc} ISignerBtc */
 /** @typedef {import('./signer-btc.js').BtcSignerConfig} BtcSignerConfig */
-/** @typedef {import('./signer-btc.js').BtcAddressType} BtcAddressType */
+/** @typedef {import('../primitives/index.js').ScriptType} ScriptType */
 /** @typedef {import('@tetherto/wdk-wallet').KeyPair} KeyPair */
 /** @typedef {import('bip32').BIP32Interface} BIP32Interface */
 /** @typedef {import('bitcoinjs-lib').Network} Network */
@@ -220,7 +220,7 @@ export default class SeedSignerBtc {
   /**
    * The address type of the signer's addresses ("legacy" for P2PKH, "segwit" for P2WPKH).
    *
-   * @type {BtcAddressType}
+   * @type {ScriptType}
    */
   get type () {
     return this._config.type ?? DEFAULT_ADDRESS_TYPE
