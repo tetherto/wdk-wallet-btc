@@ -77,9 +77,9 @@ export default class SeedSignerBtc implements ISignerBtc {
     /**
      * The address type of the signer's addresses ("legacy" for P2PKH, "segwit" for P2WPKH).
      *
-     * @type {BtcAddressType}
+     * @type {ScriptType}
      */
-    get type(): BtcAddressType;
+    get type(): ScriptType;
     /**
      * The account's key pair (private and public key buffers).
      *
@@ -128,7 +128,7 @@ export default class SeedSignerBtc implements ISignerBtc {
 }
 export type ISignerBtc = import("./signer-btc.js").ISignerBtc;
 export type BtcSignerConfig = import("./signer-btc.js").BtcSignerConfig;
-export type BtcAddressType = import("./signer-btc.js").BtcAddressType;
+export type ScriptType = import("../primitives/index.js").ScriptType;
 export type KeyPair = import("@tetherto/wdk-wallet").KeyPair;
 export type ValueError = import("@tetherto/wdk-wallet").ValueError;
 export type BIP32Interface = import("bip32").BIP32Interface;

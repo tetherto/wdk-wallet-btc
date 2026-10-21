@@ -7,6 +7,5 @@ export { default as ElectrumSsl } from "./ssl.js";
 export { default as ElectrumWs } from "./ws.js";
 export type BtcClientConfig = import("./btc-client.js").BtcClientConfig;
 export type BtcBalance = import("./btc-client.js").BtcBalance;
-export type BtcUtxo = import("./btc-client.js").BtcUtxo;
 export type BtcHistoryItem = import("./btc-client.js").BtcHistoryItem;
 export type MempoolElectrumConfig = import("./mempool-electrum-client.js").MempoolElectrumConfig;
