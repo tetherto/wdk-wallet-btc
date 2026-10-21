@@ -429,6 +429,75 @@ describe('BlockbookClient', () => {
     })
   })
 
+  describe('listUnspent', () => {
+    const ADDRESS = 'MOCK_ADDRESS'
+    const TXID = 'a'.repeat(64)
+
+    function mockBlockbookUtxos (data) {
+      return {
+        ok: true,
+        json: jest.fn().mockResolvedValue(data)
+      }
+    }
+
+    test('should request the utxo endpoint for the address', async () => {
+      fetchMock.mockResolvedValueOnce(mockBlockbookUtxos([]))
+
+      await client.listUnspent(ADDRESS)
+
+      expect(fetchMock).toHaveBeenCalledWith(`https://example.com/api/v2/utxo/${ADDRESS}`)
+    })
+
+    test('should return an empty list when the address has no utxos', async () => {
+      fetchMock.mockResolvedValueOnce(mockBlockbookUtxos([]))
+
+      expect(await client.listUnspent(ADDRESS)).toEqual([])
+    })
+
+    test('should convert a confirmed utxo with a string value to a canonical utxo', async () => {
+      fetchMock.mockResolvedValueOnce(mockBlockbookUtxos([
+        { txid: TXID, vout: 1, value: '100000', height: 800000, confirmations: 3 }
+      ]))
+
+      const utxos = await client.listUnspent(ADDRESS)
+
+      expect(utxos).toEqual([
+        { outpoint: { txid: TXID, vout: 1 }, value: 100000n, height: 800000 }
+      ])
+      expect(typeof utxos[0].value).toBe('bigint')
+    })
+
+    test('should default the height to 0 when an unconfirmed utxo has no height', async () => {
+      fetchMock.mockResolvedValueOnce(mockBlockbookUtxos([
+        { txid: TXID, vout: 0, value: '50000', confirmations: 0 }
+      ]))
+
+      const [utxo] = await client.listUnspent(ADDRESS)
+
+      expect(utxo.height).toBe(0)
+    })
+
+    test('should keep an explicit height of 0', async () => {
+      fetchMock.mockResolvedValueOnce(mockBlockbookUtxos([
+        { txid: TXID, vout: 0, value: '50000', height: 0 }
+      ]))
+
+      const [utxo] = await client.listUnspent(ADDRESS)
+
+      expect(utxo.height).toBe(0)
+    })
+
+    test('should keep the exact value above Number.MAX_SAFE_INTEGER', async () => {
+      fetchMock.mockResolvedValueOnce(mockBlockbookUtxos([
+        { txid: TXID, vout: 0, value: '9007199254740993', height: 1 }
+      ]))
+
+      const [utxo] = await client.listUnspent(ADDRESS)
+
+      expect(utxo.value).toBe(9007199254740993n)
+    })
+  })
+
   describe('estimateFee', () => {
     const MEMPOOL_FEES = {
       fastestFee: 50,
@@ -467,7 +536,7 @@ describe('BlockbookClient', () => {
       const rate = await client.estimateFee(6)
 
       expect(fetchMock).toHaveBeenCalledWith('https://example.com/api/v1/estimatefee/6')
-      expect(rate).toBe(0.00025)
+      expect(rate).toBeCloseTo(25)
     })
 
     test('should fall back to mempool.space when Blockbook v1 fails', async () => {
@@ -479,7 +548,7 @@ describe('BlockbookClient', () => {
 
       expect(fetchMock).toHaveBeenCalledWith('https://example.com/api/v1/estimatefee/1')
       expect(fetchMock).toHaveBeenCalledWith('https://mempool.space/api/v1/fees/recommended')
-      expect(rate).toBe(MEMPOOL_FEES.fastestFee / 100_000)
+      expect(rate).toBe(MEMPOOL_FEES.fastestFee)
     })
 
     test('should fall back to mempool.space when Blockbook v1 returns negative rate', async () => {
@@ -489,7 +558,7 @@ describe('BlockbookClient', () => {
 
       const rate = await client.estimateFee(1)
 
-      expect(rate).toBe(MEMPOOL_FEES.fastestFee / 100_000)
+      expect(rate).toBe(MEMPOOL_FEES.fastestFee)
     })
 
     test('should map mempool.space fastestFee for 1 block target', async () => {
@@ -499,7 +568,7 @@ describe('BlockbookClient', () => {
 
       const rate = await client.estimateFee(1)
 
-      expect(rate).toBe(MEMPOOL_FEES.fastestFee / 100_000)
+      expect(rate).toBe(MEMPOOL_FEES.fastestFee)
     })
 
     test('should map mempool.space halfHourFee for 2-3 block target', async () => {
@@ -509,7 +578,7 @@ describe('BlockbookClient', () => {
 
       const rate = await client.estimateFee(3)
 
-      expect(rate).toBe(MEMPOOL_FEES.halfHourFee / 100_000)
+      expect(rate).toBe(MEMPOOL_FEES.halfHourFee)
     })
 
     test('should map mempool.space hourFee for 4-6 block target', async () => {
@@ -519,7 +588,7 @@ describe('BlockbookClient', () => {
 
       const rate = await client.estimateFee(6)
 
-      expect(rate).toBe(MEMPOOL_FEES.hourFee / 100_000)
+      expect(rate).toBe(MEMPOOL_FEES.hourFee)
     })
 
     test('should map mempool.space economyFee for >6 block target', async () => {
@@ -529,17 +598,17 @@ describe('BlockbookClient', () => {
 
       const rate = await client.estimateFee(25)
 
-      expect(rate).toBe(MEMPOOL_FEES.economyFee / 100_000)
+      expect(rate).toBe(MEMPOOL_FEES.economyFee)
     })
 
-    test('should convert mempool.space sat/vB to BTC/kB', async () => {
+    test('should return mempool.space sat/vB as is', async () => {
       fetchMock
         .mockResolvedValueOnce(mockBlockbookFailure())
         .mockResolvedValueOnce(mockMempoolFees({ fastestFee: 100, halfHourFee: 50, hourFee: 25, economyFee: 10 }))
 
       const rate = await client.estimateFee(1)
 
-      expect(rate).toBe(0.001)
+      expect(rate).toBe(100)
     })
 
     test('should throw when both sources fail', async () => {
