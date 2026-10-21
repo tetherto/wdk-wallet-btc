@@ -11,6 +11,10 @@ export default class MempoolElectrumClient implements IBtcClient {
      */
     constructor(config: MempoolElectrumConfig);
     /** @private */
+    private _host;
+    /** @private */
+    private _protocol;
+    /** @private */
     private _network;
     /**
      * @private
@@ -66,9 +70,9 @@ export default class MempoolElectrumClient implements IBtcClient {
      * Returns unspent transaction outputs for an address.
      *
      * @param {string} address - The bitcoin address.
-     * @returns {Promise<BtcUtxo[]>} List of UTXOs.
+     * @returns {Promise<ChainUtxo[]>} List of UTXOs.
      */
-    listUnspent(address: string): Promise<BtcUtxo[]>;
+    listUnspent(address: string): Promise<ChainUtxo[]>;
     /**
      * Returns transaction history for an address.
      *
@@ -102,7 +106,7 @@ export default class MempoolElectrumClient implements IBtcClient {
      * Returns the estimated fee rate.
      *
      * @param {number} blocks - The confirmation target in blocks.
-     * @returns {Promise<number>} Fee rate in BTC/kB.
+     * @returns {Promise<number>} Fee rate in sat/vB (may be fractional).
      * @throws {ProviderError} If fee estimation is unavailable.
      * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-estimatefee
      */
@@ -144,5 +148,26 @@ export type MempoolElectrumConfig = {
 };
 export type IBtcClient = import("./btc-client.js").default;
 export type BtcBalance = import("./btc-client.js").BtcBalance;
-export type BtcUtxo = import("./btc-client.js").BtcUtxo;
+export type ChainUtxo = import("../primitives/index.js").ChainUtxo;
+/**
+ * An unspent output as an Electrum server reports it, with its transaction hash, output index, value and block height.
+ */
+export type ElectrumUnspent = {
+    /**
+     * - The hash of the transaction containing the output.
+     */
+    tx_hash: string;
+    /**
+     * - The output index within the transaction.
+     */
+    tx_pos: number;
+    /**
+     * - The output value in satoshis.
+     */
+    value: number;
+    /**
+     * - The block height (0 if unconfirmed).
+     */
+    height: number;
+};
 export type BtcHistoryItem = import("./btc-client.js").BtcHistoryItem;
