@@ -34,7 +34,17 @@ import { toScriptHash } from './btc-client.js'
 
 /** @typedef {import('./btc-client.js').default} IBtcClient */
 /** @typedef {import('./btc-client.js').BtcBalance} BtcBalance */
-/** @typedef {import('./btc-client.js').BtcUtxo} BtcUtxo */
+/** @typedef {import('../primitives/index.js').ChainUtxo} ChainUtxo */
+
+/**
+ * An unspent output as an Electrum server reports it, with its transaction hash, output index, value and block height.
+ *
+ * @typedef {Object} ElectrumUnspent
+ * @property {string} tx_hash - The hash of the transaction containing the output.
+ * @property {number} tx_pos - The output index within the transaction.
+ * @property {number} value - The output value in satoshis.
+ * @property {number} height - The block height (0 if unconfirmed).
+ */
 /** @typedef {import('./btc-client.js').BtcHistoryItem} BtcHistoryItem */
 
 const CERTIFICATE_ERROR_CODES = new Set([
@@ -211,10 +221,17 @@ export default class MempoolElectrumClient {
    * Returns unspent transaction outputs for an address.
    *
    * @param {string} address - The bitcoin address.
-   * @returns {Promise<BtcUtxo[]>} List of UTXOs.
+   * @returns {Promise<ChainUtxo[]>} List of UTXOs.
    */
   async listUnspent (address) {
-    return this._client.blockchainScripthash_listunspent(toScriptHash(address, this._network))
+    /** @type {ElectrumUnspent[]} */
+    const unspent = await this._client.blockchainScripthash_listunspent(toScriptHash(address, this._network))
+
+    return unspent.map(({ tx_hash: txid, tx_pos: vout, value, height }) => ({
+      outpoint: { txid, vout },
+      value: BigInt(value),
+      height
+    }))
   }
 
   /**
@@ -263,7 +280,7 @@ export default class MempoolElectrumClient {
    * Returns the estimated fee rate.
    *
    * @param {number} blocks - The confirmation target in blocks.
-   * @returns {Promise<number>} Fee rate in BTC/kB.
+   * @returns {Promise<number>} Fee rate in sat/vB (may be fractional).
    * @throws {ProviderError} If fee estimation is unavailable.
    * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-estimatefee
    */
@@ -274,6 +291,6 @@ export default class MempoolElectrumClient {
         reason: ProviderErrorReason.INTERNAL_SERVER_ERROR
       })
     }
-    return rate
+    return rate * 100_000
   }
 }

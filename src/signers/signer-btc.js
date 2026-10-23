@@ -18,19 +18,12 @@ import { ISigner, NotImplementedError } from '@tetherto/wdk-wallet'
 /** @typedef {import('bitcoinjs-lib').Psbt} Psbt */
 /** @typedef {import('@tetherto/wdk-wallet').UnsupportedOperationError} UnsupportedOperationError */
 
-/**
- * The signer's address type. Governs address encoding and message signing only, not PSBT signing.
- *
- * @typedef {"legacy" | "segwit"} BtcAddressType
- *   - "legacy": [P2PKH (BIP-44)](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)
- *   - "segwit": [P2WPKH / native SegWit (BIP-84)](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki)
- * @todo Add support for P2SH-wrapped SegWit (BIP-49) and BIP-86 (Taproot).
- */
+/** @typedef {import('../primitives/index.js').ScriptType} ScriptType */
 
 /**
  * @typedef {Object} BtcSignerConfig
  * @property {"bitcoin" | "regtest" | "testnet"} [network] - The name of the network to use (default: "bitcoin").
- * @property {BtcAddressType} [type] - The signer's address type (default: "segwit").
+ * @property {ScriptType} [type] - The signer's address type (default: "segwit").
  */
 
 /**
@@ -62,7 +55,7 @@ export class ISignerBtc extends ISigner {
   /**
    * The address type of the signer's addresses ("legacy" for P2PKH, "segwit" for P2WPKH).
    *
-   * @type {BtcAddressType}
+   * @type {ScriptType}
    */
   get type () {
     throw new NotImplementedError('type')

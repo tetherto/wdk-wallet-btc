@@ -17,8 +17,8 @@ import { NoSuchElementError, ProviderError, ProviderErrorReason } from '@tethert
 
 /** @typedef {import('./btc-client.js').default} IBtcClient */
 /** @typedef {import('./btc-client.js').BtcBalance} BtcBalance */
-/** @typedef {import('./btc-client.js').BtcUtxo} BtcUtxo */
 /** @typedef {import('./btc-client.js').BtcHistoryItem} BtcHistoryItem */
+/** @typedef {import('../primitives/index.js').ChainUtxo} ChainUtxo */
 
 const MEMPOOL_SPACE_URL = 'https://mempool.space'
 
@@ -200,16 +200,15 @@ export default class BlockbookClient {
    * Returns unspent transaction outputs for an address.
    *
    * @param {string} address - The bitcoin address.
-   * @returns {Promise<BtcUtxo[]>} List of UTXOs.
+   * @returns {Promise<ChainUtxo[]>} List of UTXOs.
    */
   async listUnspent (address) {
     const data = await this._get(`/v2/utxo/${address}`)
 
     return data.map(u => ({
-      tx_hash: u.txid,
-      tx_pos: u.vout,
-      value: Number(u.value),
-      height: u.height
+      outpoint: { txid: u.txid, vout: u.vout },
+      value: BigInt(u.value),
+      height: u.height ?? 0
     }))
   }
 
@@ -294,7 +293,7 @@ export default class BlockbookClient {
    * falls back to mempool.space.
    *
    * @param {number} blocks - The confirmation target in blocks.
-   * @returns {Promise<number>} Fee rate in BTC/kB.
+   * @returns {Promise<number>} Fee rate in sat/vB (may be fractional).
    * @throws {ProviderError} If fee estimation is unavailable from both sources.
    */
   async estimateFee (blocks) {
@@ -307,13 +306,13 @@ export default class BlockbookClient {
   /**
    * @private
    * @param {number} blocks
-   * @returns {Promise<number | null>} Fee rate in BTC/kB, or null if unavailable.
+   * @returns {Promise<number | null>} Fee rate in sat/vB, or null if unavailable.
    */
   async _estimateFeeFromBlockbook (blocks) {
     try {
       const data = await this._get(`/v1/estimatefee/${blocks}`)
       const rate = Number(data.result ?? data)
-      if (rate > 0) return rate
+      if (rate > 0) return rate * 100_000
       return null
     } catch {
       return null
@@ -323,7 +322,7 @@ export default class BlockbookClient {
   /**
    * @private
    * @param {number} blocks
-   * @returns {Promise<number>} Fee rate in BTC/kB.
+   * @returns {Promise<number>} Fee rate in sat/vB.
    * @throws {ProviderError} If fee estimation is unavailable.
    */
   async _estimateFeeFromMempool (blocks) {
@@ -349,7 +348,7 @@ export default class BlockbookClient {
       })
     }
 
-    return satPerVB / 100_000
+    return satPerVB
   }
 
   /** @private */
