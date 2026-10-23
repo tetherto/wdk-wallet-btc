@@ -140,9 +140,30 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      * The signer given at construction is wiped only if the account owns it (see {@link SignerOptions}).
      */
     dispose(): void;
-    /** @private */
+    /**
+     * Computes the fee of a signed raw transaction by resolving the value of each
+     * spent input from the blockchain and subtracting the total output value.
+     *
+     * @private
+     * @param {Transaction} transaction - The decoded signed transaction.
+     * @returns {Promise<bigint>} The fee (in satoshis).
+     */
     private _getSignedTransactionFee;
-    /** @private */
+    /**
+     * Verifies each legacy (BIP-44/P2PKH) input's real previous output — fetched from the
+     * blockchain — matches what spend planning assumed, rather than trusting the client's
+     * `listUnspent` report as-is.
+     *
+     * @private
+     * @param {Utxo[]} utxos - The selected unspent outputs.
+     * @param {(txid: string) => Promise<string>} getPrevTxHex - Resolves a txid to its raw hex, cached.
+     * @throws {AssertionError} If a previous transaction's id, script, or value doesn't match what was reported.
+     */
+    private _verifyLegacyUtxos;
+    /**
+     * @private
+     * @param {SpendPlan} plan - The spend plan.
+     */
     private _getRawTransaction;
     /** @private */
     private _buildSignedTransaction;
@@ -154,6 +175,8 @@ export type TransferOptions = import("@tetherto/wdk-wallet").TransferOptions;
 export type TransferResult = import("@tetherto/wdk-wallet").TransferResult;
 export type BtcTransaction = import("./wallet-account-read-only-btc.js").BtcTransaction;
 export type BtcWalletConfig = import("./wallet-account-read-only-btc.js").BtcWalletConfig;
+export type Utxo = import("./primitives/index.js").Utxo;
+export type SpendPlan = import("./primitives/index.js").SpendPlan;
 export type ISignerBtc = import("./signers/signer-btc.js").ISignerBtc;
 export type BtcSignerConfig = import("./signers/signer-btc.js").BtcSignerConfig;
 export type SignerOptions = {

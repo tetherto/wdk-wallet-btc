@@ -147,11 +147,11 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * single transaction. There will likely be some satoshis left over as change.
      *
      * @param {Object} [opts] - Options.
-     * @param {number | bigint} [opts.feeRate] - Fee rate in sat/vB. If omitted, estimated via the client.
+     * @param {number} [opts.feeRate] - Fee rate in sat/vB. If omitted, estimated via the client.
      * @returns {Promise<BtcMaxSpendableResult>} The estimated maximum spendable result.
      */
     getMaxSpendable(opts?: {
-        feeRate?: number | bigint;
+        feeRate?: number;
     }): Promise<BtcMaxSpendableResult>;
     /**
      * Closes any internal connection with the server.
@@ -179,15 +179,15 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * Builds and returns a fee-aware funding plan for sending a transaction.
      *
      * Uses descriptors + coinselect to choose inputs, at a given feeRate (sats/vB). Returns the selected
-     * UTXOs (in the shape expected by the PSBT builder), the computed fee, and the resulting change value.
+     * inputs, the outputs to create and the computed fee as a spend plan.
      *
      * @protected
      * @param {Object} tx - The transaction.
      * @param {string} tx.fromAddress - The sender's address.
      * @param {string} tx.toAddress - The recipient's address.
      * @param {number | bigint} tx.amount - The amount to send (in satoshis).
-     * @param {number | bigint} tx.feeRate - The fee rate (in sats/vB).
-     * @returns {Promise<{ utxos: OutputWithValue[], fee: bigint, changeValue: bigint }>} - The funding plan.
+     * @param {number} tx.feeRate - The fee rate (in sats/vB).
+     * @returns {Promise<SpendPlan>} - The spend plan.
      * @throws {ValueError} If the amount doesn't clear the dust limit, or the spend requires more inputs than allowed.
      * @throws {TransactionError} If the account has no unspent outputs, or its balance doesn't cover the amount and its fees.
      */
@@ -195,12 +195,8 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
         fromAddress: string;
         toAddress: string;
         amount: number | bigint;
-        feeRate: number | bigint;
-    }): Promise<{
-        utxos: OutputWithValue[];
-        fee: bigint;
-        changeValue: bigint;
-    }>;
+        feeRate: number;
+    }): Promise<SpendPlan>;
     /**
      * Verifies a message's signature.
      *
@@ -219,7 +215,8 @@ export type MempoolElectrumClient = import("./transports/index.js").MempoolElect
 export type IBtcClient = import("./transports/index.js").IBtcClient;
 export type BlockbookClientConfig = import("./transports/blockbook-client.js").BlockbookClientConfig;
 export type ElectrumWsConfig = import("./transports/ws.js").ElectrumWsConfig;
-export type OutputWithValue = import("@bitcoinerlab/coinselect").OutputWithValue;
+export type Utxo = import("./primitives/index.js").Utxo;
+export type SpendPlan = import("./primitives/index.js").SpendPlan;
 export type Network = import("bitcoinjs-lib").Network;
 export type BtcTransactionReceipt = import("bitcoinjs-lib").Transaction;
 export type TransactionResult = import("@tetherto/wdk-wallet").TransactionResult;
@@ -256,7 +253,7 @@ export type BtcTransaction = {
     /**
      * - Optional fee rate in satoshis per virtual byte. If provided, this value overrides the fee rate estimated from the blockchain (default: undefined).
      */
-    feeRate?: number | bigint;
+    feeRate?: number;
 };
 export type BtcClientDescriptor = BtcBlockbookHttpClientDescriptor | BtcElectrumClientDescriptor | BtcElectrumWsClientDescriptor;
 export type BtcBlockbookHttpClientDescriptor = {

@@ -170,15 +170,6 @@ describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
       expect(fee).toBe(expectedFee)
     })
   
-    test('should successfully quote a transaction with a fixed fee rate (bigint)', async () => {
-      const TRANSACTION = { to: recipient, value: 1000, feeRate: 10n }
-
-      const { fee } = await account.quoteSendTransaction(TRANSACTION)
-      
-      const expectedFee = FEES[bip] * TRANSACTION.feeRate
-      expect(fee).toBe(expectedFee)
-    })
-    
     test('should successfully quote a transaction with confirmation target', async () => {
       const satsPerVByte = bitcoin.estimateSatsPerVByte(5)
       const TRANSACTION = { to: recipient, value: 1000, feeRate: satsPerVByte }
@@ -309,9 +300,8 @@ describe('WalletAccountReadOnlyBtc getBalance formula', () => {
 describe('WalletAccountReadOnlyBtc coin selection', () => {
   test('should throw if the spend needs more inputs than a transaction allows', async () => {
     const unspent = Array.from({ length: 300 }, (_, index) => ({
-      tx_hash: 'a'.repeat(64),
-      tx_pos: index,
-      value: 5_000,
+      outpoint: { txid: 'a'.repeat(64), vout: index },
+      value: 5_000n,
       height: 1
     }))
 

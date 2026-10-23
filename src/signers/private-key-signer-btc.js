@@ -15,17 +15,17 @@
 // limitations under the License.
 
 import { networks, Psbt } from 'bitcoinjs-lib'
-import { ECPair } from '@bitcoinerlab/descriptors'
 import { UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
 
 // eslint-disable-next-line camelcase
 import { sodium_memzero } from 'sodium-universal'
 
+import { ECPair } from '../crypto-engine.js'
 import { DEFAULT_ADDRESS_TYPE, getAddressFromPublicKey, signMessage, signPsbtWithKey } from './utils.js'
 
 /** @typedef {import('./signer-btc.js').ISignerBtc} ISignerBtc */
 /** @typedef {import('./signer-btc.js').BtcSignerConfig} BtcSignerConfig */
-/** @typedef {import('./signer-btc.js').BtcAddressType} BtcAddressType */
+/** @typedef {import('../primitives/index.js').ScriptType} ScriptType */
 /** @typedef {import('@tetherto/wdk-wallet').KeyPair} KeyPair */
 
 /**
@@ -109,7 +109,7 @@ export default class PrivateKeySignerBtc {
   /**
    * The address type of the signer's addresses ("legacy" for P2PKH, "segwit" for P2WPKH).
    *
-   * @type {BtcAddressType}
+   * @type {ScriptType}
    */
   get type () {
     return this._config.type ?? DEFAULT_ADDRESS_TYPE

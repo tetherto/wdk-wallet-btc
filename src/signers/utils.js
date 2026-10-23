@@ -14,18 +14,15 @@
 'use strict'
 
 import { payments } from 'bitcoinjs-lib'
-import bitcoinMessageModule from '@bitcoinerlab/btcmessage'
-import * as ecc from '@bitcoinerlab/secp256k1'
 import { toBase64 } from 'uint8array-tools'
 import { ValueError } from '@tetherto/wdk-wallet'
 
-const { MessageFactory } = bitcoinMessageModule.default ?? bitcoinMessageModule
-const bitcoinMessage = MessageFactory(ecc)
+import { bitcoinMessage } from '../crypto-engine.js'
 
 /** @typedef {import('bitcoinjs-lib').Network} Network */
 /** @typedef {import('bitcoinjs-lib').Psbt} Psbt */
 /** @typedef {import('./signer-btc.js').BtcSignerConfig} BtcSignerConfig */
-/** @typedef {import('./signer-btc.js').BtcAddressType} BtcAddressType */
+/** @typedef {import('../primitives/index.js').ScriptType} ScriptType */
 /** @typedef {import('ecpair').ECPairInterface | import('bip32').BIP32Interface} SignerLike */
 
 /**
@@ -55,7 +52,7 @@ export function signPsbtWithKey (psbtInstance, account) {
  * The address type signers use when the configuration does not specify one.
  *
  * @internal
- * @type {BtcAddressType}
+ * @type {ScriptType}
  */
 export const DEFAULT_ADDRESS_TYPE = 'segwit'
 
@@ -64,7 +61,7 @@ export const DEFAULT_ADDRESS_TYPE = 'segwit'
  *
  * @internal
  * @param {44 | 84} [bip] - The BIP address type from the wallet configuration.
- * @returns {BtcAddressType | undefined} The signer address type, or undefined if no bip was given.
+ * @returns {ScriptType | undefined} The signer address type, or undefined if no bip was given.
  * @throws {ValueError} If an unsupported BIP is specified.
  */
 export function getSignerTypeForBip (bip) {
@@ -81,7 +78,7 @@ export function getSignerTypeForBip (bip) {
  * @internal
  * @param {Uint8Array} publicKey - The public key.
  * @param {Network} network - The network configuration.
- * @param {BtcAddressType} type - The address type.
+ * @param {ScriptType} type - The address type.
  * @returns {string} The Bitcoin address.
  */
 export function getAddressFromPublicKey (publicKey, network, type) {
@@ -97,7 +94,7 @@ export function getAddressFromPublicKey (publicKey, network, type) {
  * @internal
  * @param {string} message - The message to sign.
  * @param {Uint8Array} privateKey - The private key.
- * @param {BtcAddressType} type - The address type.
+ * @param {ScriptType} type - The address type.
  * @returns {string} The message's signature.
  */
 export function signMessage (message, privateKey, type) {
