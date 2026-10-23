@@ -17,18 +17,14 @@
 import { WalletAccountReadOnly, NoSuchElementError, TransactionError, TransactionErrorReason, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
 
 import { coinselect } from '@bitcoinerlab/coinselect'
-import { Output } from '@bitcoinerlab/descriptors'
-import * as ecc from '@bitcoinerlab/secp256k1'
-import bitcoinMessageModule from '@bitcoinerlab/btcmessage'
 
 import { address as btcAddress, networks, Transaction } from 'bitcoinjs-lib'
 
 import FailoverProvider from '@tetherto/wdk-failover-provider'
 
-import { BlockbookClient, ElectrumTcp, ElectrumSsl, ElectrumTls, ElectrumWs } from './transports/index.js'
+import { Output, bitcoinMessage } from './crypto-engine.js'
 
-const { MessageFactory } = bitcoinMessageModule.default ?? bitcoinMessageModule
-const bitcoinMessage = MessageFactory(ecc)
+import { BlockbookClient, ElectrumTcp, ElectrumSsl, ElectrumTls, ElectrumWs } from './transports/index.js'
 
 /** @typedef {import('./transports/index.js').MempoolElectrumConfig} MempoolElectrumConfig */
 /** @typedef {import('./transports/index.js').MempoolElectrumClient} MempoolElectrumClient */

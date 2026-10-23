@@ -14,16 +14,15 @@
 'use strict'
 import { hmac } from '@noble/hashes/hmac'
 import { sha512 } from '@noble/hashes/sha2'
-import { initEccLib, networks, Psbt } from 'bitcoinjs-lib'
-import { BIP32Factory } from 'bip32'
+import { networks, Psbt } from 'bitcoinjs-lib'
 import { ValueError } from '@tetherto/wdk-wallet'
 
 import * as bip39 from 'bip39'
-import * as ecc from '@bitcoinerlab/secp256k1'
 
 // eslint-disable-next-line camelcase
 import { sodium_memzero } from 'sodium-universal'
 
+import { BIP32 } from '../crypto-engine.js'
 import {
   DEFAULT_ADDRESS_TYPE,
   getAddressFromPublicKey,
@@ -48,9 +47,6 @@ const BITCOIN = {
   pubKeyHash: 0x00,
   scriptHash: 0x05
 }
-const bip32 = BIP32Factory(ecc)
-
-initEccLib(ecc)
 
 /**
  * Returns the relative BIP derivation path prefix (purpose'/coin_type') for the given signer
@@ -80,7 +76,7 @@ function deriveMasterNode (seed, network = BITCOIN) {
   const privateKey = masterKeyAndChainCodeBuffer.slice(0, 32)
   const chainCode = masterKeyAndChainCodeBuffer.slice(32)
 
-  const masterNode = bip32.fromPrivateKey(
+  const masterNode = BIP32.fromPrivateKey(
     Buffer.from(privateKey),
     Buffer.from(chainCode),
     network
@@ -169,7 +165,7 @@ export default class SeedSignerBtc {
    */
   static fromXprv (xprv, config = {}) {
     const network = networks[config.network] || networks.bitcoin
-    const node = bip32.fromBase58(xprv, network)
+    const node = BIP32.fromBase58(xprv, network)
     if (node.isNeutered()) {
       throw new ValueError('The given key is an extended public key; an extended private key (xprv/tprv) is required.')
     }

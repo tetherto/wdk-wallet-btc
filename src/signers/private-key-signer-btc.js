@@ -15,12 +15,12 @@
 // limitations under the License.
 
 import { networks, Psbt } from 'bitcoinjs-lib'
-import { ECPair } from '@bitcoinerlab/descriptors'
 import { UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
 
 // eslint-disable-next-line camelcase
 import { sodium_memzero } from 'sodium-universal'
 
+import { ECPair } from '../crypto-engine.js'
 import { DEFAULT_ADDRESS_TYPE, getAddressFromPublicKey, signMessage, signPsbtWithKey } from './utils.js'
 
 /** @typedef {import('./signer-btc.js').ISignerBtc} ISignerBtc */
