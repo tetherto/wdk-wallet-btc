@@ -14,13 +14,10 @@
 'use strict'
 
 import { payments } from 'bitcoinjs-lib'
-import bitcoinMessageModule from '@bitcoinerlab/btcmessage'
-import * as ecc from '@bitcoinerlab/secp256k1'
 import { toBase64 } from 'uint8array-tools'
 import { ValueError } from '@tetherto/wdk-wallet'
 
-const { MessageFactory } = bitcoinMessageModule.default ?? bitcoinMessageModule
-const bitcoinMessage = MessageFactory(ecc)
+import { bitcoinMessage } from '../crypto-engine.js'
 
 /** @typedef {import('bitcoinjs-lib').Network} Network */
 /** @typedef {import('bitcoinjs-lib').Psbt} Psbt */
