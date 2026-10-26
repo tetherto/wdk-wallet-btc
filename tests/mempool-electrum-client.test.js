@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, jest, test } from '@jest/globals'
+import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals'
 
 const tlsConnect = jest.fn()
 
@@ -65,6 +65,75 @@ describe.each([
     await expect(client.connect()).rejects.toThrow(
       `TLS certificate rejected for ${HOST}: self-signed certificate`
     )
+  })
+})
+
+describe('on the Bare runtime (bare-tls)', () => {
+  function createBareTlsSocket () {
+    const listeners = {}
+    const tcp = { setKeepAlive: jest.fn(), setNoDelay: jest.fn(), setTimeout: jest.fn() }
+
+    return {
+      socket: tcp,
+      on: jest.fn(),
+      once: jest.fn((event, handler) => { listeners[event] = handler }),
+      emit: (event) => listeners[event]?.(),
+      setEncoding: jest.fn()
+    }
+  }
+
+  beforeEach(() => {
+    globalThis.Bare = {}
+    tlsConnect.mockReset()
+  })
+
+  afterEach(() => {
+    delete globalThis.Bare
+  })
+
+  test('calls back once the TLS handshake is done, not when TCP connects', () => {
+    const socket = createBareTlsSocket()
+    tlsConnect.mockReturnValue(socket)
+    const client = new ElectrumTls({ host: HOST, port: PORT })
+    const callback = jest.fn()
+
+    client._client.conn.connect(PORT, HOST, callback)
+
+    expect(tlsConnect).toHaveBeenCalledWith(expect.objectContaining({
+      rejectUnauthorized: true,
+      servername: HOST
+    }), undefined)
+    expect(callback).not.toHaveBeenCalled()
+    socket.emit('connect')
+    expect(callback).toHaveBeenCalledTimes(1)
+  })
+
+  test('forwards setTimeout, setKeepAlive and setNoDelay to the TCP socket', () => {
+    const socket = createBareTlsSocket()
+    tlsConnect.mockReturnValue(socket)
+    const client = new ElectrumTls({ host: HOST, port: PORT })
+
+    // The client's TLS wrapper sets them right after tls.connect().
+    client._client.conn.connect(PORT, HOST)
+
+    expect(socket.socket.setTimeout).toHaveBeenCalled()
+    expect(socket.socket.setKeepAlive).toHaveBeenCalled()
+    expect(socket.socket.setNoDelay).toHaveBeenCalled()
+    expect(socket.setTimeout(10)).toBe(socket)
+    expect(socket.socket.setTimeout).toHaveBeenLastCalledWith(10)
+  })
+
+  test('keeps the methods a fixed bare-tls already has', () => {
+    const socket = createBareTlsSocket()
+    const own = jest.fn(() => socket)
+    socket.setTimeout = own
+    tlsConnect.mockReturnValue(socket)
+    const client = new ElectrumTls({ host: HOST, port: PORT })
+
+    client._client.conn.connect(PORT, HOST)
+
+    expect(own).toHaveBeenCalled()
+    expect(socket.socket.setTimeout).not.toHaveBeenCalled()
   })
 })
 

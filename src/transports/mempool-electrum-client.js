@@ -50,14 +50,49 @@ function isCertificateError (error) {
   return CERTIFICATE_ERROR_CODES.has(error?.code) || /certificate/i.test(error?.message || '')
 }
 
+const SOCKET_OPTION_METHODS = ['setTimeout', 'setKeepAlive', 'setNoDelay']
+
+/**
+ * On the Bare runtime, `node:tls` is bare-tls (up to at least 3.1.14), whose sockets differ from
+ * Node's in two ways that break @mempool/electrum-client:
+ * - the connect callback runs when the TCP connection opens, before the TLS handshake, so the
+ *   client writes before the session exists; bare-tls emits 'connect' on the TLS socket once the
+ *   handshake is done, so the callback is attached there;
+ * - setTimeout, setKeepAlive and setNoDelay are missing; they are forwarded to the TCP socket.
+ * Certificate verification is unchanged.
+ *
+ * @private
+ * @param {any} socket - The bare-tls socket.
+ * @param {() => void} [callback] - The connect callback.
+ * @returns {any} The socket.
+ */
+function adaptBareTlsSocket (socket, callback) {
+  for (const method of SOCKET_OPTION_METHODS) {
+    if (typeof socket[method] !== 'function') {
+      socket[method] = (...args) => {
+        if (socket.socket && typeof socket.socket[method] === 'function') socket.socket[method](...args)
+        return socket
+      }
+    }
+  }
+
+  if (callback) socket.once('connect', callback)
+
+  return socket
+}
+
 function createSecureTlsModule (host) {
   return {
     connect (options, callback) {
-      return tls.connect({
+      const isBare = typeof Bare !== 'undefined' // eslint-disable-line no-undef
+
+      const socket = tls.connect({
         ...options,
         rejectUnauthorized: true,
         servername: host
-      }, callback)
+      }, isBare ? undefined : callback)
+
+      return isBare ? adaptBareTlsSocket(socket, callback) : socket
     }
   }
 }
