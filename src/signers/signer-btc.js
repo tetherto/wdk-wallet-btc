@@ -44,6 +44,16 @@ export class ISignerBtc extends ISigner {
   }
 
   /**
+   * The fingerprint of the master key (BIP-32) as 8 lowercase hex characters, if the signer can
+   * provide it: the first four bytes of the HASH160 of the master public key.
+   *
+   * @type {string | undefined}
+   */
+  get masterFingerprint () {
+    return undefined
+  }
+
+  /**
    * The name of the network the signer's addresses are encoded for.
    *
    * @type {"bitcoin" | "regtest" | "testnet"}

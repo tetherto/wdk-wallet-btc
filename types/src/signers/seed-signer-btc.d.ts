@@ -46,6 +46,8 @@ export default class SeedSignerBtc implements ISignerBtc {
     /** @private */
     private _publicKey;
     /** @private */
+    private _masterFingerprint;
+    /** @private */
     private _address;
     /**
      * Whether this signer can derive child signers. Always true: every seed signer holds an
@@ -60,6 +62,14 @@ export default class SeedSignerBtc implements ISignerBtc {
      * @type {string}
      */
     get path(): string;
+    /**
+     * The fingerprint of the master key (BIP-32) as 8 lowercase hex characters, if known: the first
+     * four bytes of the HASH160 of the master public key. Undefined for signers imported from a
+     * non-root extended private key, whose master key is unknown.
+     *
+     * @type {string | undefined}
+     */
+    get masterFingerprint(): string | undefined;
     /**
      * The account's Bitcoin address.
      *
