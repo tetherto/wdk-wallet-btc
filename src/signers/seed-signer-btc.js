@@ -14,16 +14,15 @@
 'use strict'
 import { hmac } from '@noble/hashes/hmac'
 import { sha512 } from '@noble/hashes/sha2'
-import { initEccLib, networks, Psbt } from 'bitcoinjs-lib'
-import { BIP32Factory } from 'bip32'
+import { networks, Psbt } from 'bitcoinjs-lib'
 import { ValueError } from '@tetherto/wdk-wallet'
 
 import * as bip39 from 'bip39'
-import * as ecc from '@bitcoinerlab/secp256k1'
 
 // eslint-disable-next-line camelcase
 import { sodium_memzero } from 'sodium-universal'
 
+import { BIP32 } from '../crypto-engine.js'
 import {
   DEFAULT_ADDRESS_TYPE,
   getAddressFromPublicKey,
@@ -33,7 +32,7 @@ import {
 
 /** @typedef {import('./signer-btc.js').ISignerBtc} ISignerBtc */
 /** @typedef {import('./signer-btc.js').BtcSignerConfig} BtcSignerConfig */
-/** @typedef {import('./signer-btc.js').BtcAddressType} BtcAddressType */
+/** @typedef {import('../primitives/index.js').ScriptType} ScriptType */
 /** @typedef {import('@tetherto/wdk-wallet').KeyPair} KeyPair */
 /** @typedef {import('bip32').BIP32Interface} BIP32Interface */
 /** @typedef {import('bitcoinjs-lib').Network} Network */
@@ -48,9 +47,6 @@ const BITCOIN = {
   pubKeyHash: 0x00,
   scriptHash: 0x05
 }
-const bip32 = BIP32Factory(ecc)
-
-initEccLib(ecc)
 
 /**
  * Returns the relative BIP derivation path prefix (purpose'/coin_type') for the given signer
@@ -80,7 +76,7 @@ function deriveMasterNode (seed, network = BITCOIN) {
   const privateKey = masterKeyAndChainCodeBuffer.slice(0, 32)
   const chainCode = masterKeyAndChainCodeBuffer.slice(32)
 
-  const masterNode = bip32.fromPrivateKey(
+  const masterNode = BIP32.fromPrivateKey(
     Buffer.from(privateKey),
     Buffer.from(chainCode),
     network
@@ -115,6 +111,9 @@ export default class SeedSignerBtc {
   _publicKey
 
   /** @private */
+  _masterFingerprint
+
+  /** @private */
   _address
 
   /**
@@ -140,6 +139,7 @@ export default class SeedSignerBtc {
 
     const network = networks[config.network] || networks.bitcoin
     const root = deriveMasterNode(seed, network)
+    const masterFingerprint = Buffer.from(root.fingerprint).toString('hex')
     if (ownsSeed) {
       sodium_memzero(seed)
     }
@@ -155,7 +155,7 @@ export default class SeedSignerBtc {
         sodium_memzero(root.chainCode)
       }
     }
-    SeedSignerBtc._init(this, account, config, path)
+    SeedSignerBtc._init(this, account, config, path, masterFingerprint)
   }
 
   /**
@@ -169,12 +169,12 @@ export default class SeedSignerBtc {
    */
   static fromXprv (xprv, config = {}) {
     const network = networks[config.network] || networks.bitcoin
-    const node = bip32.fromBase58(xprv, network)
+    const node = BIP32.fromBase58(xprv, network)
     if (node.isNeutered()) {
       throw new ValueError('The given key is an extended public key; an extended private key (xprv/tprv) is required.')
     }
     const signer = Object.create(SeedSignerBtc.prototype)
-    SeedSignerBtc._init(signer, node, config, '/')
+    SeedSignerBtc._init(signer, node, config, '/', node.depth === 0 ? Buffer.from(node.fingerprint).toString('hex') : undefined)
     return signer
   }
 
@@ -195,6 +195,17 @@ export default class SeedSignerBtc {
    */
   get path () {
     return this._path
+  }
+
+  /**
+   * The fingerprint of the master key (BIP-32) as 8 lowercase hex characters, if known: the first
+   * four bytes of the HASH160 of the master public key. Undefined for signers imported from a
+   * non-root extended private key, whose master key is unknown.
+   *
+   * @type {string | undefined}
+   */
+  get masterFingerprint () {
+    return this._masterFingerprint
   }
 
   /**
@@ -220,7 +231,7 @@ export default class SeedSignerBtc {
   /**
    * The address type of the signer's addresses ("legacy" for P2PKH, "segwit" for P2WPKH).
    *
-   * @type {BtcAddressType}
+   * @type {ScriptType}
    */
   get type () {
     return this._config.type ?? DEFAULT_ADDRESS_TYPE
@@ -248,7 +259,7 @@ export default class SeedSignerBtc {
   async derive (relPath) {
     const signer = Object.create(SeedSignerBtc.prototype)
     const path = this._path === '/' ? `/${relPath}` : `${this._path}/${relPath}`
-    SeedSignerBtc._init(signer, this._account.derivePath(relPath), this._config, path)
+    SeedSignerBtc._init(signer, this._account.derivePath(relPath), this._config, path, this._masterFingerprint)
     return signer
   }
 
@@ -304,12 +315,13 @@ export default class SeedSignerBtc {
   }
 
   /** @private */
-  static _init (signer, account, config, path) {
+  static _init (signer, account, config, path, masterFingerprint) {
     const network = networks[config.network] || networks.bitcoin
     signer._config = config
     signer._account = account
     signer._path = path
     signer._publicKey = account.publicKey
+    signer._masterFingerprint = masterFingerprint
     signer._address = getAddressFromPublicKey(account.publicKey, network, signer.type)
   }
 }

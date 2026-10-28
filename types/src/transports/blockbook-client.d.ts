@@ -47,9 +47,9 @@ export default class BlockbookClient implements IBtcClient {
      * Returns unspent transaction outputs for an address.
      *
      * @param {string} address - The bitcoin address.
-     * @returns {Promise<BtcUtxo[]>} List of UTXOs.
+     * @returns {Promise<ChainUtxo[]>} List of UTXOs.
      */
-    listUnspent(address: string): Promise<BtcUtxo[]>;
+    listUnspent(address: string): Promise<ChainUtxo[]>;
     /**
      * Returns transaction history for an address.
      *
@@ -86,20 +86,20 @@ export default class BlockbookClient implements IBtcClient {
      * falls back to mempool.space.
      *
      * @param {number} blocks - The confirmation target in blocks.
-     * @returns {Promise<number>} Fee rate in BTC/kB.
+     * @returns {Promise<number>} Fee rate in sat/vB (may be fractional).
      * @throws {ProviderError} If fee estimation is unavailable from both sources.
      */
     estimateFee(blocks: number): Promise<number>;
     /**
      * @private
      * @param {number} blocks
-     * @returns {Promise<number | null>} Fee rate in BTC/kB, or null if unavailable.
+     * @returns {Promise<number | null>} Fee rate in sat/vB, or null if unavailable.
      */
     private _estimateFeeFromBlockbook;
     /**
      * @private
      * @param {number} blocks
-     * @returns {Promise<number>} Fee rate in BTC/kB.
+     * @returns {Promise<number>} Fee rate in sat/vB.
      * @throws {ProviderError} If fee estimation is unavailable.
      */
     private _estimateFeeFromMempool;
@@ -108,8 +108,8 @@ export default class BlockbookClient implements IBtcClient {
 }
 export type IBtcClient = import("./btc-client.js").default;
 export type BtcBalance = import("./btc-client.js").BtcBalance;
-export type BtcUtxo = import("./btc-client.js").BtcUtxo;
 export type BtcHistoryItem = import("./btc-client.js").BtcHistoryItem;
+export type ChainUtxo = import("../primitives/index.js").ChainUtxo;
 export type BlockbookClientConfig = {
     /**
      * - The Blockbook server API base URL (e.g., 'https://btc1.trezor.io/api').

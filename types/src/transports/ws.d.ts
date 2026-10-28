@@ -80,9 +80,9 @@ export default class ElectrumWs implements IBtcClient {
      * Returns unspent transaction outputs for an address.
      *
      * @param {string} address - The bitcoin address.
-     * @returns {Promise<BtcUtxo[]>} List of UTXOs.
+     * @returns {Promise<ChainUtxo[]>} List of UTXOs.
      */
-    listUnspent(address: string): Promise<BtcUtxo[]>;
+    listUnspent(address: string): Promise<ChainUtxo[]>;
     /**
      * Returns transaction history for an address.
      *
@@ -116,7 +116,7 @@ export default class ElectrumWs implements IBtcClient {
      * Returns the estimated fee rate.
      *
      * @param {number} blocks - The confirmation target in blocks.
-     * @returns {Promise<number>} Fee rate in BTC/kB.
+     * @returns {Promise<number>} Fee rate in sat/vB (may be fractional).
      * @throws {ProviderError} If fee estimation is unavailable.
      * @see https://electrum.readthedocs.io/en/latest/protocol.html#blockchain-estimatefee
      */
@@ -134,5 +134,6 @@ export type ElectrumWsConfig = {
 };
 export type IBtcClient = import("./btc-client.js").default;
 export type BtcBalance = import("./btc-client.js").BtcBalance;
-export type BtcUtxo = import("./btc-client.js").BtcUtxo;
 export type BtcHistoryItem = import("./btc-client.js").BtcHistoryItem;
+export type ChainUtxo = import("../primitives/index.js").ChainUtxo;
+export type ElectrumUnspent = import("./mempool-electrum-client.js").ElectrumUnspent;
