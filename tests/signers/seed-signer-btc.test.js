@@ -34,6 +34,9 @@ const FROM_M_ADDRESS = 'bc1q908a7wncgavppdhkjl0qncx2889dal3t8km3xe'
 const LEGACY_COIN_NODE_PATH = "m/44'/1'"
 const LEGACY_COIN_NODE_ADDRESS = '16LNuaHBz6NDmjyS3RjEbCRRvkLejcrLv2'
 
+// The BIP-32 master key fingerprint of VALID_SEED_PHRASE.
+const MASTER_FINGERPRINT = '1b1fb3cd'
+
 // Fixtures of VALID_SEED_PHRASE with a regtest configuration.
 const REGTEST_CONFIG = { network: 'regtest' }
 // The BIP-32 master node of VALID_SEED_PHRASE serialized with testnet/regtest version bytes.
@@ -288,6 +291,57 @@ describe('SeedSignerBtc', () => {
       await expect(signer.derive("a'/b/c")).rejects.toThrow(INVALID_PATH_MESSAGE)
 
       signer.dispose()
+    })
+  })
+
+  describe('masterFingerprint', () => {
+    test('should expose the master key fingerprint as lowercase hex', () => {
+      const signer = new SeedSignerBtc(VALID_SEED_PHRASE)
+
+      expect(signer.masterFingerprint).toBe(MASTER_FINGERPRINT)
+
+      signer.dispose()
+    })
+
+    test('should be independent of the signer path', () => {
+      const signer = new SeedSignerBtc(VALID_SEED_PHRASE, ACCOUNT_PATH)
+
+      expect(signer.masterFingerprint).toBe(MASTER_FINGERPRINT)
+
+      signer.dispose()
+    })
+
+    test('should be inherited by derived children', async () => {
+      const root = new SeedSignerBtc(VALID_SEED_PHRASE)
+      const child = await root.derive("0'/0/0")
+
+      expect(child.masterFingerprint).toBe(MASTER_FINGERPRINT)
+
+      child.dispose()
+      root.dispose()
+    })
+
+    test('should be available for a signer imported from a master extended private key', async () => {
+      const root = SeedSignerBtc.fromXprv(REGTEST_MASTER_TPRV, REGTEST_CONFIG)
+      const child = await root.derive("84'/1'/0'")
+
+      expect(root.masterFingerprint).toBe(MASTER_FINGERPRINT)
+      expect(child.masterFingerprint).toBe(MASTER_FINGERPRINT)
+
+      child.dispose()
+      root.dispose()
+    })
+
+    test('should be undefined for a signer imported from a non-master extended private key', async () => {
+      const master = SeedSignerBtc.fromXprv(REGTEST_MASTER_TPRV, REGTEST_CONFIG)
+      const account = await master.derive("84'/1'/0'")
+      const signer = SeedSignerBtc.fromXprv(account._account.toBase58(), REGTEST_CONFIG)
+
+      expect(signer.masterFingerprint).toBeUndefined()
+
+      signer.dispose()
+      account.dispose()
+      master.dispose()
     })
   })
 
