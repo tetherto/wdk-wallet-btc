@@ -118,6 +118,9 @@ export default class SeedSignerBtc {
   _publicKey
 
   /** @private */
+  _masterFingerprint
+
+  /** @private */
   _address
 
   /** @private */
@@ -146,6 +149,7 @@ export default class SeedSignerBtc {
 
     const network = networks[config.network] || networks.bitcoin
     const root = deriveMasterNode(seed, network)
+    const masterFingerprint = Buffer.from(root.fingerprint).toString('hex')
     if (ownsSeed) {
       sodium_memzero(seed)
     }
@@ -161,7 +165,7 @@ export default class SeedSignerBtc {
         sodium_memzero(root.chainCode)
       }
     }
-    SeedSignerBtc._init(this, account, config, path)
+    SeedSignerBtc._init(this, account, config, path, masterFingerprint)
   }
 
   /**
@@ -180,7 +184,7 @@ export default class SeedSignerBtc {
       throw new ValueError('The given key is an extended public key; an extended private key (xprv/tprv) is required.')
     }
     const signer = Object.create(SeedSignerBtc.prototype)
-    SeedSignerBtc._init(signer, node, config, '/')
+    SeedSignerBtc._init(signer, node, config, '/', node.depth === 0 ? Buffer.from(node.fingerprint).toString('hex') : undefined)
     return signer
   }
 
@@ -210,6 +214,17 @@ export default class SeedSignerBtc {
    */
   get path () {
     return this._path
+  }
+
+  /**
+   * The fingerprint of the master key (BIP-32) as 8 lowercase hex characters, if known: the first
+   * four bytes of the HASH160 of the master public key. Undefined for signers imported from a
+   * non-root extended private key, whose master key is unknown.
+   *
+   * @type {string | undefined}
+   */
+  get masterFingerprint () {
+    return this._masterFingerprint
   }
 
   /**
@@ -266,7 +281,7 @@ export default class SeedSignerBtc {
 
     const signer = Object.create(SeedSignerBtc.prototype)
     const path = this._path === '/' ? `/${relPath}` : `${this._path}/${relPath}`
-    SeedSignerBtc._init(signer, this._account.derivePath(relPath), this._config, path)
+    SeedSignerBtc._init(signer, this._account.derivePath(relPath), this._config, path, this._masterFingerprint)
     return signer
   }
 
@@ -339,12 +354,13 @@ export default class SeedSignerBtc {
   }
 
   /** @private */
-  static _init (signer, account, config, path) {
+  static _init (signer, account, config, path, masterFingerprint) {
     const network = networks[config.network] || networks.bitcoin
     signer._config = config
     signer._account = account
     signer._path = path
     signer._publicKey = account.publicKey
+    signer._masterFingerprint = masterFingerprint
     signer._address = getAddressFromPublicKey(account.publicKey, network, signer.type)
     signer._disposed = false
   }

@@ -97,6 +97,10 @@ export default class PrivateKeySignerBtc {
     return null
   }
 
+  get masterFingerprint () {
+    return undefined
+  }
+
   /**
    * The account's Bitcoin address.
    *

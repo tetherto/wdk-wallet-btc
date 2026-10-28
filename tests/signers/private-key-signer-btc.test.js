@@ -148,6 +148,16 @@ describe('PrivateKeySignerBtc', () => {
     })
   })
 
+  describe('masterFingerprint', () => {
+    test('should be undefined', () => {
+      const signer = new PrivateKeySignerBtc(VALID_PRIVATE_KEY)
+
+      expect(signer.masterFingerprint).toBeUndefined()
+
+      signer.dispose()
+    })
+  })
+
   describe('derive', () => {
     test('should throw when calling derive', async () => {
       const signer = new PrivateKeySignerBtc(VALID_PRIVATE_KEY)
