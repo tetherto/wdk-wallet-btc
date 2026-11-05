@@ -15,7 +15,7 @@
 
 import { NotImplementedError } from '@tetherto/wdk-wallet'
 import { address as btcAddress } from 'bitcoinjs-lib'
-import { sha256 } from '@noble/hashes/sha2'
+import { sha256 } from '@noble/hashes/sha2.js'
 import { toHex } from 'uint8array-tools'
 
 /** @typedef {import('@tetherto/wdk-wallet').ProviderError} ProviderError */
