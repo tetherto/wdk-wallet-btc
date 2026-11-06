@@ -31,6 +31,8 @@ const OP_0 = 0x00
 const OP_1 = 0x51
 const OP_16 = 0x60
 
+const P2PKH_SCRIPT_BYTES = 25
+
 /**
  * @param {Uint8Array} script - The output's scriptPubKey.
  * @returns {boolean} Whether the script is a witness program.
@@ -43,6 +45,23 @@ function isWitnessProgram (script) {
 }
 
 /**
+ * @param {number} scriptBytes - The length of the output's scriptPubKey.
+ * @param {boolean} isWitness - Whether the scriptPubKey is a witness program.
+ * @returns {bigint} The dust limit in satoshis.
+ */
+function getDustThreshold (scriptBytes, isWitness) {
+  const outputBytes = OUTPUT_VALUE_BYTES + OUTPUT_SCRIPT_LENGTH_BYTES + scriptBytes
+
+  const unlockBytes = isWitness
+    ? Math.ceil(INPUT_UNLOCK_BYTES / WITNESS_SCALE_FACTOR)
+    : INPUT_UNLOCK_BYTES
+
+  const inputBytes = INPUT_OUTPOINT_BYTES + INPUT_SCRIPT_LENGTH_BYTES + unlockBytes + INPUT_SEQUENCE_BYTES
+
+  return DUST_RELAY_FEE_RATE * BigInt(outputBytes + inputBytes)
+}
+
+/**
  * Returns the dust limit of an output: the value below which the output costs more to spend than the dust relay fee rate allows.
  *
  * Follows Bitcoin Core's `GetDustThreshold`. The size is the serialized output plus the input that would spend it, which is estimated
@@ -52,13 +71,17 @@ function isWitnessProgram (script) {
  * @returns {bigint} The dust limit in satoshis.
  */
 export function getDustLimit (script) {
-  const outputBytes = OUTPUT_VALUE_BYTES + OUTPUT_SCRIPT_LENGTH_BYTES + script.length
+  return getDustThreshold(script.length, isWitnessProgram(script))
+}
 
-  const unlockBytes = isWitnessProgram(script)
-    ? Math.floor(INPUT_UNLOCK_BYTES / WITNESS_SCALE_FACTOR)
-    : INPUT_UNLOCK_BYTES
-
-  const inputBytes = INPUT_OUTPOINT_BYTES + INPUT_SCRIPT_LENGTH_BYTES + unlockBytes + INPUT_SEQUENCE_BYTES
-
-  return DUST_RELAY_FEE_RATE * BigInt(outputBytes + inputBytes)
+/**
+ * Returns the highest dust limit among the outputs that can be paid to an address.
+ *
+ * Spending a non-witness output costs the most, and P2PKH has the longest non-witness script that has an address.
+ * Witness programs are at most 42 bytes long and stay below it.
+ *
+ * @returns {bigint} The dust limit in satoshis.
+ */
+export function getMaxDustLimit () {
+  return getDustThreshold(P2PKH_SCRIPT_BYTES, false)
 }

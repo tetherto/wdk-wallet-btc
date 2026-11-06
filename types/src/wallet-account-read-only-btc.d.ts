@@ -42,15 +42,6 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      */
     get _isExternalClient(): Array<boolean>;
     /**
-     * The dust limit in satoshis based on the BIP type, cached after the first computation.
-     *
-     * @private
-     * @type {bigint | undefined}
-     */
-    private _dustLimit: bigint | undefined;
-    /** @private */
-    private _getDustLimit;
-    /**
      * Returns the account's bitcoin balance.
      *
      * @returns {Promise<bigint>} The bitcoin balance (in satoshis).
@@ -146,12 +137,19 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * Wallets holding more than this limit cannot spend their full balance in a
      * single transaction. There will likely be some satoshis left over as change.
      *
+     * The recipient must receive at least its dust limit, which depends on the recipient's script type. If `opts.to` is omitted,
+     * the highest dust limit among the address types is assumed, so the estimate can be lower than what a send to a cheaper
+     * output type would allow. When the remainder after fees allows it, a change output set to the dust limit of the account's
+     * own address is reserved. If the funds cannot clear the dust limit, the amount is 0.
+     *
      * @param {Object} [opts] - Options.
      * @param {number} [opts.feeRate] - Fee rate in sat/vB. If omitted, estimated via the client.
+     * @param {string} [opts.to] - The recipient's address. If omitted, the highest dust limit is assumed for the recipient.
      * @returns {Promise<BtcMaxSpendableResult>} The estimated maximum spendable result.
      */
     getMaxSpendable(opts?: {
         feeRate?: number;
+        to?: string;
     }): Promise<BtcMaxSpendableResult>;
     /**
      * Closes any internal connection with the server.

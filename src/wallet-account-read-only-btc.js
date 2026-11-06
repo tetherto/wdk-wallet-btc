@@ -24,6 +24,8 @@ import FailoverProvider from '@tetherto/wdk-failover-provider'
 
 import { Output, bitcoinMessage } from './crypto-engine.js'
 
+import { getDustLimit, getMaxDustLimit } from './primitives/dust.js'
+
 import { BlockbookClient, ElectrumTcp, ElectrumSsl, ElectrumTls, ElectrumWs } from './transports/index.js'
 
 /** @typedef {import('./transports/index.js').MempoolElectrumConfig} MempoolElectrumConfig */
@@ -111,11 +113,6 @@ const BIP_BY_ADDRESS_PREFIX = {
   bcrt1q: 84
 }
 
-const DUST_LIMIT = {
-  44: 546n,
-  84: 294n
-}
-
 export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
   /**
    * Creates a new bitcoin read-only wallet account.
@@ -167,24 +164,6 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
       }
       this._client = failoverProvider.initialize()
     }
-
-    /**
-     * The dust limit in satoshis based on the BIP type, cached after the first computation.
-     *
-     * @private
-     * @type {bigint | undefined}
-     */
-    this._dustLimit = undefined
-  }
-
-  /** @private */
-  async _getDustLimit () {
-    if (this._dustLimit === undefined) {
-      const address = await this.getAddress()
-      const prefix = Object.keys(BIP_BY_ADDRESS_PREFIX).find(p => address.startsWith(p))
-      this._dustLimit = DUST_LIMIT[BIP_BY_ADDRESS_PREFIX[prefix] || 44]
-    }
-    return this._dustLimit
   }
 
   /**
@@ -410,8 +389,14 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * Wallets holding more than this limit cannot spend their full balance in a
    * single transaction. There will likely be some satoshis left over as change.
    *
+   * The recipient must receive at least its dust limit, which depends on the recipient's script type. If `opts.to` is omitted,
+   * the highest dust limit among the address types is assumed, so the estimate can be lower than what a send to a cheaper
+   * output type would allow. When the remainder after fees allows it, a change output set to the dust limit of the account's
+   * own address is reserved. If the funds cannot clear the dust limit, the amount is 0.
+   *
    * @param {Object} [opts] - Options.
    * @param {number} [opts.feeRate] - Fee rate in sat/vB. If omitted, estimated via the client.
+   * @param {string} [opts.to] - The recipient's address. If omitted, the highest dust limit is assumed for the recipient.
    * @returns {Promise<BtcMaxSpendableResult>} The estimated maximum spendable result.
    */
   async getMaxSpendable (opts = {}) {
@@ -460,21 +445,25 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
     const twoOutputsVSize = txOverheadVBytes + (inputCount * inputVBytes) + (2 * outputVBytes)
     const twoOutputsFeeSats = Math.max(Math.ceil(twoOutputsVSize * feeRate), MIN_TX_FEE_SATS)
-    const dustLimit = await this._getDustLimit()
 
-    const twoOutputsRecipientAmountSats = totalInputValueSats - twoOutputsFeeSats - Number(dustLimit)
-    if (twoOutputsRecipientAmountSats > Number(dustLimit)) {
+    const changeDustLimit = getDustLimit(btcAddress.toOutputScript(fromAddress, this._network))
+    const recipientDustLimit = opts.to
+      ? getDustLimit(btcAddress.toOutputScript(opts.to, this._network))
+      : getMaxDustLimit()
+
+    const twoOutputsRecipientAmountSats = totalInputValueSats - twoOutputsFeeSats - Number(changeDustLimit)
+    if (twoOutputsRecipientAmountSats >= recipientDustLimit) {
       return {
         amount: BigInt(twoOutputsRecipientAmountSats),
         fee: BigInt(twoOutputsFeeSats),
-        changeValue: dustLimit
+        changeValue: changeDustLimit
       }
     }
 
     const oneOutputVSize = txOverheadVBytes + (inputCount * inputVBytes) + outputVBytes
     const oneOutputFeeSats = Math.max(Math.ceil(oneOutputVSize * feeRate), MIN_TX_FEE_SATS)
     const oneOutputRecipientAmountSats = totalInputValueSats - oneOutputFeeSats
-    if (oneOutputRecipientAmountSats <= dustLimit) {
+    if (oneOutputRecipientAmountSats < recipientDustLimit) {
       return { amount: 0n, fee: 0n, changeValue: 0n }
     }
 
@@ -592,15 +581,17 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     amount = this._toBigInt(amount)
     feeRate = Math.max(Number(feeRate), 1)
 
-    const dustLimit = await this._getDustLimit()
-
-    if (amount <= dustLimit) {
-      throw new ValueError(`The amount must be bigger than the dust limit (= ${dustLimit}).`)
-    }
-
     const network = this._network
 
     const fromAddressScript = btcAddress.toOutputScript(fromAddress, network)
+    const toAddressScript = btcAddress.toOutputScript(toAddress, network)
+
+    const toAddressDustLimit = getDustLimit(toAddressScript)
+
+    if (amount < toAddressDustLimit) {
+      throw new ValueError(`The amount must be at least the dust limit (= ${toAddressDustLimit}).`)
+    }
+
     const fromAddressPrefix = Object.keys(BIP_BY_ADDRESS_PREFIX).find(p => fromAddress.startsWith(p))
     const fromAddressScriptType = BIP_BY_ADDRESS_PREFIX[fromAddressPrefix] === 84 ? 'segwit' : 'legacy'
     const fromAddressOutput = new Output({ descriptor: `addr(${fromAddress})`, network })
@@ -656,7 +647,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
       })
     }
 
-    if (changeValue <= dustLimit) {
+    if (changeValue < getDustLimit(fromAddressScript)) {
       return {
         inputs,
         outputs: [{ address: toAddress, value: amount }],

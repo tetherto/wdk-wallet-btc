@@ -18,6 +18,7 @@ import pLimit from 'p-limit'
 import { LRUCache } from 'lru-cache'
 import { AssertionError, MaximumFeeExceededError, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
 
+import { getDustLimit } from './primitives/dust.js'
 import PrivateKeySignerBtc from './signers/private-key-signer-btc.js'
 import SeedSignerBtc, { getBtcDerivationPathPrefix } from './signers/seed-signer-btc.js'
 import { getSignerTypeForBip } from './signers/utils.js'
@@ -597,20 +598,19 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
       return { txid: tx.getId(), hex: tx.toHex(), fee, vsize }
     }
 
-    const dustLimit = await this._getDustLimit()
-
     const delta = requiredFee - fee
     fee = requiredFee
     if (currentChange > 0n) {
       let newChange = currentChange - delta
-      if (newChange <= dustLimit) newChange = 0n
+      if (newChange < getDustLimit(btcAddress.toOutputScript(change.address, this._network))) newChange = 0n
       currentChange = newChange
       unsigned = await buildUnsignedPsbt(currentRecipientAmnt, currentChange)
       tx = await signAndFinalize(unsigned)
     } else {
       const newRecipientAmnt = currentRecipientAmnt - delta
-      if (newRecipientAmnt <= dustLimit) {
-        throw new ValueError(`The amount after fees must be bigger than the dust limit (= ${dustLimit}).`)
+      const recipientDustLimit = getDustLimit(btcAddress.toOutputScript(to, this._network))
+      if (newRecipientAmnt < recipientDustLimit) {
+        throw new ValueError(`The amount after fees must be at least the dust limit (= ${recipientDustLimit}).`)
       }
       currentRecipientAmnt = newRecipientAmnt
       unsigned = await buildUnsignedPsbt(currentRecipientAmnt, currentChange)
