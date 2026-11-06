@@ -44,6 +44,8 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
     protected _shouldWipeSignerOnDisposal: boolean;
     /** @private */
     private _signer;
+    /** @private */
+    private _disposed;
     /**
      * Returns the account's address.
      *
@@ -68,7 +70,12 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      */
     get keyPair(): KeyPair | null;
     /**
-     * True if the account has been disposed.
+     * True once this account's own {@link dispose} method has been called.
+     *
+     * This reflects the account's lifecycle only. A caller-supplied signer disposed externally
+     * does not flip this flag -- the account is still considered alive until it is disposed itself,
+     * even though its signer-dependent methods will throw a {@link DisposalError} (propagated from
+     * the disposed signer) in the meantime.
      *
      * @type {boolean}
      */
@@ -78,7 +85,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      *
      * @param {string} message - The message to sign.
      * @returns {Promise<string>} The message's signature.
-     * @throws {DisposalError} If the account has been disposed.
+     * @throws {DisposalError} If the account, or the externally supplied signer it uses, has been disposed.
      */
     sign(message: string): Promise<string>;
     /**
@@ -89,7 +96,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      * @throws {MaximumFeeExceededError} If the transaction's cost exceeds the maximum transaction fee option.
      * @throws {ValueError} If the amount doesn't clear the dust limit, or the spend requires more inputs than allowed.
      * @throws {TransactionError} If the account has no unspent outputs, or its balance doesn't cover the amount and its fees.
-     * @throws {DisposalError} If the account has been disposed.
+     * @throws {DisposalError} If the account, or the externally supplied signer it uses, has been disposed.
      */
     signTransaction({ to, value, feeRate, confirmationTarget }: BtcTransaction): Promise<string>;
     /**
@@ -110,7 +117,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      * @throws {MaximumFeeExceededError} If the transaction's cost exceeds the maximum transaction fee option.
      * @throws {ValueError} If the amount doesn't clear the dust limit, or the spend requires more inputs than allowed.
      * @throws {TransactionError} If the account has no unspent outputs, or its balance doesn't cover the amount and its fees.
-     * @throws {DisposalError} If the account has been disposed.
+     * @throws {DisposalError} If the account, or the externally supplied signer it uses, has been disposed.
      */
     sendTransaction(tx: BtcTransaction | string, timeoutMs?: number): Promise<TransactionResult>;
     /**

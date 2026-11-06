@@ -856,6 +856,39 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
       expect(account.keyPair.privateKey).toBeNull()
       expect(signer.keyPair.privateKey).toBeNull()
     })
+
+    test('should be safe to call dispose more than once', () => {
+      const account = new WalletAccountBtc(SEED_PHRASE, "0'/0/0", CONFIG)
+
+      account.dispose()
+
+      expect(() => account.dispose()).not.toThrow()
+    })
+
+    test('should report disposed state even when a caller-supplied signer is left untouched', () => {
+      const signer = new SeedSignerBtc(SEED_PHRASE, `${DERIVATION_PATH_PREFIX}/0'/0/0`, SIGNER_CONFIG)
+      const account = new WalletAccountBtc(signer, CLIENT_CONFIG)
+
+      account.dispose()
+
+      // The account is disposed even though its unowned signer is still alive.
+      expect(account.disposed).toBe(true)
+      expect(signer.disposed).toBe(false)
+
+      signer.dispose()
+    })
+
+    test('should not report disposed when only the underlying signer is disposed directly', async () => {
+      const signer = new SeedSignerBtc(SEED_PHRASE, `${DERIVATION_PATH_PREFIX}/0'/0/0`, SIGNER_CONFIG)
+      const account = new WalletAccountBtc(signer, CLIENT_CONFIG)
+
+      signer.dispose()
+
+      // `disposed` reflects the account's own lifecycle, so disposing the signer externally
+      // does not flip it, even though signer-dependent methods now throw (propagated).
+      expect(account.disposed).toBe(false)
+      await expect(account.sign('message')).rejects.toThrow(DisposalError)
+    })
   })
 })
 
