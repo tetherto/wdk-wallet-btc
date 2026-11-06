@@ -150,6 +150,9 @@ export default class WalletManagerBtc extends WalletManager {
         return this._accounts[key]
       }
       const signer = this.getSigner(indexOrSignerName)
+      if (signer.disposed) {
+        throw new DisposalError('The given signer has been disposed.')
+      }
       const account = new WalletAccountBtc(signer, { ...this._config, client: this._clientList })
       this._accounts[key] = account
       return account
@@ -186,6 +189,9 @@ export default class WalletManagerBtc extends WalletManager {
       return this._accounts[key]
     }
     const signer = this.getSigner(signerName)
+    if (signer.disposed) {
+      throw new DisposalError('The given signer has been disposed.')
+    }
     if (!signer.isDerivable) {
       throw new InvalidSignerError('The signer does not support account derivation.')
     }

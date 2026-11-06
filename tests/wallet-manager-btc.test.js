@@ -309,6 +309,18 @@ describe('WalletManagerBtc', () => {
       await expect(wallet.getAccountByPath("0'/0/0")).rejects.toThrow(DisposalError)
     })
 
+    test('should throw DisposalError when the named signer has been disposed', async () => {
+      const named = new SeedSignerBtc(SEED_PHRASE, "m/84'/1'")
+      wallet.addSigner('seed', named)
+
+      named.dispose()
+
+      await expect(wallet.getAccount('seed')).rejects.toThrow(DisposalError)
+      await expect(wallet.getAccount('seed')).rejects.toThrow('The given signer has been disposed.')
+      await expect(wallet.getAccountByPath("0'/0/0", { signerName: 'seed' }))
+        .rejects.toThrow(DisposalError)
+    })
+
     test('should dispose the internally created default signer when constructed from a seed', () => {
       const wallet = new WalletManagerBtc(SEED_PHRASE)
       const defaultSigner = wallet.getSigner()
