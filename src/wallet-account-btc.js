@@ -194,9 +194,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @throws {DisposalError} If the account, or the externally supplied signer it uses, has been disposed.
    */
   async sign (message) {
-    if (this.disposed) {
-      throw new DisposalError('The account has been disposed.')
-    }
+    this._guardDisposed()
 
     return this._signer.sign(message)
   }
@@ -212,9 +210,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @throws {DisposalError} If the account, or the externally supplied signer it uses, has been disposed.
    */
   async signTransaction ({ to, value, feeRate, confirmationTarget = 1 }) {
-    if (this.disposed) {
-      throw new DisposalError('The account has been disposed.')
-    }
+    this._guardDisposed()
 
     const { tx } = await this._buildSignedTransaction({ to, value, feeRate, confirmationTarget })
 
@@ -258,9 +254,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @throws {DisposalError} If the account, or the externally supplied signer it uses, has been disposed.
    */
   async sendTransaction (tx, timeoutMs = 10000) {
-    if (this.disposed) {
-      throw new DisposalError('The account has been disposed.')
-    }
+    this._guardDisposed()
 
     await this._ensureConnected()
 
@@ -494,6 +488,13 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     super.dispose()
 
     this._disposed = true
+  }
+
+  /** @private */
+  _guardDisposed () {
+    if (this.disposed) {
+      throw new DisposalError('The account has been disposed.')
+    }
   }
 
   /**

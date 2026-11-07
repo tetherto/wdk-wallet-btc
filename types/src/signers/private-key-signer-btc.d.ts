@@ -116,6 +116,8 @@ export default class PrivateKeySignerBtc implements ISignerBtc {
      * Disposes the signer, securely erasing its internal copy of the private key from memory.
      */
     dispose(): void;
+    /** @private */
+    private _guardDisposed;
 }
 export type ISignerBtc = import("./signer-btc.js").ISignerBtc;
 export type BtcSignerConfig = import("./signer-btc.js").BtcSignerConfig;

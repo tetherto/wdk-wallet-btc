@@ -148,9 +148,7 @@ export default class PrivateKeySignerBtc {
    * @throws {ValueError} If the path is not valid.
    */
   async derive (path) {
-    if (this.disposed) {
-      throw new DisposalError('The signer has been disposed.')
-    }
+    this._guardDisposed()
 
     throw new UnsupportedOperationError('derive(path)')
   }
@@ -182,9 +180,7 @@ export default class PrivateKeySignerBtc {
    * @throws {DisposalError} If the signer has been disposed.
    */
   async sign (message) {
-    if (this.disposed) {
-      throw new DisposalError('The signer has been disposed.')
-    }
+    this._guardDisposed()
 
     return signMessage(message, this._account.privateKey, this.type)
   }
@@ -198,9 +194,7 @@ export default class PrivateKeySignerBtc {
    * @throws {DisposalError} If the signer has been disposed.
    */
   async signPsbt (psbt) {
-    if (this.disposed) {
-      throw new DisposalError('The signer has been disposed.')
-    }
+    this._guardDisposed()
 
     const psbtInstance = typeof psbt === 'string' ? Psbt.fromBase64(psbt) : psbt
     return signPsbtWithKey(psbtInstance, this._account)
@@ -218,5 +212,12 @@ export default class PrivateKeySignerBtc {
     this._account = undefined
 
     this._disposed = true
+  }
+
+  /** @private */
+  _guardDisposed () {
+    if (this.disposed) {
+      throw new DisposalError('The signer has been disposed.')
+    }
   }
 }

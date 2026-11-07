@@ -157,6 +157,8 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      */
     dispose(): void;
     /** @private */
+    private _guardDisposed;
+    /** @private */
     private _getSignedTransactionFee;
     /** @private */
     private _getRawTransaction;
