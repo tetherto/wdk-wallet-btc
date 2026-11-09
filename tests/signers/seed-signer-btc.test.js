@@ -292,6 +292,74 @@ describe('SeedSignerBtc', () => {
 
       signer.dispose()
     })
+
+    test('should throw if the path is absolute', async () => {
+      const signer = new SeedSignerBtc(VALID_SEED_PHRASE, "m/84'/0'")
+
+      await expect(signer.derive("m/84'/0'/0'/0/0")).rejects.toThrow(
+        "The path 'm/84'/0'/0'/0/0' must be relative to the signer's path."
+      )
+
+      signer.dispose()
+    })
+
+    test('should throw if the path is the bare master path', async () => {
+      const signer = new SeedSignerBtc(VALID_SEED_PHRASE, "m/84'/0'")
+
+      await expect(signer.derive('m')).rejects.toThrow(
+        "The path 'm' must be relative to the signer's path."
+      )
+
+      signer.dispose()
+    })
+
+    test('should throw if the path is absolute and the signer is at the master path', async () => {
+      const signer = new SeedSignerBtc(VALID_SEED_PHRASE, 'm')
+
+      await expect(signer.derive("m/44'/0'/0'/0/0")).rejects.toThrow(
+        "The path 'm/44'/0'/0'/0/0' must be relative to the signer's path."
+      )
+
+      signer.dispose()
+    })
+
+    test('should throw if the path is absolute and the signer is a derived child', async () => {
+      const root = new SeedSignerBtc(VALID_SEED_PHRASE, "m/84'/0'")
+      const child = await root.derive("0'")
+
+      await expect(child.derive('m/0/0')).rejects.toThrow(
+        "The path 'm/0/0' must be relative to the signer's path."
+      )
+
+      child.dispose()
+      root.dispose()
+    })
+
+    test('should throw if the path is absolute and the signer is imported from an xprv', async () => {
+      const signer = SeedSignerBtc.fromXprv(REGTEST_MASTER_TPRV, REGTEST_CONFIG)
+
+      await expect(signer.derive("m/84'/1'/0'")).rejects.toThrow(
+        "The path 'm/84'/1'/0'' must be relative to the signer's path."
+      )
+
+      signer.dispose()
+    })
+
+    test('should keep the signer usable after rejecting an absolute path', async () => {
+      const signer = new SeedSignerBtc(VALID_SEED_PHRASE, "m/84'/0'")
+
+      await expect(signer.derive("m/0'")).rejects.toThrow(
+        "The path 'm/0'' must be relative to the signer's path."
+      )
+      const child = await signer.derive("0'/0/0")
+
+      expect(await signer.getAddress()).toBe(COIN_NODE_ADDRESS)
+      expect(child.path).toBe(ACCOUNT_PATH)
+      expect(await child.getAddress()).toBe(ACCOUNT_ADDRESS)
+
+      child.dispose()
+      signer.dispose()
+    })
   })
 
   describe('masterFingerprint', () => {

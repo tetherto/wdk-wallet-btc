@@ -21,7 +21,8 @@ import { UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
 import { sodium_memzero } from 'sodium-universal'
 
 import { ECPair } from '../crypto-engine.js'
-import { DEFAULT_ADDRESS_TYPE, getAddressFromPublicKey, signMessage, signPsbtWithKey } from './utils.js'
+import { resolveNetwork, resolveType } from '../primitives/index.js'
+import { getAddressFromPublicKey, signMessage, signPsbtWithKey } from './utils.js'
 
 /** @typedef {import('./signer-btc.js').ISignerBtc} ISignerBtc */
 /** @typedef {import('./signer-btc.js').BtcSignerConfig} BtcSignerConfig */
@@ -48,6 +49,8 @@ export default class PrivateKeySignerBtc {
    * @throws {ValueError} If the private key is not 32 bytes.
    */
   constructor (privateKey, config = {}) {
+    config = { network: resolveNetwork(config.network), type: resolveType(config.type) }
+
     privateKey = typeof privateKey === 'string'
       ? Buffer.from(privateKey, 'hex')
       : Buffer.from(privateKey)
@@ -56,7 +59,7 @@ export default class PrivateKeySignerBtc {
       throw new ValueError('The private key must be 32 bytes.')
     }
 
-    const network = networks[config.network] || networks.bitcoin
+    const network = networks[config.network]
     const account = ECPair.fromPrivateKey(privateKey)
     /** @private */
     this._config = config
@@ -103,7 +106,7 @@ export default class PrivateKeySignerBtc {
    * @type {"bitcoin" | "regtest" | "testnet"}
    */
   get network () {
-    return networks[this._config.network] ? this._config.network : 'bitcoin'
+    return this._config.network
   }
 
   /**
@@ -112,7 +115,7 @@ export default class PrivateKeySignerBtc {
    * @type {ScriptType}
    */
   get type () {
-    return this._config.type ?? DEFAULT_ADDRESS_TYPE
+    return this._config.type
   }
 
   /**

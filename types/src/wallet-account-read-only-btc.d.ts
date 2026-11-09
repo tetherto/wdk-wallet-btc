@@ -13,6 +13,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      *
      * @param {string} address - The account's address.
      * @param {Omit<BtcWalletConfig, 'type' | 'transactionMaxFee'>} [config] - The configuration object.
+     * @throws {ValueError} If the removed `bip` option is given.
      */
     constructor(address: string, config?: Omit<BtcWalletConfig, "type" | "transactionMaxFee">);
     /**

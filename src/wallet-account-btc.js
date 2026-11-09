@@ -20,7 +20,8 @@ import { AssertionError, MaximumFeeExceededError, UnsupportedOperationError, Val
 
 import { getDustLimit } from './primitives/dust.js'
 import PrivateKeySignerBtc from './signers/private-key-signer-btc.js'
-import SeedSignerBtc, { getBtcDerivationPathPrefix } from './signers/seed-signer-btc.js'
+import { assertNoBipOption, getBtcDerivationPathPrefix } from './primitives/index.js'
+import SeedSignerBtc from './signers/seed-signer-btc.js'
 import WalletAccountReadOnlyBtc from './wallet-account-read-only-btc.js'
 import { compare, fromHex, toHex } from 'uint8array-tools'
 
@@ -74,7 +75,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @param {string | Uint8Array} seed - A [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) mnemonic seed phrase, or a raw BIP-32 master seed (16-64 bytes).
    * @param {string} path - The derivation path suffix (e.g. "0'/0/0").
    * @param {BtcWalletConfig} [config] - The configuration object.
-   * @throws {ValueError} If the given seed phrase is invalid.
+   * @throws {ValueError} If the given seed phrase is invalid, or the path, network or type is invalid, or the removed `bip` option is given.
    */
 
   /**
@@ -84,7 +85,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @overload
    * @param {string | Uint8Array} seed - A [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) mnemonic seed phrase, or a raw BIP-32 master seed (16-64 bytes).
    * @param {BtcWalletConfig} [config] - The configuration object.
-   * @throws {ValueError} If the given seed phrase is invalid.
+   * @throws {ValueError} If the given seed phrase is invalid, or the network or type is invalid, or the removed `bip` option is given.
    */
 
   /**
@@ -93,6 +94,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @overload
    * @param {ISignerBtc} signer - The signer.
    * @param {Omit<BtcWalletConfig, 'network' | 'type'> & SignerOptions} [config] - The configuration object. The network and address type are taken from the signer.
+   * @throws {ValueError} If the removed `bip` option is given.
    */
 
   constructor (seedOrSigner, pathOrConfig = {}, config = {}) {
@@ -102,12 +104,14 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     if (isSeed) {
       const hasPath = typeof pathOrConfig === 'string'
       const path = hasPath ? pathOrConfig : DEFAULT_ACCOUNT_PATH
+      assertNoBipOption(hasPath ? config : pathOrConfig)
       const { network, type, ...accountConfig } = hasPath ? config : pathOrConfig
       signer = new SeedSignerBtc(seedOrSigner, `m/${getBtcDerivationPathPrefix({ network, type })}/${path}`, { network, type })
       configuration = accountConfig
     } else {
+      const { network, type, ...accountConfig } = pathOrConfig
       signer = seedOrSigner
-      configuration = pathOrConfig
+      configuration = accountConfig
     }
 
     super(signer.address, { ...configuration, network: signer.network })
@@ -162,9 +166,10 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @param {string | Uint8Array} privateKey - The raw private key (hex string or 32 bytes).
    * @param {BtcWalletConfig} [config] - The wallet configuration options.
    * @returns {WalletAccountBtc} The wallet account.
-   * @throws {ValueError} If the private key is not 32 bytes.
+   * @throws {ValueError} If the private key is not 32 bytes, or the removed `bip` option is given.
    */
   static fromPrivateKey (privateKey, config = {}) {
+    assertNoBipOption(config)
     const { network, type, ...accountConfig } = config
     const signer = new PrivateKeySignerBtc(privateKey, { network, type })
     return new WalletAccountBtc(signer, { ...accountConfig, shouldWipeSignerOnDisposal: true })

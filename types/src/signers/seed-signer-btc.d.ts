@@ -1,17 +1,8 @@
 /**
- * Returns the relative BIP derivation path prefix (purpose'/coin_type') for the given signer
- * configuration.
- *
- * @internal
- * @param {BtcSignerConfig} [config] - The signer configuration.
- * @returns {string} The derivation path prefix (e.g. "84'/0'").
- */
-export function getBtcDerivationPathPrefix(config?: BtcSignerConfig): string;
-/**
  * Signer implementation that derives keys from a BIP-39 seed using an HD path.
  *
- * The path is not required to match the configured BIP purpose; the configuration governs
- * address encoding only.
+ * A purpose or coin type that names a known script type or network must match the configured type and network.
+ * Anything else in the path is not checked.
  *
  * @implements {ISignerBtc}
  */
