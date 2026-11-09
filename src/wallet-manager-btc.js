@@ -19,7 +19,6 @@ import FailoverProvider from '@tetherto/wdk-failover-provider'
 
 import WalletAccountBtc from './wallet-account-btc.js'
 import SeedSignerBtc, { getBtcDerivationPathPrefix } from './signers/seed-signer-btc.js'
-import { getSignerTypeForBip } from './signers/utils.js'
 
 /** @typedef {import('@tetherto/wdk-wallet').FeeRates} FeeRates */
 /** @typedef {import('@tetherto/wdk-wallet').NoSuchElementError} NoSuchElementError */
@@ -45,7 +44,7 @@ export default class WalletManagerBtc extends WalletManager {
    *
    * @overload
    * @param {ISignerBtc} signer - The default signer.
-   * @param {Omit<BtcWalletConfig, 'network' | 'bip'>} [config] - The configuration object. The network and address type are taken from the signer.
+   * @param {Omit<BtcWalletConfig, 'network' | 'type'>} [config] - The configuration object. The network and address type are taken from the signer.
    * @throws {InvalidSignerError} If the default signer does not support account derivation.
    */
   /**
@@ -60,8 +59,7 @@ export default class WalletManagerBtc extends WalletManager {
     const isSeed = typeof seedOrSigner === 'string' || seedOrSigner instanceof Uint8Array
     let signer = seedOrSigner
     if (isSeed) {
-      const { network, bip } = config
-      const type = getSignerTypeForBip(bip)
+      const { network, type } = config
       signer = new SeedSignerBtc(seedOrSigner, `m/${getBtcDerivationPathPrefix({ network, type })}`, { network, type })
     }
     super(signer, { ...config, network: signer.network })
