@@ -20,7 +20,8 @@ import { AssertionError, MaximumFeeExceededError, UnsupportedOperationError, Val
 
 import { getDustLimit } from './primitives/dust.js'
 import PrivateKeySignerBtc from './signers/private-key-signer-btc.js'
-import SeedSignerBtc, { getBtcDerivationPathPrefix } from './signers/seed-signer-btc.js'
+import { getBtcDerivationPathPrefix } from './primitives/index.js'
+import SeedSignerBtc from './signers/seed-signer-btc.js'
 import WalletAccountReadOnlyBtc from './wallet-account-read-only-btc.js'
 import { compare, fromHex, toHex } from 'uint8array-tools'
 
@@ -74,7 +75,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @param {string | Uint8Array} seed - A [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) mnemonic seed phrase, or a raw BIP-32 master seed (16-64 bytes).
    * @param {string} path - The derivation path suffix (e.g. "0'/0/0").
    * @param {BtcWalletConfig} [config] - The configuration object.
-   * @throws {ValueError} If the given seed phrase is invalid.
+   * @throws {ValueError} If the given seed phrase is invalid, or the path, network or type is invalid.
    */
 
   /**
@@ -84,7 +85,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @overload
    * @param {string | Uint8Array} seed - A [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) mnemonic seed phrase, or a raw BIP-32 master seed (16-64 bytes).
    * @param {BtcWalletConfig} [config] - The configuration object.
-   * @throws {ValueError} If the given seed phrase is invalid.
+   * @throws {ValueError} If the given seed phrase is invalid, or the network or type is invalid.
    */
 
   /**

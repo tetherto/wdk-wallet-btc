@@ -23,8 +23,8 @@ import * as bip39 from 'bip39'
 import { sodium_memzero } from 'sodium-universal'
 
 import { BIP32 } from '../crypto-engine.js'
+import { assertPathMatchesConfig, getBtcDerivationPathPrefix, parsePath, resolveNetwork, resolveType } from '../primitives/index.js'
 import {
-  DEFAULT_ADDRESS_TYPE,
   getAddressFromPublicKey,
   signMessage,
   signPsbtWithKey
@@ -46,19 +46,6 @@ const BITCOIN = {
   bech32: 'bc',
   pubKeyHash: 0x00,
   scriptHash: 0x05
-}
-
-/**
- * Returns the relative BIP derivation path prefix (purpose'/coin_type') for the given signer
- * configuration.
- *
- * @internal
- * @param {BtcSignerConfig} [config] - The signer configuration.
- * @returns {string} The derivation path prefix (e.g. "84'/0'").
- */
-export function getBtcDerivationPathPrefix (config = {}) {
-  const { network, type = DEFAULT_ADDRESS_TYPE } = config
-  return `${type === 'legacy' ? 44 : 84}'/${network === 'bitcoin' ? 0 : 1}'`
 }
 
 /**
@@ -92,8 +79,8 @@ function deriveMasterNode (seed, network = BITCOIN) {
 /**
  * Signer implementation that derives keys from a BIP-39 seed using an HD path.
  *
- * The path is not required to match the configured BIP purpose; the configuration governs
- * address encoding only.
+ * The path's purpose and coin type must agree with the configured script type and network.
+ * The other segments are not checked.
  *
  * @implements {ISignerBtc}
  */
@@ -122,9 +109,13 @@ export default class SeedSignerBtc {
    * @param {string | Uint8Array} seed - BIP-39 mnemonic or seed bytes.
    * @param {string} [path] - A BIP-32 path (default: the coin-type node for the configured address type and network, e.g. "m/84'/0'").
    * @param {BtcSignerConfig} [config] - The signer configuration.
-   * @throws {ValueError} If the given seed phrase is invalid.
+   * @throws {ValueError} If the given seed phrase is invalid, the path is invalid or not absolute, the network or type is not supported, or the path's purpose or coin type disagrees with the type or network.
    */
   constructor (seed, path, config = {}) {
+    path = path ?? `m/${getBtcDerivationPathPrefix(config)}`
+    config = { network: resolveNetwork(config.network), type: resolveType(config.type) }
+    assertPathMatchesConfig(path, config)
+
     // Seed bytes derived from a mnemonic are ours to erase; caller-supplied bytes are never touched.
     const ownsSeed = typeof seed === 'string'
     if (ownsSeed) {
@@ -135,9 +126,7 @@ export default class SeedSignerBtc {
       seed = bip39.mnemonicToSeedSync(seed)
     }
 
-    path = path ?? `m/${getBtcDerivationPathPrefix(config)}`
-
-    const network = networks[config.network] || networks.bitcoin
+    const network = networks[config.network]
     const root = deriveMasterNode(seed, network)
     const masterFingerprint = Buffer.from(root.fingerprint).toString('hex')
     if (ownsSeed) {
@@ -168,7 +157,8 @@ export default class SeedSignerBtc {
    * @throws {ValueError} If the given key is an extended public key (xpub/tpub) rather than an extended private key.
    */
   static fromXprv (xprv, config = {}) {
-    const network = networks[config.network] || networks.bitcoin
+    config = { network: resolveNetwork(config.network), type: resolveType(config.type) }
+    const network = networks[config.network]
     const node = BIP32.fromBase58(xprv, network)
     if (node.isNeutered()) {
       throw new ValueError('The given key is an extended public key; an extended private key (xprv/tprv) is required.')
@@ -225,7 +215,7 @@ export default class SeedSignerBtc {
    * @type {"bitcoin" | "regtest" | "testnet"}
    */
   get network () {
-    return networks[this._config.network] ? this._config.network : 'bitcoin'
+    return this._config.network
   }
 
   /**
@@ -234,7 +224,7 @@ export default class SeedSignerBtc {
    * @type {ScriptType}
    */
   get type () {
-    return this._config.type ?? DEFAULT_ADDRESS_TYPE
+    return this._config.type
   }
 
   /**
@@ -257,6 +247,10 @@ export default class SeedSignerBtc {
    * @returns {Promise<SeedSignerBtc>} The derived child signer.
    */
   async derive (relPath) {
+    if (parsePath(relPath).absolute) {
+      throw new ValueError(`The path '${relPath}' must be relative to the signer's path.`)
+    }
+
     const signer = Object.create(SeedSignerBtc.prototype)
     const path = this._path === '/' ? `/${relPath}` : `${this._path}/${relPath}`
     SeedSignerBtc._init(signer, this._account.derivePath(relPath), this._config, path, this._masterFingerprint)
@@ -316,7 +310,7 @@ export default class SeedSignerBtc {
 
   /** @private */
   static _init (signer, account, config, path, masterFingerprint) {
-    const network = networks[config.network] || networks.bitcoin
+    const network = networks[config.network]
     signer._config = config
     signer._account = account
     signer._path = path

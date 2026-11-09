@@ -24,6 +24,8 @@ import FailoverProvider from '@tetherto/wdk-failover-provider'
 
 import { Output, bitcoinMessage } from './crypto-engine.js'
 
+import { resolveNetwork } from './primitives/index.js'
+
 import { getDustLimit, getMaxDustLimit } from './primitives/dust.js'
 
 import { BlockbookClient, ElectrumTcp, ElectrumSsl, ElectrumTls, ElectrumWs } from './transports/index.js'
@@ -130,7 +132,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @protected
      * @type {Omit<BtcWalletConfig, 'type' | 'transactionMaxFee'>}
      */
-    this._config = config
+    this._config = { ...config, network: resolveNetwork(config.network) }
 
     /**
      * The network.
@@ -138,7 +140,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @protected
      * @type {Network}
      */
-    this._network = networks[this._config.network] || networks.bitcoin
+    this._network = networks[this._config.network]
 
     const clientOptions = config.client ? [config.client].flat() : [{ type: 'electrum', clientConfig: { host: 'electrum.blockstream.info', port: 50_001 } }]
 

@@ -48,14 +48,6 @@ export function signPsbtWithKey (psbtInstance, account) {
 }
 
 /**
- * The address type signers use when the configuration does not specify one.
- *
- * @internal
- * @type {ScriptType}
- */
-export const DEFAULT_ADDRESS_TYPE = 'segwit'
-
-/**
  * Derives a Bitcoin address from a public key.
  *
  * @internal

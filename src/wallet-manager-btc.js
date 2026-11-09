@@ -18,7 +18,8 @@ import WalletManager, { InvalidSignerError } from '@tetherto/wdk-wallet'
 import FailoverProvider from '@tetherto/wdk-failover-provider'
 
 import WalletAccountBtc from './wallet-account-btc.js'
-import SeedSignerBtc, { getBtcDerivationPathPrefix } from './signers/seed-signer-btc.js'
+import { getBtcDerivationPathPrefix } from './primitives/index.js'
+import SeedSignerBtc from './signers/seed-signer-btc.js'
 
 /** @typedef {import('@tetherto/wdk-wallet').FeeRates} FeeRates */
 /** @typedef {import('@tetherto/wdk-wallet').NoSuchElementError} NoSuchElementError */

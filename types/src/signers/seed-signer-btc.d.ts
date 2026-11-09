@@ -10,8 +10,8 @@ export function getBtcDerivationPathPrefix(config?: BtcSignerConfig): string;
 /**
  * Signer implementation that derives keys from a BIP-39 seed using an HD path.
  *
- * The path is not required to match the configured BIP purpose; the configuration governs
- * address encoding only.
+ * The path's purpose and coin type must agree with the configured script type and network.
+ * The other segments are not checked.
  *
  * @implements {ISignerBtc}
  */
