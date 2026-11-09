@@ -23,7 +23,7 @@ npm install @tetherto/wdk-wallet-btc
 
 ## Quick Start
 
-> **Existing BIP-44 wallets:** Since `v1.0.0-beta.4`, the default is BIP-84. When reopening a wallet created with the earlier BIP-44 default, set `bip: 44`; otherwise, the same seed derives different addresses. See [Configuration](https://docs.wdk.tether.io/sdk/wallet-modules/wallet-btc/configuration) for derivation details.
+> **Existing BIP-44 wallets:** Since `v1.0.0-beta.4`, the default is BIP-84. When reopening a wallet created with the earlier BIP-44 default, set `type: 'legacy'`; otherwise, the same seed derives different addresses. See [Configuration](https://docs.wdk.tether.io/sdk/wallet-modules/wallet-btc/configuration) for derivation details.
 
 > **Security:** The seed phrase below is public test data. Never use it to hold funds. Generate and protect a unique BIP-39 seed phrase before using a wallet in production.
 
@@ -34,7 +34,7 @@ const seedPhrase = 'cook voyage document eight skate token alien guide drink unc
 
 const wallet = new WalletManagerBtc(seedPhrase, {
   network: 'bitcoin',
-  bip: 84
+  type: 'segwit'
 })
 
 const account = await wallet.getAccount(0)
