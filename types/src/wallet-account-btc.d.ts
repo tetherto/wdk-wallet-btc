@@ -44,8 +44,6 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
     protected _shouldWipeSignerOnDisposal: boolean;
     /** @private */
     private _signer;
-    /** @private */
-    private _disposed;
     /**
      * Returns the account's address.
      *
@@ -69,17 +67,6 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      * @type {KeyPair | null}
      */
     get keyPair(): KeyPair | null;
-    /**
-     * True once this account's own {@link dispose} method has been called.
-     *
-     * This reflects the account's lifecycle only. A caller-supplied signer disposed externally
-     * does not flip this flag -- the account is still considered alive until it is disposed itself,
-     * even though its signer-dependent methods will throw a {@link DisposalError} (propagated from
-     * the disposed signer) in the meantime.
-     *
-     * @type {boolean}
-     */
-    get disposed(): boolean;
     /**
      * Signs a message.
      *

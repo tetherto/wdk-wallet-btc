@@ -41,6 +41,7 @@ const bitcoinMessage = MessageFactory(ecc)
 /** @typedef {import('bitcoinjs-lib').Network} Network */
 /** @typedef {import('bitcoinjs-lib').Transaction} BtcTransactionReceipt */
 
+/** @typedef {import('@tetherto/wdk-wallet').IDisposable} IDisposable */
 /** @typedef {import('@tetherto/wdk-wallet').TransactionResult} TransactionResult */
 /** @typedef {import('@tetherto/wdk-wallet').TransferOptions} TransferOptions */
 /** @typedef {import('@tetherto/wdk-wallet').TransferResult} TransferResult */
@@ -119,6 +120,7 @@ const DUST_LIMIT = {
   84: 294n
 }
 
+/** @implements {IDisposable} */
 export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
   /**
    * Creates a new bitcoin read-only wallet account.
@@ -178,6 +180,18 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @type {bigint | undefined}
      */
     this._dustLimit = undefined
+
+    /** @private */
+    this._disposed = false
+  }
+
+  /**
+   * True once this account's own {@link dispose} method has been called.
+   *
+   * @type {boolean}
+   */
+  get disposed () {
+    return this._disposed
   }
 
   /** @private */
@@ -519,11 +533,15 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * Closes any internal connection with the server.
    */
   dispose () {
+    if (this._disposed) return
+
     for (const [i, isExternal] of this._isExternalClient.entries()) {
       if (!isExternal) {
         this._clientList[i].close()
       }
     }
+
+    this._disposed = true
   }
 
   /**

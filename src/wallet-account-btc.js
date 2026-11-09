@@ -121,9 +121,6 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
 
     /** @private */
     this._signer = signer
-
-    /** @private */
-    this._disposed = false
   }
 
   /**
@@ -156,20 +153,6 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    */
   get keyPair () {
     return this._signer.keyPair
-  }
-
-  /**
-   * True once this account's own {@link dispose} method has been called.
-   *
-   * This reflects the account's lifecycle only. A caller-supplied signer disposed externally
-   * does not flip this flag -- the account is still considered alive until it is disposed itself,
-   * even though its signer-dependent methods will throw a {@link DisposalError} (propagated from
-   * the disposed signer) in the meantime.
-   *
-   * @type {boolean}
-   */
-  get disposed () {
-    return this._disposed
   }
 
   /**
@@ -486,8 +469,6 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
       this._signer.dispose()
     }
     super.dispose()
-
-    this._disposed = true
   }
 
   /** @private */
