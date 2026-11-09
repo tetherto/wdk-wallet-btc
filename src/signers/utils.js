@@ -15,7 +15,6 @@
 
 import { payments } from 'bitcoinjs-lib'
 import { toBase64 } from 'uint8array-tools'
-import { ValueError } from '@tetherto/wdk-wallet'
 
 import { bitcoinMessage } from '../crypto-engine.js'
 
@@ -55,22 +54,6 @@ export function signPsbtWithKey (psbtInstance, account) {
  * @type {ScriptType}
  */
 export const DEFAULT_ADDRESS_TYPE = 'segwit'
-
-/**
- * Maps a wallet-level BIP purpose (44 or 84) to the equivalent signer address type.
- *
- * @internal
- * @param {44 | 84} [bip] - The BIP address type from the wallet configuration.
- * @returns {ScriptType | undefined} The signer address type, or undefined if no bip was given.
- * @throws {ValueError} If an unsupported BIP is specified.
- */
-export function getSignerTypeForBip (bip) {
-  if (bip === undefined) return undefined
-  if (![44, 84].includes(bip)) {
-    throw new ValueError('Invalid bip specification. Supported bips: 44, 84.')
-  }
-  return bip === 44 ? 'legacy' : 'segwit'
-}
 
 /**
  * Derives a Bitcoin address from a public key.

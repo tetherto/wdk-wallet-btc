@@ -10,10 +10,10 @@ export default class WalletManagerBtc extends WalletManager<ISignerBtc> {
      * further account derivation, and the manager never disposes a signer you supplied.
      *
      * @param {ISignerBtc} signer - The default signer.
-     * @param {Omit<BtcWalletConfig, 'network' | 'bip'>} [config] - The configuration object. The network and address type are taken from the signer.
+     * @param {Omit<BtcWalletConfig, 'network' | 'type'>} [config] - The configuration object. The network and address type are taken from the signer.
      * @throws {InvalidSignerError} If the default signer does not support account derivation.
      */
-    constructor(signer: ISignerBtc, config?: Omit<BtcWalletConfig, "network" | "bip">);
+    constructor(signer: ISignerBtc, config?: Omit<BtcWalletConfig, "network" | "type">);
     /**
      * Creates a new wallet manager for the bitcoin blockchain from a BIP-39 seed.
      *

@@ -14,15 +14,6 @@
  */
 export function signPsbtWithKey(psbtInstance: Psbt, account: SignerLike): string;
 /**
- * Maps a wallet-level BIP purpose (44 or 84) to the equivalent signer address type.
- *
- * @internal
- * @param {44 | 84} [bip] - The BIP address type from the wallet configuration.
- * @returns {ScriptType | undefined} The signer address type, or undefined if no bip was given.
- * @throws {ValueError} If an unsupported BIP is specified.
- */
-export function getSignerTypeForBip(bip?: 44 | 84): ScriptType | undefined;
-/**
  * Derives a Bitcoin address from a public key.
  *
  * @internal
@@ -53,5 +44,4 @@ export type Network = import("bitcoinjs-lib").Network;
 export type Psbt = import("bitcoinjs-lib").Psbt;
 export type BtcSignerConfig = import("./signer-btc.js").BtcSignerConfig;
 export type ScriptType = import("../primitives/index.js").ScriptType;
-export type ValueError = import("@tetherto/wdk-wallet").ValueError;
 export type SignerLike = import("ecpair").ECPairInterface | import("bip32").BIP32Interface;

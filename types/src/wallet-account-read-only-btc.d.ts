@@ -1,18 +1,27 @@
 export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     /**
+     * Creates a bitcoin client from a descriptor, or returns the client as-is if already instantiated.
+     *
+     * @protected
+     * @param {IBtcClient | BtcClientDescriptor} client - The bitcoin client or client descriptor.
+     * @param {"bitcoin" | "regtest" | "testnet"} [network] - The network name.
+     * @returns {IBtcClient} The bitcoin client.
+     */
+    protected static _createClient(client: IBtcClient | BtcClientDescriptor, network?: "bitcoin" | "regtest" | "testnet"): IBtcClient;
+    /**
      * Creates a new bitcoin read-only wallet account.
      *
      * @param {string} address - The account's address.
-     * @param {Omit<BtcWalletConfig, 'bip' | 'transactionMaxFee'>} [config] - The configuration object.
+     * @param {Omit<BtcWalletConfig, 'type' | 'transactionMaxFee'>} [config] - The configuration object.
      */
-    constructor(address: string, config?: Omit<BtcWalletConfig, "bip" | "transactionMaxFee">);
+    constructor(address: string, config?: Omit<BtcWalletConfig, "type" | "transactionMaxFee">);
     /**
      * The read-only wallet account configuration.
      *
      * @protected
-     * @type {Omit<BtcWalletConfig, 'bip' | 'transactionMaxFee'>}
+     * @type {Omit<BtcWalletConfig, 'type' | 'transactionMaxFee'>}
      */
-    protected _config: Omit<BtcWalletConfig, "bip" | "transactionMaxFee">;
+    protected _config: Omit<BtcWalletConfig, "type" | "transactionMaxFee">;
     /**
      * The network.
      *
@@ -216,6 +225,7 @@ export type ElectrumWsConfig = import("./transports/ws.js").ElectrumWsConfig;
 export type Utxo = import("./primitives/index.js").Utxo;
 export type SpendPlan = import("./primitives/index.js").SpendPlan;
 export type OutputInstance = import("@bitcoinerlab/descriptors").OutputInstance;
+export type ScriptType = import("./primitives/index.js").ScriptType;
 export type Network = import("bitcoinjs-lib").Network;
 export type BtcTransactionReceipt = import("bitcoinjs-lib").Transaction;
 export type TransactionResult = import("@tetherto/wdk-wallet").TransactionResult;
@@ -295,9 +305,9 @@ export type BtcWalletConfig = {
      */
     network?: "bitcoin" | "regtest" | "testnet";
     /**
-     * - The BIP address type: 44 (P2PKH / legacy) or 84 (P2WPKH / native SegWit) (default: 84). Wallet classes map it to the signer's address type when constructing signers.
+     * - The script type of the account's address: "legacy" (P2PKH, BIP-44) or "segwit" (P2WPKH / native SegWit, BIP-84) (default: "segwit"). Wallet classes pass it to the signers they construct.
      */
-    bip?: 44 | 84;
+    type?: ScriptType;
     /**
      * - The number of retries in the failover mechanism.
      */

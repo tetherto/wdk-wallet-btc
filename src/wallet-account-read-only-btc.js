@@ -37,6 +37,7 @@ import { BlockbookClient, ElectrumTcp, ElectrumSsl, ElectrumTls, ElectrumWs } fr
 /** @typedef {import('./primitives/index.js').Utxo} Utxo */
 /** @typedef {import('./primitives/index.js').SpendPlan} SpendPlan */
 /** @typedef {import('@bitcoinerlab/descriptors').OutputInstance} OutputInstance */
+/** @typedef {import('./primitives/index.js').ScriptType} ScriptType */
 /** @typedef {import('bitcoinjs-lib').Network} Network */
 /** @typedef {import('bitcoinjs-lib').Transaction} BtcTransactionReceipt */
 
@@ -88,7 +89,7 @@ import { BlockbookClient, ElectrumTcp, ElectrumSsl, ElectrumTls, ElectrumWs } fr
  * @typedef {Object} BtcWalletConfig
  * @property {IBtcClient | BtcClientDescriptor | Array<IBtcClient | BtcClientDescriptor>} [client] - The bitcoin client, or a list of bitcoin client options for connection fallback.
  * @property {"bitcoin" | "regtest" | "testnet"} [network] - The name of the network to use (default: "bitcoin").
- * @property {44 | 84} [bip] - The BIP address type: 44 (P2PKH / legacy) or 84 (P2WPKH / native SegWit) (default: 84). Wallet classes map it to the signer's address type when constructing signers.
+ * @property {ScriptType} [type] - The script type of the account's address: "legacy" (P2PKH, BIP-44) or "segwit" (P2WPKH / native SegWit, BIP-84) (default: "segwit"). Wallet classes pass it to the signers they construct.
  * @property {number} [retries] - The number of retries in the failover mechanism.
  * @property {number | bigint} [transactionMaxFee] - The maximum fee amount for sendTransaction and signTransaction operations.
  */
@@ -118,7 +119,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * Creates a new bitcoin read-only wallet account.
    *
    * @param {string} address - The account's address.
-   * @param {Omit<BtcWalletConfig, 'bip' | 'transactionMaxFee'>} [config] - The configuration object.
+   * @param {Omit<BtcWalletConfig, 'type' | 'transactionMaxFee'>} [config] - The configuration object.
    */
   constructor (address, config = {}) {
     super(address)
@@ -127,7 +128,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * The read-only wallet account configuration.
      *
      * @protected
-     * @type {Omit<BtcWalletConfig, 'bip' | 'transactionMaxFee'>}
+     * @type {Omit<BtcWalletConfig, 'type' | 'transactionMaxFee'>}
      */
     this._config = config
 
