@@ -24,6 +24,8 @@ import FailoverProvider from '@tetherto/wdk-failover-provider'
 
 import { Output, bitcoinMessage } from './crypto-engine.js'
 
+import { getAddressDescriptor } from './primitives/descriptor.js'
+
 import { resolveNetwork } from './primitives/index.js'
 
 import { getDustLimit, getMaxDustLimit } from './primitives/dust.js'
@@ -106,15 +108,6 @@ import { BlockbookClient, ElectrumTcp, ElectrumSsl, ElectrumTls, ElectrumWs } fr
 const MIN_TX_FEE_SATS = 141
 const MAX_UTXO_INPUTS = 200
 const FINAL_CONFIRMATIONS = 6
-
-const BIP_BY_ADDRESS_PREFIX = {
-  1: 44,
-  m: 44,
-  n: 44,
-  bc1q: 84,
-  tb1q: 84,
-  bcrt1q: 84
-}
 
 export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
   /**
@@ -595,10 +588,9 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
       throw new ValueError(`The amount must be at least the dust limit (= ${toAddressDustLimit}).`)
     }
 
-    const fromAddressPrefix = Object.keys(BIP_BY_ADDRESS_PREFIX).find(p => fromAddress.startsWith(p))
-    const fromAddressScriptType = BIP_BY_ADDRESS_PREFIX[fromAddressPrefix] === 84 ? 'segwit' : 'legacy'
-    const fromAddressOutput = new Output({ descriptor: `addr(${fromAddress})`, network })
-    const toAddressOutput = new Output({ descriptor: `addr(${toAddress})`, network })
+    const fromAddressOutput = new Output({ descriptor: getAddressDescriptor(fromAddress), network })
+    const fromAddressScriptType = fromAddressOutput.isSegwit() ? 'segwit' : 'legacy'
+    const toAddressOutput = new Output({ descriptor: getAddressDescriptor(toAddress), network })
 
     const chainUtxos = await this._client.listUnspent(fromAddress)
 
