@@ -33,13 +33,6 @@ export function getAddressFromPublicKey(publicKey: Uint8Array, network: Network,
  * @returns {string} The message's signature.
  */
 export function signMessage(message: string, privateKey: Uint8Array, type: ScriptType): string;
-/**
- * The address type signers use when the configuration does not specify one.
- *
- * @internal
- * @type {ScriptType}
- */
-export const DEFAULT_ADDRESS_TYPE: ScriptType;
 export type Network = import("bitcoinjs-lib").Network;
 export type Psbt = import("bitcoinjs-lib").Psbt;
 export type BtcSignerConfig = import("./signer-btc.js").BtcSignerConfig;

@@ -6,7 +6,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      * @param {string | Uint8Array} privateKey - The raw private key (hex string or 32 bytes).
      * @param {BtcWalletConfig} [config] - The wallet configuration options.
      * @returns {WalletAccountBtc} The wallet account.
-     * @throws {ValueError} If the private key is not 32 bytes.
+     * @throws {ValueError} If the private key is not 32 bytes, or the removed `bip` option is given.
      */
     static fromPrivateKey(privateKey: string | Uint8Array, config?: BtcWalletConfig): WalletAccountBtc;
     /**
@@ -16,7 +16,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      * @param {string | Uint8Array} seed - A [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) mnemonic seed phrase, or a raw BIP-32 master seed (16-64 bytes).
      * @param {string} path - The derivation path suffix (e.g. "0'/0/0").
      * @param {BtcWalletConfig} [config] - The configuration object.
-     * @throws {ValueError} If the given seed phrase is invalid.
+     * @throws {ValueError} If the given seed phrase is invalid, or the path, network or type is invalid, or the removed `bip` option is given.
      */
     constructor(seed: string | Uint8Array, path: string, config?: BtcWalletConfig);
     /**
@@ -25,7 +25,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      *
      * @param {string | Uint8Array} seed - A [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) mnemonic seed phrase, or a raw BIP-32 master seed (16-64 bytes).
      * @param {BtcWalletConfig} [config] - The configuration object.
-     * @throws {ValueError} If the given seed phrase is invalid.
+     * @throws {ValueError} If the given seed phrase is invalid, or the network or type is invalid, or the removed `bip` option is given.
      */
     constructor(seed: string | Uint8Array, config?: BtcWalletConfig);
     /**
@@ -33,6 +33,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      *
      * @param {ISignerBtc} signer - The signer.
      * @param {Omit<BtcWalletConfig, 'network' | 'type'> & SignerOptions} [config] - The configuration object. The network and address type are taken from the signer.
+     * @throws {ValueError} If the removed `bip` option is given.
      */
     constructor(signer: ISignerBtc, config?: Omit<BtcWalletConfig, "network" | "type"> & SignerOptions);
     /**

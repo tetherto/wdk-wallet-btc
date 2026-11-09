@@ -13,16 +13,18 @@
 // limitations under the License.
 'use strict'
 
-import WalletManager, { DisposalError, InvalidSignerError } from '@tetherto/wdk-wallet'
+import WalletManager, { DisposalError, InvalidSignerError, ValueError } from '@tetherto/wdk-wallet'
 
 import FailoverProvider from '@tetherto/wdk-failover-provider'
 
 import WalletAccountBtc from './wallet-account-btc.js'
-import SeedSignerBtc, { getBtcDerivationPathPrefix } from './signers/seed-signer-btc.js'
+import { assertNoBipOption, getBtcDerivationPathPrefix } from './primitives/index.js'
+import SeedSignerBtc from './signers/seed-signer-btc.js'
 
 /** @typedef {import('@tetherto/wdk-wallet').FeeRates} FeeRates */
 /** @typedef {import('@tetherto/wdk-wallet').NoSuchElementError} NoSuchElementError */
 /** @typedef {import('@tetherto/wdk-wallet').ValueError} ValueError */
+/** @typedef {import('@tetherto/wdk-wallet').DisposalError} DisposalError */
 
 /** @typedef {import('./wallet-account-btc.js').BtcWalletConfig} BtcWalletConfig */
 
@@ -46,6 +48,7 @@ export default class WalletManagerBtc extends WalletManager {
    * @param {ISignerBtc} signer - The default signer.
    * @param {Omit<BtcWalletConfig, 'network' | 'type'>} [config] - The configuration object. The network and address type are taken from the signer.
    * @throws {InvalidSignerError} If the default signer does not support account derivation.
+   * @throws {ValueError} If the removed `bip` option is given.
    */
   /**
    * Creates a new wallet manager for the bitcoin blockchain from a BIP-39 seed.
@@ -53,16 +56,17 @@ export default class WalletManagerBtc extends WalletManager {
    * @overload
    * @param {string | Uint8Array} seed - A [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) mnemonic seed phrase, or a raw BIP-32 master seed (16-64 bytes).
    * @param {BtcWalletConfig} [config] - The configuration object.
-   * @throws {ValueError} If the seed phrase is invalid.
+   * @throws {ValueError} If the seed phrase is invalid, or the removed `bip` option is given.
    */
   constructor (seedOrSigner, config = {}) {
+    assertNoBipOption(config)
     const isSeed = typeof seedOrSigner === 'string' || seedOrSigner instanceof Uint8Array
+    const { network, type, ...walletConfig } = config
     let signer = seedOrSigner
     if (isSeed) {
-      const { network, type } = config
       signer = new SeedSignerBtc(seedOrSigner, `m/${getBtcDerivationPathPrefix({ network, type })}`, { network, type })
     }
-    super(signer, { ...config, network: signer.network })
+    super(signer, { ...walletConfig, network: signer.network })
 
     /**
      * If true, disposes the default signer on calls to the 'dispose' method.
@@ -97,6 +101,23 @@ export default class WalletManagerBtc extends WalletManager {
       }
       this._client = failoverProvider.initialize()
     }
+  }
+
+  /**
+   * Registers a signer with the given name.
+   *
+   * @param {string} signerName - The signer name.
+   * @param {ISignerBtc} signer - The signer.
+   * @returns {this} The wallet manager.
+   * @throws {ValueError} If the signer name is an empty or blank string, or the signer's network differs from the wallet's network.
+   * @throws {DisposalError} If the wallet manager has been disposed.
+   */
+  addSigner (signerName, signer) {
+    if (signer.network !== this._config.network) {
+      throw new ValueError(`The network '${signer.network}' of the signer does not match the network '${this._config.network}' of the wallet.`)
+    }
+
+    return super.addSigner(signerName, signer)
   }
 
   /**

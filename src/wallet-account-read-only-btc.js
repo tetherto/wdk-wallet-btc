@@ -24,6 +24,8 @@ import FailoverProvider from '@tetherto/wdk-failover-provider'
 
 import { Output, bitcoinMessage } from './crypto-engine.js'
 
+import { assertNoBipOption, resolveNetwork } from './primitives/index.js'
+
 import { getDustLimit, getMaxDustLimit } from './primitives/dust.js'
 
 import { BlockbookClient, ElectrumTcp, ElectrumSsl, ElectrumTls, ElectrumWs } from './transports/index.js'
@@ -122,9 +124,11 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    *
    * @param {string} address - The account's address.
    * @param {Omit<BtcWalletConfig, 'type' | 'transactionMaxFee'>} [config] - The configuration object.
+   * @throws {ValueError} If the removed `bip` option is given.
    */
   constructor (address, config = {}) {
-    super(address, config)
+    super(address)
+    assertNoBipOption(config)
 
     /**
      * The read-only wallet account configuration.
@@ -132,7 +136,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @protected
      * @type {Omit<BtcWalletConfig, 'type' | 'transactionMaxFee'>}
      */
-    this._config = config
+    this._config = { ...config, network: resolveNetwork(config.network) }
 
     /**
      * The network.
@@ -140,7 +144,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @protected
      * @type {Network}
      */
-    this._network = networks[this._config.network] || networks.bitcoin
+    this._network = networks[this._config.network]
 
     const clientOptions = config.client ? [config.client].flat() : [{ type: 'electrum', clientConfig: { host: 'electrum.blockstream.info', port: 50_001 } }]
 

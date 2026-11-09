@@ -12,6 +12,7 @@ export default class WalletManagerBtc extends WalletManager<ISignerBtc> {
      * @param {ISignerBtc} signer - The default signer.
      * @param {Omit<BtcWalletConfig, 'network' | 'type'>} [config] - The configuration object. The network and address type are taken from the signer.
      * @throws {InvalidSignerError} If the default signer does not support account derivation.
+     * @throws {ValueError} If the removed `bip` option is given.
      */
     constructor(signer: ISignerBtc, config?: Omit<BtcWalletConfig, "network" | "type">);
     /**
@@ -19,7 +20,7 @@ export default class WalletManagerBtc extends WalletManager<ISignerBtc> {
      *
      * @param {string | Uint8Array} seed - A [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) mnemonic seed phrase, or a raw BIP-32 master seed (16-64 bytes).
      * @param {BtcWalletConfig} [config] - The configuration object.
-     * @throws {ValueError} If the seed phrase is invalid.
+     * @throws {ValueError} If the seed phrase is invalid, or the removed `bip` option is given.
      */
     constructor(seed: string | Uint8Array, config?: BtcWalletConfig);
     /**
@@ -43,6 +44,16 @@ export default class WalletManagerBtc extends WalletManager<ISignerBtc> {
      * @type {IBtcClient}
      */
     protected _client: IBtcClient;
+    /**
+     * Registers a signer with the given name.
+     *
+     * @param {string} signerName - The signer name.
+     * @param {ISignerBtc} signer - The signer.
+     * @returns {this} The wallet manager.
+     * @throws {ValueError} If the signer name is an empty or blank string, or the signer's network differs from the wallet's network.
+     * @throws {DisposalError} If the wallet manager has been disposed.
+     */
+    addSigner(signerName: string, signer: ISignerBtc): this;
     /**
      * Returns the wallet account at a specific index.
      *
@@ -127,6 +138,7 @@ export type FeeRates = import("@tetherto/wdk-wallet").FeeRates;
 export type NoSuchElementError = import("@tetherto/wdk-wallet").NoSuchElementError;
 export type ValueError = import("@tetherto/wdk-wallet").ValueError;
 export type InvalidSignerError = import("@tetherto/wdk-wallet").InvalidSignerError;
+export type DisposalError = import("@tetherto/wdk-wallet").DisposalError;
 export type BtcWalletConfig = import("./wallet-account-btc.js").BtcWalletConfig;
 export type ISignerBtc = import("./signers/signer-btc.js").ISignerBtc;
 export type IBtcClient = import("./transports/index.js").IBtcClient;
