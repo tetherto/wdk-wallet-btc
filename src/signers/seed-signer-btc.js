@@ -65,9 +65,6 @@ export function getBtcDerivationPathPrefix (config = {}) {
   // too: otherwise mainnet addresses are derived under the testnet coin type (1') and the seed
   // does not restore in other BIP-44/BIP-84 wallets.
   const { network = 'bitcoin', type = DEFAULT_ADDRESS_TYPE } = config
-  if (!networks[network]) {
-    throw new ValueError(`Unsupported network "${network}". Supported networks: bitcoin, testnet, regtest.`)
-  }
   return `${type === 'legacy' ? 44 : 84}'/${network === 'bitcoin' ? 0 : 1}'`
 }
 

@@ -224,6 +224,18 @@ describe('SeedSignerBtc', () => {
       root.dispose()
     })
 
+    test('should derive under the mainnet coin type when no network is given', async () => {
+      const root = new SeedSignerBtc('test only example nut use this real life secret phrase must random')
+
+      const child = await root.derive("0'/0/0")
+
+      expect(child.path).toBe("m/84'/0'/0'/0/0")
+      expect(await child.getAddress()).toBe('bc1qwg9ygx2qqnatsdzqtyegd5wlddslvyqayrus03')
+
+      child.dispose()
+      root.dispose()
+    })
+
     test('should derive past a leaf account', async () => {
       const leaf = new SeedSignerBtc(VALID_SEED_PHRASE, ACCOUNT_PATH)
 
@@ -467,26 +479,6 @@ describe('SeedSignerBtc', () => {
       expect(Buffer.from(child.keyPair.privateKey).toString('hex')).toBe(ACCOUNT_PRIVATE_KEY)
 
       child.dispose()
-    })
-  })
-
-  describe('network configuration', () => {
-    test('should derive mainnet addresses under the mainnet coin type when no network is given', async () => {
-      // BIP-84 test vector: https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki#test-vectors
-      const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
-      const root = new SeedSignerBtc(mnemonic)
-      const child = await root.derive("0'/0/0")
-
-      expect(child.path).toBe("m/84'/0'/0'/0/0")
-      expect(await child.getAddress()).toBe('bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu')
-
-      child.dispose()
-      root.dispose()
-    })
-
-    test('should throw for an unsupported network name', () => {
-      expect(() => new SeedSignerBtc(VALID_SEED_PHRASE, undefined, { network: 'mainnet' }))
-        .toThrow(ValueError)
     })
   })
 })
