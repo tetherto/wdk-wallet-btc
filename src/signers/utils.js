@@ -13,10 +13,10 @@
 // limitations under the License.
 'use strict'
 
-import { payments } from 'bitcoinjs-lib'
-import { toBase64 } from 'uint8array-tools'
+import { toBase64, toHex } from 'uint8array-tools'
 
-import { bitcoinMessage } from '../crypto-engine.js'
+import { Output, bitcoinMessage } from '../crypto-engine.js'
+import { getDescriptor } from '../primitives/descriptor.js'
 
 /** @typedef {import('bitcoinjs-lib').Network} Network */
 /** @typedef {import('bitcoinjs-lib').Psbt} Psbt */
@@ -57,10 +57,8 @@ export function signPsbtWithKey (psbtInstance, account) {
  * @returns {string} The Bitcoin address.
  */
 export function getAddressFromPublicKey (publicKey, network, type) {
-  const { address } = type === 'legacy'
-    ? payments.p2pkh({ pubkey: publicKey, network })
-    : payments.p2wpkh({ pubkey: publicKey, network })
-  return address
+  const descriptor = getDescriptor({ type, pubkey: toHex(publicKey) })
+  return new Output({ descriptor, network }).getAddress()
 }
 
 /**
