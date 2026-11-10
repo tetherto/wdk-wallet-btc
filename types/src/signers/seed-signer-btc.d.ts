@@ -46,6 +46,8 @@ export default class SeedSignerBtc implements ISignerBtc {
     /** @private */
     private _publicKey;
     /** @private */
+    private _masterFingerprint;
+    /** @private */
     private _address;
     /**
      * Whether this signer can derive child signers. Always true: every seed signer holds an
@@ -60,6 +62,14 @@ export default class SeedSignerBtc implements ISignerBtc {
      * @type {string}
      */
     get path(): string;
+    /**
+     * The fingerprint of the master key (BIP-32) as 8 lowercase hex characters, if known: the first
+     * four bytes of the HASH160 of the master public key. Undefined for signers imported from a
+     * non-root extended private key, whose master key is unknown.
+     *
+     * @type {string | undefined}
+     */
+    get masterFingerprint(): string | undefined;
     /**
      * The account's Bitcoin address.
      *
@@ -77,9 +87,9 @@ export default class SeedSignerBtc implements ISignerBtc {
     /**
      * The address type of the signer's addresses ("legacy" for P2PKH, "segwit" for P2WPKH).
      *
-     * @type {BtcAddressType}
+     * @type {ScriptType}
      */
-    get type(): BtcAddressType;
+    get type(): ScriptType;
     /**
      * The account's key pair (private and public key buffers).
      *
@@ -128,7 +138,7 @@ export default class SeedSignerBtc implements ISignerBtc {
 }
 export type ISignerBtc = import("./signer-btc.js").ISignerBtc;
 export type BtcSignerConfig = import("./signer-btc.js").BtcSignerConfig;
-export type BtcAddressType = import("./signer-btc.js").BtcAddressType;
+export type ScriptType = import("../primitives/index.js").ScriptType;
 export type KeyPair = import("@tetherto/wdk-wallet").KeyPair;
 export type ValueError = import("@tetherto/wdk-wallet").ValueError;
 export type BIP32Interface = import("bip32").BIP32Interface;
