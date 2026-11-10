@@ -171,6 +171,13 @@ describe('SeedSignerBtc', () => {
       expect(() => new SeedSignerBtc(VALID_SEED_PHRASE, "a'/b/c"))
         .toThrow(INVALID_PATH_MESSAGE)
     })
+
+    test('should throw if the network is not supported', () => {
+      expect(() => new SeedSignerBtc(VALID_SEED_PHRASE, undefined, { network: 'mainnet' }))
+        .toThrow(ValueError)
+      expect(() => new SeedSignerBtc(VALID_SEED_PHRASE, undefined, { network: 'mainnet' }))
+        .toThrow('Unsupported network "mainnet". Supported networks: bitcoin, testnet, regtest.')
+    })
   })
 
   describe('keyPair', () => {
