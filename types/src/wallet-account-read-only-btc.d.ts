@@ -1,4 +1,4 @@
-export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
+export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly implements IDisposable {
     /**
      * Creates a new bitcoin read-only wallet account.
      *
@@ -48,6 +48,14 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @type {bigint | undefined}
      */
     private _dustLimit: bigint | undefined;
+    /** @private */
+    private _disposed;
+    /**
+     * True once this account's own {@link dispose} method has been called.
+     *
+     * @type {boolean}
+     */
+    get disposed(): boolean;
     /** @private */
     private _getDustLimit;
     /**
@@ -209,10 +217,6 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @returns {Promise<boolean>} True if the signature is valid.
      */
     verify(message: string, signature: string): Promise<boolean>;
-    /**
-     * Closes any internal connection with the server.
-     */
-    dispose(): void;
 }
 export type MempoolElectrumConfig = import("./transports/index.js").MempoolElectrumConfig;
 export type MempoolElectrumClient = import("./transports/index.js").MempoolElectrumClient;
@@ -222,6 +226,7 @@ export type ElectrumWsConfig = import("./transports/ws.js").ElectrumWsConfig;
 export type OutputWithValue = import("@bitcoinerlab/coinselect").OutputWithValue;
 export type Network = import("bitcoinjs-lib").Network;
 export type BtcTransactionReceipt = import("bitcoinjs-lib").Transaction;
+export type IDisposable = import("@tetherto/wdk-wallet").IDisposable;
 export type TransactionResult = import("@tetherto/wdk-wallet").TransactionResult;
 export type TransferOptions = import("@tetherto/wdk-wallet").TransferOptions;
 export type TransferResult = import("@tetherto/wdk-wallet").TransferResult;

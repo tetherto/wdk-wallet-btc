@@ -16,7 +16,7 @@
 
 import { networks, Psbt } from 'bitcoinjs-lib'
 import { ECPair } from '@bitcoinerlab/descriptors'
-import { UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
+import { DisposalError, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
 
 // eslint-disable-next-line camelcase
 import { sodium_memzero } from 'sodium-universal'
@@ -66,6 +66,8 @@ export default class PrivateKeySignerBtc {
     this._publicKey = account.publicKey
     /** @private */
     this._address = getAddressFromPublicKey(account.publicKey, network, this.type)
+    /** @private */
+    this._disposed = false
   }
 
   /**
@@ -75,6 +77,15 @@ export default class PrivateKeySignerBtc {
    */
   get isDerivable () {
     return false
+  }
+
+  /**
+   * True if the signer has been disposed.
+   *
+   * @type {boolean}
+   */
+  get disposed () {
+    return this._disposed
   }
 
   /**
@@ -132,10 +143,13 @@ export default class PrivateKeySignerBtc {
    *
    * @param {string} path - The relative derivation path.
    * @returns {Promise<never>} The derived signer.
+   * @throws {DisposalError} If the signer has been disposed.
    * @throws {UnsupportedOperationError} If the signer does not support account derivation.
    * @throws {ValueError} If the path is not valid.
    */
   async derive (path) {
+    this._guardDisposed()
+
     throw new UnsupportedOperationError('derive(path)')
   }
 
@@ -163,8 +177,11 @@ export default class PrivateKeySignerBtc {
    *
    * @param {string} message - The message to sign.
    * @returns {Promise<string>} The message's signature.
+   * @throws {DisposalError} If the signer has been disposed.
    */
   async sign (message) {
+    this._guardDisposed()
+
     return signMessage(message, this._account.privateKey, this.type)
   }
 
@@ -174,8 +191,11 @@ export default class PrivateKeySignerBtc {
    * @param {Psbt | string} psbt - The PSBT instance or base64 string.
    * @returns {Promise<string>} The (partially) signed PSBT in base64 format.
    * @throws {Error} If the signer cannot sign any input of the PSBT.
+   * @throws {DisposalError} If the signer has been disposed.
    */
   async signPsbt (psbt) {
+    this._guardDisposed()
+
     const psbtInstance = typeof psbt === 'string' ? Psbt.fromBase64(psbt) : psbt
     return signPsbtWithKey(psbtInstance, this._account)
   }
@@ -184,9 +204,20 @@ export default class PrivateKeySignerBtc {
    * Disposes the signer, securely erasing its internal copy of the private key from memory.
    */
   dispose () {
+    if (this._disposed) return
+
     if (this._account) {
       sodium_memzero(this._account.privateKey)
     }
     this._account = undefined
+
+    this._disposed = true
+  }
+
+  /** @private */
+  _guardDisposed () {
+    if (this.disposed) {
+      throw new DisposalError('The signer has been disposed.')
+    }
   }
 }

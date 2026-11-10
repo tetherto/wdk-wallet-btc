@@ -79,6 +79,26 @@ describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
     })
   })
 
+  describe('dispose', () => {
+    test('should expose the disposed state', () => {
+      const tmpAccount = new WalletAccountReadOnlyBtc(ADDRESSES[bip], CONFIGURATION)
+
+      expect(tmpAccount.disposed).toBe(false)
+
+      tmpAccount.dispose()
+
+      expect(tmpAccount.disposed).toBe(true)
+    })
+
+    test('should be safe to call dispose more than once', () => {
+      const tmpAccount = new WalletAccountReadOnlyBtc(ADDRESSES[bip], CONFIGURATION)
+
+      tmpAccount.dispose()
+
+      expect(() => tmpAccount.dispose()).not.toThrow()
+    })
+  })
+
   describe('getMaxSpendable', () => {
     const TX_OVERHEAD_VBYTES = 11
     const OUTPUT_VBYTES = 34

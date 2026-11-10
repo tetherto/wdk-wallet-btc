@@ -2,7 +2,7 @@ import { describe, expect, test } from '@jest/globals'
 
 import { Psbt, networks, payments, Transaction, address as btcAddress } from 'bitcoinjs-lib'
 
-import { UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
+import { DisposalError, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
 
 import PrivateKeySignerBtc from '../../src/signers/private-key-signer-btc.js'
 
@@ -246,6 +246,21 @@ describe('PrivateKeySignerBtc', () => {
   })
 
   describe('dispose', () => {
+    test('should throw DisposalError from signing methods once disposed', async () => {
+      const signer = new PrivateKeySignerBtc(VALID_PRIVATE_KEY, SEGWIT_REGTEST_CONFIG)
+      const psbt = buildMixedPsbt(await signer.getAddress())
+
+      expect(signer.disposed).toBe(false)
+
+      signer.dispose()
+
+      expect(signer.disposed).toBe(true)
+
+      await expect(signer.derive("0'/0/0")).rejects.toThrow(DisposalError)
+      await expect(signer.sign(MESSAGE)).rejects.toThrow(DisposalError)
+      await expect(signer.signPsbt(psbt)).rejects.toThrow(DisposalError)
+    })
+
     test('should clear secrets on dispose', () => {
       const signer = new PrivateKeySignerBtc(VALID_PRIVATE_KEY)
 
