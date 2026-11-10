@@ -25,6 +25,8 @@ npm install @tetherto/wdk-wallet-btc
 
 > **Existing BIP-44 wallets:** Since `v1.0.0-beta.4`, the default is BIP-84. When reopening a wallet created with the earlier BIP-44 default, set `bip: 44`; otherwise, the same seed derives different addresses. See [Configuration](https://docs.wdk.tether.io/sdk/wallet-modules/wallet-btc/configuration) for derivation details.
 
+> **Existing wallets without `network`:** From `v1.0.0-beta.4` to `v1.0.0-beta.17`, leaving `network` unset (or passing an unsupported name such as `'mainnet'`) derived mainnet addresses under the testnet coin type, `m/84'/1'` (`m/44'/1'` with `bip: 44`). Since `v1.0.0-beta.18`, it derives under `m/84'/0'` (`m/44'/0'`), and unsupported names throw a `ValueError`. The same seed therefore produces different addresses after upgrading. To reopen the old accounts, pass `new SeedSignerBtc(seedPhrase, "m/84'/1'", { network: 'bitcoin' })` from `@tetherto/wdk-wallet-btc/signers` to `WalletManagerBtc` instead of the seed phrase (for `bip: 44`, use `"m/44'/1'"` and add `type: 'legacy'`); see [Configuration](https://docs.wdk.tether.io/sdk/wallet-modules/wallet-btc/configuration) for derivation details.
+
 > **Security:** The seed phrase below is public test data. Never use it to hold funds. Generate and protect a unique BIP-39 seed phrase before using a wallet in production.
 
 ```javascript

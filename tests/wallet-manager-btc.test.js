@@ -70,7 +70,7 @@ describe('WalletManagerBtc', () => {
 
       const account = await bareWallet.getAccount(1)
 
-      expect(account.path).toBe("m/84'/1'/0'/0/1")
+      expect(account.path).toBe("m/84'/0'/0'/0/1")
 
       bareWallet.dispose()
     })
