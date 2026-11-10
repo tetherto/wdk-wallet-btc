@@ -183,7 +183,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
     /**
      * True if the read-only wallet account has been disposed.
-     * 
+     *
      * @protected
      * @type {boolean}
      */
