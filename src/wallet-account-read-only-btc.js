@@ -22,7 +22,6 @@ import * as ecc from '@bitcoinerlab/secp256k1'
 import bitcoinMessageModule from '@bitcoinerlab/btcmessage'
 
 import { address as btcAddress, networks, Transaction } from 'bitcoinjs-lib'
-import { toHex } from 'uint8array-tools'
 
 import FailoverProvider from '@tetherto/wdk-failover-provider'
 
@@ -37,7 +36,8 @@ const bitcoinMessage = MessageFactory(ecc)
 /** @typedef {import('./transports/blockbook-client.js').BlockbookClientConfig} BlockbookClientConfig */
 /** @typedef {import('./transports/ws.js').ElectrumWsConfig} ElectrumWsConfig */
 
-/** @typedef {import('@bitcoinerlab/coinselect').OutputWithValue} OutputWithValue */
+/** @typedef {import('./primitives/index.js').Utxo} Utxo */
+/** @typedef {import('./primitives/index.js').SpendPlan} SpendPlan */
 /** @typedef {import('bitcoinjs-lib').Network} Network */
 /** @typedef {import('bitcoinjs-lib').Transaction} BtcTransactionReceipt */
 
@@ -60,7 +60,7 @@ const bitcoinMessage = MessageFactory(ecc)
  * @property {string} to - The transaction's recipient.
  * @property {number | bigint} value - The amount of bitcoins to send to the recipient (in satoshis).
  * @property {number} [confirmationTarget] - Optional confirmation target in blocks (default: 1).
- * @property {number | bigint} [feeRate] - Optional fee rate in satoshis per virtual byte. If provided, this value overrides the fee rate estimated from the blockchain (default: undefined).
+ * @property {number} [feeRate] - Optional fee rate in satoshis per virtual byte. If provided, this value overrides the fee rate estimated from the blockchain (default: undefined).
  */
 
 /**
@@ -242,7 +242,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
     if (!feeRate) {
       const feeEstimate = await this._client.estimateFee(confirmationTarget)
-      feeRate = this._toBigInt(Math.max(feeEstimate * 100_000, 1))
+      feeRate = Math.max(feeEstimate, 1)
     }
 
     const { fee } = await this._planSpend({
@@ -414,7 +414,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * single transaction. There will likely be some satoshis left over as change.
    *
    * @param {Object} [opts] - Options.
-   * @param {number | bigint} [opts.feeRate] - Fee rate in sat/vB. If omitted, estimated via the client.
+   * @param {number} [opts.feeRate] - Fee rate in sat/vB. If omitted, estimated via the client.
    * @returns {Promise<BtcMaxSpendableResult>} The estimated maximum spendable result.
    */
   async getMaxSpendable (opts = {}) {
@@ -424,16 +424,18 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
     let feeRate
     if (opts.feeRate) {
-      feeRate = Number(opts.feeRate)
+      feeRate = Math.max(Number(opts.feeRate), 1)
     } else {
-      const feeRateRaw = await this._client.estimateFee(1)
-      feeRate = Math.max(Math.round(Number(feeRateRaw) * 100_000), 1)
+      const feeEstimate = await this._client.estimateFee(1)
+      feeRate = Math.max(feeEstimate, 1)
     }
 
-    const unspent = await this._client.listUnspent(fromAddress)
-    if (!unspent || unspent.length === 0) {
+    const chainUtxos = await this._client.listUnspent(fromAddress)
+    if (!chainUtxos || chainUtxos.length === 0) {
       return { amount: 0n, fee: 0n, changeValue: 0n }
     }
+
+    const unspent = chainUtxos.map(u => ({ ...u, value: Number(u.value) }))
 
     const addr = String(fromAddress).toLowerCase()
     const isP2WPKH =
@@ -577,22 +579,21 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * Builds and returns a fee-aware funding plan for sending a transaction.
    *
    * Uses descriptors + coinselect to choose inputs, at a given feeRate (sats/vB). Returns the selected
-   * UTXOs (in the shape expected by the PSBT builder), the computed fee, and the resulting change value.
+   * inputs, the outputs to create and the computed fee as a spend plan.
    *
    * @protected
    * @param {Object} tx - The transaction.
    * @param {string} tx.fromAddress - The sender's address.
    * @param {string} tx.toAddress - The recipient's address.
    * @param {number | bigint} tx.amount - The amount to send (in satoshis).
-   * @param {number | bigint} tx.feeRate - The fee rate (in sats/vB).
-   * @returns {Promise<{ utxos: OutputWithValue[], fee: bigint, changeValue: bigint }>} - The funding plan.
+   * @param {number} tx.feeRate - The fee rate (in sats/vB).
+   * @returns {Promise<SpendPlan>} - The spend plan.
    * @throws {ValueError} If the amount doesn't clear the dust limit, or the spend requires more inputs than allowed.
    * @throws {TransactionError} If the account has no unspent outputs, or its balance doesn't cover the amount and its fees.
    */
   async _planSpend ({ fromAddress, toAddress, amount, feeRate }) {
     amount = this._toBigInt(amount)
-    feeRate = this._toBigInt(feeRate)
-    if (feeRate < 1n) feeRate = 1n
+    feeRate = Math.max(Number(feeRate), 1)
 
     const dustLimit = await this._getDustLimit()
 
@@ -602,29 +603,36 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
     const network = this._network
 
-    const fromAddressScriptHex = toHex(btcAddress.toOutputScript(fromAddress, network))
+    const fromAddressScript = btcAddress.toOutputScript(fromAddress, network)
+    const fromAddressPrefix = Object.keys(BIP_BY_ADDRESS_PREFIX).find(p => fromAddress.startsWith(p))
+    const fromAddressScriptType = BIP_BY_ADDRESS_PREFIX[fromAddressPrefix] === 84 ? 'segwit' : 'legacy'
     const fromAddressOutput = new Output({ descriptor: `addr(${fromAddress})`, network })
     const toAddressOutput = new Output({ descriptor: `addr(${toAddress})`, network })
 
-    const unspent = await this._client.listUnspent(fromAddress)
+    const chainUtxos = await this._client.listUnspent(fromAddress)
 
-    if (!unspent || unspent.length === 0) {
+    if (!chainUtxos || chainUtxos.length === 0) {
       throw new TransactionError('No unspent outputs available.', {
         reason: TransactionErrorReason.INSUFFICIENT_BALANCE
       })
     }
 
-    const utxosForCoinSelect = unspent.map(u => ({
-      output: fromAddressOutput,
-      value: this._toBigInt(u.value),
-      __ref: u
+    /** @type {Array<Utxo & { output: Output }>} */
+    const utxos = chainUtxos.map(chainUtxo => ({
+      ...chainUtxo,
+      script: fromAddressScript,
+      address: fromAddress,
+      scriptType: fromAddressScriptType,
+      output: fromAddressOutput
     }))
 
+    // coinselect reads only output and value and returns the selected objects as given,
+    // so the other Utxo fields carry through to the selected inputs
     const result = coinselect({
-      utxos: utxosForCoinSelect,
+      utxos,
       remainder: fromAddressOutput,
       targets: [{ output: toAddressOutput, value: amount }],
-      feeRate: Number(feeRate)
+      feeRate
     })
 
     if (!result) {
@@ -639,15 +647,10 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
     const fee = result.fee > BigInt(MIN_TX_FEE_SATS) ? result.fee : BigInt(MIN_TX_FEE_SATS)
 
-    const utxos = result.utxos.map(({ __ref }) => ({
-      ...__ref,
-      vout: {
-        value: this._toBigInt(__ref.value),
-        scriptPubKey: { hex: fromAddressScriptHex }
-      }
-    }))
+    /** @type {Utxo[]} */
+    const inputs = result.utxos.map(({ output, ...utxo }) => utxo)
 
-    const total = utxos.reduce((s, u) => s + this._toBigInt(u.value), 0n)
+    const total = inputs.reduce((s, u) => s + u.value, 0n)
     const changeValue = total - fee - amount
 
     if (changeValue < 0n) {
@@ -658,12 +661,23 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
     if (changeValue <= dustLimit) {
       return {
-        utxos,
+        inputs,
+        outputs: [{ address: toAddress, value: amount }],
         fee: fee + changeValue,
-        changeValue: 0n
+        feeRate,
+        vsize: result.vsize
       }
     }
 
-    return { utxos, fee, changeValue }
+    return {
+      inputs,
+      outputs: [
+        { address: toAddress, value: amount },
+        { address: fromAddress, value: changeValue, isChange: true }
+      ],
+      fee,
+      feeRate,
+      vsize: result.vsize
+    }
   }
 }

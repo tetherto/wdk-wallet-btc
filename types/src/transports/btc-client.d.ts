@@ -29,9 +29,9 @@ export default interface IBtcClient {
      * Returns unspent transaction outputs for an address.
      *
      * @param {string} address - The bitcoin address.
-     * @returns {Promise<BtcUtxo[]>} List of UTXOs.
+     * @returns {Promise<ChainUtxo[]>} List of UTXOs.
      */
-    listUnspent(address: string): Promise<BtcUtxo[]>;
+    listUnspent(address: string): Promise<ChainUtxo[]>;
     /**
      * Returns transaction history for an address.
      *
@@ -65,7 +65,7 @@ export default interface IBtcClient {
      * Returns the estimated fee rate.
      *
      * @param {number} blocks - The confirmation target in blocks.
-     * @returns {Promise<number>} Fee rate in BTC/kB.
+     * @returns {Promise<number>} Fee rate in sat/vB (may be fractional).
      * @throws {ProviderError} If fee estimation is unavailable.
      */
     estimateFee(blocks: number): Promise<number>;
@@ -100,24 +100,6 @@ export type BtcBalance = {
      */
     unconfirmedOutgoing?: number;
 };
-export type BtcUtxo = {
-    /**
-     * - The transaction hash containing this UTXO.
-     */
-    tx_hash: string;
-    /**
-     * - The output index within the transaction.
-     */
-    tx_pos: number;
-    /**
-     * - The UTXO value in satoshis.
-     */
-    value: number;
-    /**
-     * - The block height (0 if unconfirmed).
-     */
-    height?: number;
-};
 export type BtcHistoryItem = {
     /**
      * - The transaction hash.
@@ -129,3 +111,4 @@ export type BtcHistoryItem = {
     height: number;
 };
 export type ProviderError = import("@tetherto/wdk-wallet").ProviderError;
+export type ChainUtxo = import("../primitives/index.js").ChainUtxo;

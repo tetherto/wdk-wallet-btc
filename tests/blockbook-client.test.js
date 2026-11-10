@@ -467,7 +467,7 @@ describe('BlockbookClient', () => {
       const rate = await client.estimateFee(6)
 
       expect(fetchMock).toHaveBeenCalledWith('https://example.com/api/v1/estimatefee/6')
-      expect(rate).toBe(0.00025)
+      expect(rate).toBeCloseTo(25)
     })
 
     test('should fall back to mempool.space when Blockbook v1 fails', async () => {
@@ -479,7 +479,7 @@ describe('BlockbookClient', () => {
 
       expect(fetchMock).toHaveBeenCalledWith('https://example.com/api/v1/estimatefee/1')
       expect(fetchMock).toHaveBeenCalledWith('https://mempool.space/api/v1/fees/recommended')
-      expect(rate).toBe(MEMPOOL_FEES.fastestFee / 100_000)
+      expect(rate).toBe(MEMPOOL_FEES.fastestFee)
     })
 
     test('should fall back to mempool.space when Blockbook v1 returns negative rate', async () => {
@@ -489,7 +489,7 @@ describe('BlockbookClient', () => {
 
       const rate = await client.estimateFee(1)
 
-      expect(rate).toBe(MEMPOOL_FEES.fastestFee / 100_000)
+      expect(rate).toBe(MEMPOOL_FEES.fastestFee)
     })
 
     test('should map mempool.space fastestFee for 1 block target', async () => {
@@ -499,7 +499,7 @@ describe('BlockbookClient', () => {
 
       const rate = await client.estimateFee(1)
 
-      expect(rate).toBe(MEMPOOL_FEES.fastestFee / 100_000)
+      expect(rate).toBe(MEMPOOL_FEES.fastestFee)
     })
 
     test('should map mempool.space halfHourFee for 2-3 block target', async () => {
@@ -509,7 +509,7 @@ describe('BlockbookClient', () => {
 
       const rate = await client.estimateFee(3)
 
-      expect(rate).toBe(MEMPOOL_FEES.halfHourFee / 100_000)
+      expect(rate).toBe(MEMPOOL_FEES.halfHourFee)
     })
 
     test('should map mempool.space hourFee for 4-6 block target', async () => {
@@ -519,7 +519,7 @@ describe('BlockbookClient', () => {
 
       const rate = await client.estimateFee(6)
 
-      expect(rate).toBe(MEMPOOL_FEES.hourFee / 100_000)
+      expect(rate).toBe(MEMPOOL_FEES.hourFee)
     })
 
     test('should map mempool.space economyFee for >6 block target', async () => {
@@ -529,17 +529,17 @@ describe('BlockbookClient', () => {
 
       const rate = await client.estimateFee(25)
 
-      expect(rate).toBe(MEMPOOL_FEES.economyFee / 100_000)
+      expect(rate).toBe(MEMPOOL_FEES.economyFee)
     })
 
-    test('should convert mempool.space sat/vB to BTC/kB', async () => {
+    test('should return mempool.space sat/vB as is', async () => {
       fetchMock
         .mockResolvedValueOnce(mockBlockbookFailure())
         .mockResolvedValueOnce(mockMempoolFees({ fastestFee: 100, halfHourFee: 50, hourFee: 25, economyFee: 10 }))
 
       const rate = await client.estimateFee(1)
 
-      expect(rate).toBe(0.001)
+      expect(rate).toBe(100)
     })
 
     test('should throw when both sources fail', async () => {
