@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from '@jest/globals'
+import { afterAll, beforeAll, describe, expect, jest, test } from '@jest/globals'
 
 import { mnemonicToSeedSync } from 'bip39'
 
@@ -800,7 +800,41 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
 
       expect(await readOnlyAccount.getAddress()).toBe(ACCOUNTS[bip].address)
 
-      readOnlyAccount._client.close()
+      readOnlyAccount.dispose()
+    })
+
+    test('should give the read-only copy its own connection when the client is configured by descriptor', async () => {
+      const signer = new SeedSignerBtc(SEED_PHRASE, `${DERIVATION_PATH_PREFIX}/0'/0/0`, SIGNER_CONFIG)
+      const account = new WalletAccountBtc(signer, CLIENT_CONFIG)
+      const readOnlyAccount = await account.toReadOnlyAccount()
+
+      expect(readOnlyAccount._client).not.toBe(account._client)
+
+      const accountClose = jest.spyOn(account._client, 'close')
+      const readOnlyClose = jest.spyOn(readOnlyAccount._client, 'close')
+
+      account.dispose()
+
+      expect(accountClose).toHaveBeenCalledTimes(1)
+      expect(readOnlyClose).not.toHaveBeenCalled()
+
+      readOnlyAccount.dispose()
+
+      expect(readOnlyClose).toHaveBeenCalledTimes(1)
+    })
+
+    test('should share an externally supplied client with the read-only copy and never close it', async () => {
+      const client = { connect: jest.fn(async () => {}), close: jest.fn() }
+      const signer = new SeedSignerBtc(SEED_PHRASE, `${DERIVATION_PATH_PREFIX}/0'/0/0`, SIGNER_CONFIG)
+      const account = new WalletAccountBtc(signer, { client })
+      const readOnlyAccount = await account.toReadOnlyAccount()
+
+      expect(readOnlyAccount._client).toBe(client)
+
+      readOnlyAccount.dispose()
+      account.dispose()
+
+      expect(client.close).not.toHaveBeenCalled()
     })
   })
 
