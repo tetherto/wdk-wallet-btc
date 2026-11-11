@@ -415,12 +415,8 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
     const unspent = chainUtxos.map(u => ({ ...u, value: Number(u.value) }))
 
-    const addr = String(fromAddress).toLowerCase()
-    const isP2WPKH =
-      addr.startsWith('bc1q') ||
-      addr.startsWith('tb1q') ||
-      addr.startsWith('bcrt1q')
-    const inputVBytes = isP2WPKH ? 68 : 148
+    const fromAddressOutput = new Output({ descriptor: getAddressDescriptor(fromAddress), network: this._network })
+    const inputVBytes = fromAddressOutput.inputWeight(fromAddressOutput.isSegwit(), 'DANGEROUSLY_USE_FAKE_SIGNATURES') / 4
 
     const perInputFee = Math.ceil(inputVBytes * feeRate)
     let spendableUtxos = unspent.filter(u => (u.value - perInputFee) > 0)
