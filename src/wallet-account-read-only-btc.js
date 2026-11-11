@@ -28,7 +28,7 @@ import { getAddressDescriptor } from './primitives/descriptor.js'
 
 import { assertNoBipOption, resolveNetwork } from './primitives/index.js'
 
-import { getDustLimit, getMaxDustLimit } from './primitives/dust.js'
+import { getDustLimit, getInputVBytes, getMaxDustLimit } from './primitives/dust.js'
 
 import { BlockbookClient, ElectrumTcp, ElectrumSsl, ElectrumTls, ElectrumWs } from './transports/index.js'
 
@@ -417,12 +417,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
     const unspent = chainUtxos.map(u => ({ ...u, value: Number(u.value) }))
 
-    const addr = String(fromAddress).toLowerCase()
-    const isP2WPKH =
-      addr.startsWith('bc1q') ||
-      addr.startsWith('tb1q') ||
-      addr.startsWith('bcrt1q')
-    const inputVBytes = isP2WPKH ? 68 : 148
+    const inputVBytes = getInputVBytes(fromAddress, this._network)
 
     const perInputFee = Math.ceil(inputVBytes * feeRate)
     let spendableUtxos = unspent.filter(u => (u.value - perInputFee) > 0)

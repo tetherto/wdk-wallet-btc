@@ -13,6 +13,10 @@
 // limitations under the License.
 'use strict'
 
+import { Output } from '../crypto-engine.js'
+
+import { getAddressDescriptor } from './descriptor.js'
+
 const DUST_RELAY_FEE_RATE = 3n
 
 const OUTPUT_VALUE_BYTES = 8
@@ -23,7 +27,7 @@ const INPUT_SCRIPT_LENGTH_BYTES = 1
 const INPUT_SEQUENCE_BYTES = 4
 const INPUT_UNLOCK_BYTES = 107
 
-const WITNESS_SCALE_FACTOR = 4
+export const WITNESS_SCALE_FACTOR = 4
 
 const MIN_WITNESS_PROGRAM_SCRIPT_BYTES = 4
 const MAX_WITNESS_PROGRAM_SCRIPT_BYTES = 42
@@ -84,4 +88,17 @@ export function getDustLimit (script) {
  */
 export function getMaxDustLimit () {
   return getDustThreshold(P2PKH_SCRIPT_BYTES, false)
+}
+
+/**
+ * Returns the virtual size of the input that spends an output paying to an address, estimated with a placeholder signature.
+ *
+ * @param {string} address - The address of the output.
+ * @param {Object} network - The network the address belongs to.
+ * @returns {number} The input size in virtual bytes.
+ */
+export function getInputVBytes (address, network) {
+  const output = new Output({ descriptor: getAddressDescriptor(address), network })
+
+  return output.inputWeight(output.isSegwit(), 'DANGEROUSLY_USE_FAKE_SIGNATURES') / WITNESS_SCALE_FACTOR
 }
