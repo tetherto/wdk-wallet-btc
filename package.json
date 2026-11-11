@@ -1,6 +1,6 @@
 {
   "name": "@tetherto/wdk-wallet-btc",
-  "version": "1.0.0-beta.17",
+  "version": "1.0.0-beta.18",
   "description": "Bitcoin wallet module for WDK (Wallet Development Kit) by Tether, supporting BIP-84 Native SegWit and BIP-44 legacy accounts.",
   "keywords": [
     "wdk",
