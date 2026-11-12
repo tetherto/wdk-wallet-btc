@@ -36,6 +36,7 @@ import { toScriptHash } from './btc-client.js'
 /** @typedef {import('./btc-client.js').BtcBalance} BtcBalance */
 /** @typedef {import('./btc-client.js').BtcUtxo} BtcUtxo */
 /** @typedef {import('./btc-client.js').BtcHistoryItem} BtcHistoryItem */
+/** @typedef {import('node:tls').TLSSocket} TLSSocket */
 
 const CERTIFICATE_ERROR_CODES = new Set([
   'CERT_HAS_EXPIRED',
@@ -61,10 +62,9 @@ const SOCKET_OPTION_METHODS = ['setTimeout', 'setKeepAlive', 'setNoDelay']
  * - setTimeout, setKeepAlive and setNoDelay are missing; they are forwarded to the TCP socket.
  * Certificate verification is unchanged.
  *
- * @private
- * @param {any} socket - The bare-tls socket.
+ * @param {TLSSocket} socket - The bare-tls socket.
  * @param {() => void} [callback] - The connect callback.
- * @returns {any} The socket.
+ * @returns {TLSSocket} The socket.
  */
 function adaptBareTlsSocket (socket, callback) {
   for (const method of SOCKET_OPTION_METHODS) {
