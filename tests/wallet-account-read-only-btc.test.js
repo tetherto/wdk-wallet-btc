@@ -9,28 +9,27 @@ import { NoSuchElementError, UnsupportedOperationError, ValueError } from '@teth
 
 const ADDRESSES = {
   // 0'/0/404
-  44: 'mpAchHfVmLYViwscV2FSUC9s5U7bKkGfui',
+  p2pkh: 'mpAchHfVmLYViwscV2FSUC9s5U7bKkGfui',
   // 0'/0/404
-  84: 'bcrt1qruhppa4atdlgj5cq5vxwe7aqym6aa8su82099f'
+  p2wpkh: 'bcrt1qruhppa4atdlgj5cq5vxwe7aqym6aa8su82099f'
 }
 
 const MESSAGE = 'Dummy message to sign.'
 
 const SIGNATURES = {
-  44: 'ILWuWH2g27UaXIsSw0UFLQYwfUOWfvRNXvScHE4BCk8aNm4KMm3JkscALgNhispNXVRrSOPRAJUM57ZhOHwZQSI=',
-  84: 'JwLv90xAF4LXLArn6IAnYoitRukE9bxa0PdCu1IzPB9dIb6A6/PLXSunegUReDy6UoyvVodVHAtBbMnETP9hqf4='
+  p2pkh: 'ILWuWH2g27UaXIsSw0UFLQYwfUOWfvRNXvScHE4BCk8aNm4KMm3JkscALgNhispNXVRrSOPRAJUM57ZhOHwZQSI=',
+  p2wpkh: 'JwLv90xAF4LXLArn6IAnYoitRukE9bxa0PdCu1IzPB9dIb6A6/PLXSunegUReDy6UoyvVodVHAtBbMnETP9hqf4='
 }
 
 export const FEES = {
-  44: 223n,
-  84: 141n
+  p2pkh: 223n,
+  p2wpkh: 141n
 }
 
-describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
+describe.each(['p2pkh', 'p2wpkh'])('WalletAccountReadOnlyBtc (%s)', (type) => {
   const CONFIGURATION = {
     client: { type: 'electrum', clientConfig: { host: HOST, port: ELECTRUM_PORT } },
-    network: 'regtest',
-    bip
+    network: 'regtest'
   }
 
   const bitcoin = new BitcoinCli({
@@ -50,10 +49,10 @@ describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
   let account, recipient
 
   beforeAll(async () => {
-    account = new WalletAccountReadOnlyBtc(ADDRESSES[bip], CONFIGURATION)
+    account = new WalletAccountReadOnlyBtc(ADDRESSES[type], CONFIGURATION)
     recipient = bitcoin.getNewAddress()
 
-    bitcoin.sendToAddress(ADDRESSES[bip], 0.01)
+    bitcoin.sendToAddress(ADDRESSES[type], 0.01)
 
     await waiter.mine()
   })
@@ -81,7 +80,7 @@ describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
 
   describe('dispose', () => {
     test('should expose the disposed state', () => {
-      const tmpAccount = new WalletAccountReadOnlyBtc(ADDRESSES[bip], CONFIGURATION)
+      const tmpAccount = new WalletAccountReadOnlyBtc(ADDRESSES[type], CONFIGURATION)
 
       expect(tmpAccount.disposed).toBe(false)
 
@@ -91,7 +90,7 @@ describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
     })
 
     test('should be safe to call dispose more than once', () => {
-      const tmpAccount = new WalletAccountReadOnlyBtc(ADDRESSES[bip], CONFIGURATION)
+      const tmpAccount = new WalletAccountReadOnlyBtc(ADDRESSES[type], CONFIGURATION)
 
       tmpAccount.dispose()
 
@@ -104,14 +103,14 @@ describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
     const OUTPUT_VBYTES = 34
     const MIN_TX_FEE = 141
     const STARTING_BALANCE = 1_000_000n
-    const INPUT_VBYTES = bip === 44 ? 148 : 68
+    const INPUT_VBYTES = type === 'p2pkh' ? 148 : 68
 
     test('should return the correct maximum spendable amount', async () => {
       const satsPerVByte = bitcoin.estimateSatsPerVByte(1)
 
       const vsize = TX_OVERHEAD_VBYTES + INPUT_VBYTES + (2 * OUTPUT_VBYTES)
       const expectedFee = BigInt(Math.max(Math.ceil(vsize * satsPerVByte), MIN_TX_FEE))
-      const dustLimit = bip === 44 ? 546n : 294n
+      const dustLimit = type === 'p2pkh' ? 546n : 297n
       const expectedAmount = STARTING_BALANCE - expectedFee - dustLimit
 
       const result = await account.getMaxSpendable({ feeRate: satsPerVByte })
@@ -126,11 +125,11 @@ describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
     test('should return correct max spend when change would be dust (one output)', async () => {
       const satsPerVByte = bitcoin.estimateSatsPerVByte(1)
 
-      const tmpAddress = bip === 44
+      const tmpAddress = type === 'p2pkh'
         ? bitcoin.call('getnewaddress "" legacy', { rawResult: true })
         : bitcoin.call('getnewaddress "" bech32', { rawResult: true })
       const tmpAccount = new WalletAccountReadOnlyBtc(tmpAddress, CONFIGURATION)
-      const dustLimit = bip === 44 ? 546 : 294
+      const dustLimit = type === 'p2pkh' ? 546 : 297
 
       const vsizeOneOutput = TX_OVERHEAD_VBYTES + INPUT_VBYTES + OUTPUT_VBYTES
       const feeOneOutput = Math.max(Math.ceil(vsizeOneOutput * satsPerVByte), MIN_TX_FEE)
@@ -167,7 +166,7 @@ describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
 
       const { fee } = await account.quoteSendTransaction(TRANSACTION)
 
-      const expectedFee = FEES[bip] * BigInt(satsPerVByte)
+      const expectedFee = FEES[type] * BigInt(satsPerVByte)
       expect(fee).toBe(expectedFee)
     })
 
@@ -177,7 +176,7 @@ describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
 
       const { fee } = await account.quoteSendTransaction(TRANSACTION)
 
-      const expectedFee = FEES[bip] * BigInt(satsPerVByte)
+      const expectedFee = FEES[type] * BigInt(satsPerVByte)
       expect(fee).toBe(expectedFee)
     })
 
@@ -186,7 +185,7 @@ describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
 
       const { fee } = await account.quoteSendTransaction(TRANSACTION)
       
-      const expectedFee = FEES[bip] * BigInt(TRANSACTION.feeRate)
+      const expectedFee = FEES[type] * BigInt(TRANSACTION.feeRate)
       expect(fee).toBe(expectedFee)
     })
   
@@ -195,7 +194,7 @@ describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
       const TRANSACTION = { to: recipient, value: 1000, feeRate: satsPerVByte }
 
       const { fee } = await account.quoteSendTransaction(TRANSACTION)
-      const expectedFee = FEES[bip] * BigInt(satsPerVByte)
+      const expectedFee = FEES[type] * BigInt(satsPerVByte)
       expect(fee).toBe(expectedFee)
     })
   })
@@ -213,7 +212,7 @@ describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
     let txid
 
     beforeAll(() => {
-      txid = bitcoin.sendToAddress(ADDRESSES[bip], 0.005)
+      txid = bitcoin.sendToAddress(ADDRESSES[type], 0.005)
     })
 
     test('should report pending for an unconfirmed transaction', async () => {
@@ -270,12 +269,12 @@ describe.each([44, 84])('WalletAccountReadOnlyBtc', (bip) => {
 
   describe('verify', () => {
     test('should return true for a valid signature', async () => {
-        const result = await account.verify(MESSAGE, SIGNATURES[bip])
+        const result = await account.verify(MESSAGE, SIGNATURES[type])
         expect(result).toBe(true)
     })
 
     test('should return false for an invalid signature', async () => {
-      const result = await account.verify('Another message.', SIGNATURES[bip])
+      const result = await account.verify('Another message.', SIGNATURES[type])
       expect(result).toBe(false)
     })
 
@@ -295,7 +294,7 @@ describe('WalletAccountReadOnlyBtc getBalance formula', () => {
   }
 
   test('should subtract unconfirmedOutgoing when the client reports it', async () => {
-    const account = new WalletAccountReadOnlyBtc(ADDRESSES[84], {
+    const account = new WalletAccountReadOnlyBtc(ADDRESSES.p2wpkh, {
       network: 'regtest',
       client: stubClient({ confirmed: 100_000, unconfirmed: 999_999, unconfirmedOutgoing: 30_000 })
     })
@@ -306,7 +305,7 @@ describe('WalletAccountReadOnlyBtc getBalance formula', () => {
   })
 
   test('should fall back to netting the raw unconfirmed balance when the client does not report unconfirmedOutgoing', async () => {
-    const account = new WalletAccountReadOnlyBtc(ADDRESSES[84], {
+    const account = new WalletAccountReadOnlyBtc(ADDRESSES.p2wpkh, {
       network: 'regtest',
       client: stubClient({ confirmed: 100_000, unconfirmed: -30_000 })
     })
@@ -325,7 +324,7 @@ describe('WalletAccountReadOnlyBtc coin selection', () => {
       height: 1
     }))
 
-    const account = new WalletAccountReadOnlyBtc(ADDRESSES[84], {
+    const account = new WalletAccountReadOnlyBtc(ADDRESSES.p2wpkh, {
       network: 'regtest',
       client: {
         connect: async () => {},
@@ -334,8 +333,8 @@ describe('WalletAccountReadOnlyBtc coin selection', () => {
     })
 
     const promise = account._planSpend({
-      fromAddress: ADDRESSES[84],
-      toAddress: ADDRESSES[44],
+      fromAddress: ADDRESSES.p2wpkh,
+      toAddress: ADDRESSES.p2pkh,
       amount: 1_200_000,
       feeRate: 1
     })

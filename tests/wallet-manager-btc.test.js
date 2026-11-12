@@ -26,7 +26,7 @@ describe('WalletManagerBtc', () => {
   let wallet
 
   beforeEach(() => {
-    const root = new SeedSignerBtc(SEED_PHRASE, "m/84'/1'")
+    const root = new SeedSignerBtc(SEED_PHRASE, "m/84'/0'")
     wallet = new WalletManagerBtc(root)
   })
 
@@ -62,7 +62,7 @@ describe('WalletManagerBtc', () => {
 
       expect(account).toBeInstanceOf(WalletAccountBtc)
 
-      expect(account.path).toBe("m/84'/1'/0'/0/0")
+      expect(account.path).toBe("m/84'/0'/0'/0/0")
     })
 
     test('should derive standard accounts from a default-path seed signer', async () => {
@@ -80,7 +80,7 @@ describe('WalletManagerBtc', () => {
 
       expect(account).toBeInstanceOf(WalletAccountBtc)
 
-      expect(account.path).toBe("m/84'/1'/0'/0/3")
+      expect(account.path).toBe("m/84'/0'/0'/0/3")
     })
 
     test('should return the same cached account instance for the same index', async () => {
@@ -92,16 +92,16 @@ describe('WalletManagerBtc', () => {
 
     test('should throw if the index is a negative number', async () => {
       await expect(wallet.getAccount(-1))
-        .rejects.toThrow(`Invalid format: Expected /^(m\\/)?(\\d+'?\\/)*\\d+'?$/ but received "0'/0/-1"`)
+        .rejects.toThrow("The derivation path '0'/0/-1' is invalid: '-1' is not a valid segment.")
     })
 
     test('should derive from a named signer via options.signerName', async () => {
-      wallet.addSigner('secondary', new SeedSignerBtc(SEED_PHRASE, "m/84'/1'"))
+      wallet.addSigner('secondary', new SeedSignerBtc(SEED_PHRASE, "m/84'/0'"))
 
       const account = await wallet.getAccount(2, { signerName: 'secondary' })
 
       expect(account).toBeInstanceOf(WalletAccountBtc)
-      expect(account.path).toBe("m/84'/1'/0'/0/2")
+      expect(account.path).toBe("m/84'/0'/0'/0/2")
     })
 
     test('should throw if the named signer does not exist', async () => {
@@ -128,13 +128,13 @@ describe('WalletManagerBtc', () => {
     })
 
     test('should use the named signer as given without taking ownership of it', async () => {
-      const named = new SeedSignerBtc(SEED_PHRASE, "m/84'/1'/0'/0/0")
+      const named = new SeedSignerBtc(SEED_PHRASE, "m/84'/0'/0'/0/0")
       wallet.addSigner('seed', named)
 
       const account = await wallet.getAccount('seed')
 
       expect(account).toBeInstanceOf(WalletAccountBtc)
-      expect(account.path).toBe("m/84'/1'/0'/0/0")
+      expect(account.path).toBe("m/84'/0'/0'/0/0")
 
       // The registered signer is wrapped as-is but stays consumer-owned, so disposing
       // the returned account must leave the signer fully usable.
@@ -145,11 +145,11 @@ describe('WalletManagerBtc', () => {
     })
 
     test('should mirror the registered signer\'s own (non-default) path', async () => {
-      wallet.addSigner('atFive', new SeedSignerBtc(SEED_PHRASE, "m/84'/1'/0'/0/5"))
+      wallet.addSigner('atFive', new SeedSignerBtc(SEED_PHRASE, "m/84'/0'/0'/0/5"))
 
       const account = await wallet.getAccount('atFive')
 
-      expect(account.path).toBe("m/84'/1'/0'/0/5")
+      expect(account.path).toBe("m/84'/0'/0'/0/5")
     })
   })
 
@@ -159,7 +159,7 @@ describe('WalletManagerBtc', () => {
 
       expect(account).toBeInstanceOf(WalletAccountBtc)
 
-      expect(account.path).toBe("m/84'/1'/1'/2/3")
+      expect(account.path).toBe("m/84'/0'/1'/2/3")
     })
 
     test('should return the same cached account instance for the same path', async () => {
@@ -170,27 +170,27 @@ describe('WalletManagerBtc', () => {
     })
 
     test('should derive from a named signer via options.signerName', async () => {
-      wallet.addSigner('secondary', new SeedSignerBtc(SEED_PHRASE, "m/84'/1'"))
+      wallet.addSigner('secondary', new SeedSignerBtc(SEED_PHRASE, "m/84'/0'"))
 
       const account = await wallet.getAccountByPath("0'/0/0", { signerName: 'secondary' })
 
-      expect(account.path).toBe("m/84'/1'/0'/0/0")
+      expect(account.path).toBe("m/84'/0'/0'/0/0")
     })
 
     test('should not collide across signer names with the same path', async () => {
-      wallet.addSigner('secondary', new SeedSignerBtc(SEED_PHRASE, "m/84'/1'"))
+      wallet.addSigner('secondary', new SeedSignerBtc(SEED_PHRASE, "m/84'/0'"))
 
       const accountDefault = await wallet.getAccountByPath("0'/0/5")
       const accountNamed = await wallet.getAccountByPath("0'/0/5", { signerName: 'secondary' })
 
       expect(accountNamed).not.toBe(accountDefault)
-      expect(accountDefault.path).toBe("m/84'/1'/0'/0/5")
-      expect(accountNamed.path).toBe("m/84'/1'/0'/0/5")
+      expect(accountDefault.path).toBe("m/84'/0'/0'/0/5")
+      expect(accountNamed.path).toBe("m/84'/0'/0'/0/5")
     })
 
     test('should throw if the path is invalid', async () => {
       await expect(wallet.getAccountByPath("a'/b/c"))
-        .rejects.toThrow(`Invalid format: Expected /^(m\\/)?(\\d+'?\\/)*\\d+'?$/ but received "a'/b/c"`)
+        .rejects.toThrow("The derivation path 'a'/b/c' is invalid: 'a'' is not a valid segment.")
     })
 
     test('should throw when deriving from a named private key signer', async () => {
@@ -310,7 +310,7 @@ describe('WalletManagerBtc', () => {
     })
 
     test('should throw DisposalError when the named signer has been disposed', async () => {
-      const named = new SeedSignerBtc(SEED_PHRASE, "m/84'/1'")
+      const named = new SeedSignerBtc(SEED_PHRASE, "m/84'/0'")
       wallet.addSigner('seed', named)
 
       named.dispose()
@@ -331,7 +331,7 @@ describe('WalletManagerBtc', () => {
     })
 
     test('should not dispose a default signer supplied at construction', async () => {
-      const root = new SeedSignerBtc(SEED_PHRASE, "m/84'/1'")
+      const root = new SeedSignerBtc(SEED_PHRASE, "m/84'/0'")
       const wallet = new WalletManagerBtc(root)
 
       wallet.dispose()

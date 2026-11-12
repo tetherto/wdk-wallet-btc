@@ -19,7 +19,7 @@ const INVALID_SEED_PHRASE = 'invalid seed phrase'
 const SEED = mnemonicToSeedSync(SEED_PHRASE)
 
 const ACCOUNTS = {
-  44: {
+  p2pkh: {
     path: "m/44'/1'/0'/0/0",
     address: 'mjsVx6s5oH9VqwmhfjCyVo6t7APRGY6T8o',
     keyPair: {
@@ -27,7 +27,7 @@ const ACCOUNTS = {
       publicKey: '02f8044c82d6b9dfcfc3e6f3424cb11cc747bb34766bcbef72d2f52f6c4e8e07aa'
     }
   },
-  84: {
+  p2wpkh: {
     path: "m/84'/1'/0'/0/0",
     address: 'bcrt1q8dqnpagwt9rtl7k38nuaa2ahf690avzkm74nhn',
     keyPair: {
@@ -40,20 +40,21 @@ const ACCOUNTS = {
 const MESSAGE = 'Dummy message to sign.'
 
 const SIGNATURES = {
-  44: 'H4RwJWJzRmVkgQDqmTgX0qCbSONLQjvjfXH7ZdKZs5S3BWbpfjqbGdIJQXy/+ppW4Lvaw0wZ/UaDOLhMw5TIDuk=',
-  84: 'KAVgsxrQT5V4Mhfnk6taeCN1/j8p/sa8S9iNsbsgRb8zbfNOOPXV1w3dQQV0IjboJrlxYuDJnHw5a/E6vRJ+0Ek='
+  p2pkh: 'H4RwJWJzRmVkgQDqmTgX0qCbSONLQjvjfXH7ZdKZs5S3BWbpfjqbGdIJQXy/+ppW4Lvaw0wZ/UaDOLhMw5TIDuk=',
+  p2wpkh: 'KAVgsxrQT5V4Mhfnk6taeCN1/j8p/sa8S9iNsbsgRb8zbfNOOPXV1w3dQQV0IjboJrlxYuDJnHw5a/E6vRJ+0Ek='
 }
 
 export const FEES = {
-  44: 223n,
-  84: 141n
+  p2pkh: 223n,
+  p2wpkh: 141n
 }
 
-describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
-  const SIGNER_CONFIG = { network: 'regtest', type: bip === 44 ? 'p2pkh' : 'p2wpkh' }
+describe.each(['p2pkh', 'p2wpkh'])('WalletAccountBtc (%s)', (type) => {
+  const SIGNER_CONFIG = { network: 'regtest', type }
   const CLIENT_CONFIG = { client: { type: 'electrum', clientConfig: { host: HOST, port: ELECTRUM_PORT } } }
-  const CONFIG = { network: 'regtest', bip, ...CLIENT_CONFIG }
-  const DERIVATION_PATH_PREFIX = `m/${bip}'/1'`
+  const CONFIG = { network: 'regtest', type, ...CLIENT_CONFIG }
+  const PURPOSE = type === 'p2pkh' ? 44 : 84
+  const DERIVATION_PATH_PREFIX = `m/${PURPOSE}'/1'`
 
   const bitcoin = new BitcoinCli({
     host: HOST,
@@ -76,7 +77,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     account = new WalletAccountBtc(signer, CLIENT_CONFIG)
     recipient = bitcoin.getNewAddress()
 
-    bitcoin.sendToAddress(ACCOUNTS[bip].address, 0.01)
+    bitcoin.sendToAddress(ACCOUNTS[type].address, 0.01)
 
     await waiter.mine()
   })
@@ -90,12 +91,12 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
       const signer = new SeedSignerBtc(SEED_PHRASE, `${DERIVATION_PATH_PREFIX}/0'/0/0`, SIGNER_CONFIG)
       const account = new WalletAccountBtc(signer, CLIENT_CONFIG)
 
-      expect(account.path).toBe(ACCOUNTS[bip].path)
+      expect(account.path).toBe(ACCOUNTS[type].path)
 
       expect({
         privateKey: Buffer.from(account.keyPair.privateKey).toString('hex'),
         publicKey: Buffer.from(account.keyPair.publicKey).toString('hex')
-      }).toEqual(ACCOUNTS[bip].keyPair)
+      }).toEqual(ACCOUNTS[type].keyPair)
 
       account.dispose()
     })
@@ -104,9 +105,9 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
       const signer = new SeedSignerBtc(SEED, `${DERIVATION_PATH_PREFIX}/0'/0/0`, SIGNER_CONFIG)
       const account = new WalletAccountBtc(signer, CLIENT_CONFIG)
 
-      expect(account.path).toBe(ACCOUNTS[bip].path)
+      expect(account.path).toBe(ACCOUNTS[type].path)
 
-      expect(ACCOUNTS[bip].keyPair).toEqual({
+      expect(ACCOUNTS[type].keyPair).toEqual({
         privateKey: Buffer.from(account.keyPair.privateKey).toString('hex'),
         publicKey: Buffer.from(account.keyPair.publicKey).toString('hex')
       })
@@ -119,9 +120,9 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     test('should successfully initialize an account for the given seed phrase and path', () => {
       const account = new WalletAccountBtc(SEED_PHRASE, "0'/0/0", CONFIG)
 
-      expect(account.path).toBe(ACCOUNTS[bip].path)
+      expect(account.path).toBe(ACCOUNTS[type].path)
 
-      expect(ACCOUNTS[bip].keyPair).toEqual({
+      expect(ACCOUNTS[type].keyPair).toEqual({
         privateKey: Buffer.from(account.keyPair.privateKey).toString('hex'),
         publicKey: Buffer.from(account.keyPair.publicKey).toString('hex')
       })
@@ -132,12 +133,12 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     test('should successfully initialize an account for the given seed and path', () => {
       const account = new WalletAccountBtc(SEED, "0'/0/0", CONFIG)
 
-      expect(account.path).toBe(ACCOUNTS[bip].path)
+      expect(account.path).toBe(ACCOUNTS[type].path)
 
       expect({
         privateKey: Buffer.from(account.keyPair.privateKey).toString('hex'),
         publicKey: Buffer.from(account.keyPair.publicKey).toString('hex')
-      }).toEqual(ACCOUNTS[bip].keyPair)
+      }).toEqual(ACCOUNTS[type].keyPair)
 
       account.dispose()
     })
@@ -145,12 +146,12 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     test('should derive the first account when no path is given', () => {
       const account = new WalletAccountBtc(SEED_PHRASE, CONFIG)
 
-      expect(account.path).toBe(ACCOUNTS[bip].path)
+      expect(account.path).toBe(ACCOUNTS[type].path)
 
       expect({
         privateKey: Buffer.from(account.keyPair.privateKey).toString('hex'),
         publicKey: Buffer.from(account.keyPair.publicKey).toString('hex')
-      }).toEqual(ACCOUNTS[bip].keyPair)
+      }).toEqual(ACCOUNTS[type].keyPair)
 
       account.dispose()
     })
@@ -158,12 +159,12 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     test('should derive the first account from seed bytes when no path is given', () => {
       const account = new WalletAccountBtc(SEED, CONFIG)
 
-      expect(account.path).toBe(ACCOUNTS[bip].path)
+      expect(account.path).toBe(ACCOUNTS[type].path)
 
       expect({
         privateKey: Buffer.from(account.keyPair.privateKey).toString('hex'),
         publicKey: Buffer.from(account.keyPair.publicKey).toString('hex')
-      }).toEqual(ACCOUNTS[bip].keyPair)
+      }).toEqual(ACCOUNTS[type].keyPair)
 
       account.dispose()
     })
@@ -177,18 +178,11 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
 
     test('should throw if the path is invalid', () => {
       expect(() => new WalletAccountBtc(SEED_PHRASE, "a'/b/c", CONFIG))
-        .toThrow(`Invalid format: Expected /^(m\\/)?(\\d+'?\\/)*\\d+'?$/ but received "m/${bip}'/1'/a'/b/c"`)
-    })
-
-    test('should throw for unsupported bip specifications', () => {
-      expect(() => new WalletAccountBtc(SEED_PHRASE, "0'/0/0", { bip: 1 }))
-        .toThrow(ValueError)
-      expect(() => new WalletAccountBtc(SEED_PHRASE, "0'/0/0", { bip: 1 }))
-        .toThrow('Invalid bip specification. Supported bips: 44, 84.')
+        .toThrow(`The derivation path 'm/${PURPOSE}'/1'/a'/b/c' is invalid: 'a'' is not a valid segment.`)
     })
 
     test('should derive the same account as a manually derived signer', async () => {
-      const seededAccount = new WalletAccountBtc(SEED_PHRASE, "0'/0/0", { network: 'regtest', bip })
+      const seededAccount = new WalletAccountBtc(SEED_PHRASE, "0'/0/0", { network: 'regtest', type })
       const signer = await new SeedSignerBtc(SEED_PHRASE, DERIVATION_PATH_PREFIX, SIGNER_CONFIG).derive("0'/0/0")
       const signerAccount = new WalletAccountBtc(signer, {})
 
@@ -200,24 +194,23 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
 
     test('should successfully initialize an account with a signer (signer overload)', async () => {
       const mockSigner = {
-        address: ACCOUNTS[bip].address,
-        path: ACCOUNTS[bip].path,
+        address: ACCOUNTS[type].address,
+        path: ACCOUNTS[type].path,
         network: 'regtest',
-        bip,
         keyPair: {
-          privateKey: new Uint8Array(Buffer.from(ACCOUNTS[bip].keyPair.privateKey, 'hex')),
-          publicKey: new Uint8Array(Buffer.from(ACCOUNTS[bip].keyPair.publicKey, 'hex'))
+          privateKey: new Uint8Array(Buffer.from(ACCOUNTS[type].keyPair.privateKey, 'hex')),
+          publicKey: new Uint8Array(Buffer.from(ACCOUNTS[type].keyPair.publicKey, 'hex'))
         },
         isDerivable: false,
-        getAddress: async () => ACCOUNTS[bip].address,
+        getAddress: async () => ACCOUNTS[type].address,
         sign: async () => 'mocksignature',
         dispose: () => {}
       }
 
       const account = new WalletAccountBtc(mockSigner, CLIENT_CONFIG)
 
-      expect(await account.getAddress()).toBe(ACCOUNTS[bip].address)
-      expect(account.path).toBe(ACCOUNTS[bip].path)
+      expect(await account.getAddress()).toBe(ACCOUNTS[type].address)
+      expect(account.path).toBe(ACCOUNTS[type].path)
       expect(account.keyPair).toEqual(mockSigner.keyPair)
       expect(await account.sign('any message')).toBe('mocksignature')
 
@@ -229,7 +222,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     test('should return the correct address', async () => {
       const result = await account.getAddress()
 
-      expect(result).toBe(ACCOUNTS[bip].address)
+      expect(result).toBe(ACCOUNTS[type].address)
     })
   })
 
@@ -237,7 +230,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     test('should return the correct signature', async () => {
       const signature = await account.sign(MESSAGE)
 
-      expect(signature).toBe(SIGNATURES[bip])
+      expect(signature).toBe(SIGNATURES[type])
     })
   })
 
@@ -416,7 +409,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
       const amount = Math.round(transaction.details[0].amount * 1e8)
       expect(amount).toBe(TRANSACTION.value)
 
-      const expectedFee = FEES[bip] * BigInt(TRANSACTION.feeRate)
+      const expectedFee = FEES[type] * BigInt(TRANSACTION.feeRate)
       expect(fee).toBe(expectedFee)
     })
 
@@ -455,7 +448,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
       const nearMaxAmount = Math.max(1, Number(balance) - 2_000)
       const { fee: feeEstimate } = await account.quoteSendTransaction({ to: recipient, value: nearMaxAmount, feeRate: 1 })
 
-      const dustLimit = bip === 44 ? 546n : 294n
+      const dustLimit = type === 'p2pkh' ? 546n : 297n
       let spend = balance - feeEstimate - dustLimit + 1n
       if (spend < 1n) spend = 1n
 
@@ -521,12 +514,12 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     })
 
     test('should throw if value is less than the dust limit', async () => {
-      const value = Math.floor((bip === 44 ? 546 : 294) / 2)
+      const value = Math.floor((type === 'p2pkh' ? 546 : 297) / 2)
 
       const promise = account.sendTransaction({ to: recipient, value, feeRate: 1 })
 
       await expect(promise).rejects.toThrow(ValueError)
-      await expect(promise).rejects.toThrow('The amount must be bigger than the dust limit')
+      await expect(promise).rejects.toThrow('The amount must be at least the dust limit')
     })
 
     test('should throw if the account balance does not cover the transaction costs', async () => {
@@ -565,8 +558,8 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     let accountPk, recipientPk
 
     beforeAll(async () => {
-      // Use the known private key for the first address for this bip
-      const privHex = ACCOUNTS[bip].keyPair.privateKey
+      // Use the known private key for the first address for this type
+      const privHex = ACCOUNTS[type].keyPair.privateKey
       accountPk = WalletAccountBtc.fromPrivateKey(privHex, { ...SIGNER_CONFIG, ...CLIENT_CONFIG })
       recipientPk = bitcoin.getNewAddress()
 
@@ -582,12 +575,12 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
 
     test('getAddress returns the expected address', async () => {
       const result = await accountPk.getAddress()
-      expect(result).toBe(ACCOUNTS[bip].address)
+      expect(result).toBe(ACCOUNTS[type].address)
     })
 
     test('sign with raw private key returns expected signature', async () => {
       const sig = await accountPk.sign(MESSAGE)
-      expect(sig).toBe(SIGNATURES[bip])
+      expect(sig).toBe(SIGNATURES[type])
     })
 
     test('verify with raw private key', async () => {
@@ -611,7 +604,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
     })
 
     test('should wipe the internally created signer on disposal', () => {
-      const account = WalletAccountBtc.fromPrivateKey(ACCOUNTS[bip].keyPair.privateKey, SIGNER_CONFIG)
+      const account = WalletAccountBtc.fromPrivateKey(ACCOUNTS[type].keyPair.privateKey, SIGNER_CONFIG)
 
       expect(account.keyPair.privateKey).not.toBeNull()
 
@@ -780,7 +773,7 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
 
       expect(readOnlyAccount).toBeInstanceOf(WalletAccountReadOnlyBtc)
 
-      expect(await readOnlyAccount.getAddress()).toBe(ACCOUNTS[bip].address)
+      expect(await readOnlyAccount.getAddress()).toBe(ACCOUNTS[type].address)
 
       readOnlyAccount.dispose()
     })
@@ -910,10 +903,10 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
 
 describe('WalletAccountBtc legacy UTXO verification', () => {
   const REAL_VALUE = 50_000
-  const RECIPIENT = ACCOUNTS[84].address
+  const RECIPIENT = ACCOUNTS.p2wpkh.address
   const TRANSACTION = { to: RECIPIENT, value: 1_000, feeRate: 1 }
 
-  const ownScript = btcAddress.toOutputScript(ACCOUNTS[44].address, networks.regtest)
+  const ownScript = btcAddress.toOutputScript(ACCOUNTS.p2pkh.address, networks.regtest)
   const foreignScript = payments.p2pkh({ hash: Buffer.alloc(20, 1), network: networks.regtest }).output
 
   const buildPrevTx = (script, value) => {
@@ -928,7 +921,7 @@ describe('WalletAccountBtc legacy UTXO verification', () => {
   // getTransaction actually returns — these three calls/fields model each independently.
   const createAccount = ({ reportedValue, prevTx, claimedTxHash = prevTx.getId() }) => new WalletAccountBtc(SEED_PHRASE, "0'/0/0", {
     network: 'regtest',
-    bip: 44,
+    type: 'p2pkh',
     client: {
       connect: async () => {},
       listUnspent: async () => [{ outpoint: { txid: claimedTxHash, vout: 0 }, value: BigInt(reportedValue), height: 1 }],
