@@ -49,6 +49,13 @@ export const FEES = {
   p2wpkh: 141n
 }
 
+const DUST_LIMITS = {
+  p2pkh: 546n,
+  p2wpkh: 297n
+}
+
+const BECH32_DUST_LIMIT = 297
+
 describe.each(['p2pkh', 'p2wpkh'])('WalletAccountBtc (%s)', (type) => {
   const SIGNER_CONFIG = { network: 'regtest', type }
   const CLIENT_CONFIG = { client: { type: 'electrum', clientConfig: { host: HOST, port: ELECTRUM_PORT } } }
@@ -468,6 +475,27 @@ describe.each(['p2pkh', 'p2wpkh'])('WalletAccountBtc (%s)', (type) => {
       account.dispose()
     })
 
+    test('should keep a change output equal to the sender dust limit', async () => {
+      const signer = new SeedSignerBtc(SEED_PHRASE, `${DERIVATION_PATH_PREFIX}/0'/0/7`, SIGNER_CONFIG)
+      const account = new WalletAccountBtc(signer, CLIENT_CONFIG)
+      const address = await account.getAddress()
+      bitcoin.sendToAddress(address, 0.001)
+      await waiter.mine()
+
+      const balance = await account.getBalance()
+      const value = balance - FEES[type] - DUST_LIMITS[type]
+
+      const { hash, fee } = await account.sendTransaction({ to: recipient, value, feeRate: 1 })
+      await waiter.mine()
+
+      const { vout } = bitcoin.getRawTransaction(hash)
+      const change = vout.find(({ scriptPubKey }) => scriptPubKey.address === address)
+      expect(Math.round(change.value * 1e8)).toBe(Number(DUST_LIMITS[type]))
+      expect(fee).toBe(FEES[type])
+
+      account.dispose()
+    })
+
     test('should throw if transaction fee exceeds the transaction max fee configuration', async () => {
       const TRANSACTION = { to: recipient, value: 1_000, feeRate: 1 }
 
@@ -520,6 +548,30 @@ describe.each(['p2pkh', 'p2wpkh'])('WalletAccountBtc (%s)', (type) => {
 
       await expect(promise).rejects.toThrow(ValueError)
       await expect(promise).rejects.toThrow('The amount must be at least the dust limit')
+    })
+
+    test('should send an amount equal to the recipient dust limit', async () => {
+      const bech32Recipient = bitcoin.call('getnewaddress "" bech32', { rawResult: true })
+
+      const { hash } = await account.sendTransaction({
+        to: bech32Recipient,
+        value: BECH32_DUST_LIMIT,
+        feeRate: 1
+      })
+      await waiter.mine()
+
+      const { vout } = bitcoin.getRawTransaction(hash)
+      const output = vout.find(({ scriptPubKey }) => scriptPubKey.address === bech32Recipient)
+      expect(Math.round(output.value * 1e8)).toBe(BECH32_DUST_LIMIT)
+    })
+
+    test('should throw if the amount is one satoshi below the recipient dust limit', async () => {
+      const bech32Recipient = bitcoin.call('getnewaddress "" bech32', { rawResult: true })
+
+      const promise = account.sendTransaction({ to: bech32Recipient, value: BECH32_DUST_LIMIT - 1, feeRate: 1 })
+
+      await expect(promise).rejects.toThrow(ValueError)
+      await expect(promise).rejects.toThrow(`The amount must be at least the dust limit (= ${BECH32_DUST_LIMIT}).`)
     })
 
     test('should throw if the account balance does not cover the transaction costs', async () => {

@@ -26,6 +26,16 @@ export const FEES = {
   p2wpkh: 141n
 }
 
+const DUST_LIMITS = {
+  p2pkh: 546,
+  p2wpkh: 297
+}
+
+const ADDRESS_TYPES = {
+  p2pkh: 'legacy',
+  p2wpkh: 'bech32'
+}
+
 describe.each(['p2pkh', 'p2wpkh'])('WalletAccountReadOnlyBtc (%s)', (type) => {
   const CONFIGURATION = {
     client: { type: 'electrum', clientConfig: { host: HOST, port: ELECTRUM_PORT } },
@@ -156,6 +166,69 @@ describe.each(['p2pkh', 'p2wpkh'])('WalletAccountReadOnlyBtc (%s)', (type) => {
       })
 
       tmpAccount._client.close()
+    })
+
+    describe('with a single output', () => {
+      const FEE_ONE_OUTPUT = Math.max(TX_OVERHEAD_VBYTES + INPUT_VBYTES + OUTPUT_VBYTES, MIN_TX_FEE)
+
+      const fundNewAccount = async (sats, addressType = ADDRESS_TYPES[type]) => {
+        const address = bitcoin.call(`getnewaddress "" ${addressType}`, { rawResult: true })
+        bitcoin.sendToAddress(address, (sats / 1e8).toFixed(8))
+        await waiter.mine()
+
+        return new WalletAccountReadOnlyBtc(address, CONFIGURATION)
+      }
+
+      test('should return an amount equal to the recipient dust limit', async () => {
+        const to = bitcoin.call(`getnewaddress "" ${ADDRESS_TYPES[type]}`, { rawResult: true })
+        const tmpAccount = await fundNewAccount(FEE_ONE_OUTPUT + DUST_LIMITS[type])
+
+        const result = await tmpAccount.getMaxSpendable({ to, feeRate: 1 })
+
+        expect(result).toEqual({
+          amount: BigInt(DUST_LIMITS[type]),
+          fee: BigInt(FEE_ONE_OUTPUT),
+          changeValue: 0n
+        })
+
+        tmpAccount._client.close()
+      })
+
+      test('should return zero if the amount is one satoshi below the recipient dust limit', async () => {
+        const to = bitcoin.call(`getnewaddress "" ${ADDRESS_TYPES[type]}`, { rawResult: true })
+        const tmpAccount = await fundNewAccount(FEE_ONE_OUTPUT + DUST_LIMITS[type] - 1)
+
+        const result = await tmpAccount.getMaxSpendable({ to, feeRate: 1 })
+
+        expect(result).toEqual({ amount: 0n, fee: 0n, changeValue: 0n })
+
+        tmpAccount._client.close()
+      })
+
+      test('should use the dust limit of the recipient address if to is passed', async () => {
+        const to = bitcoin.call('getnewaddress "" bech32', { rawResult: true })
+        const tmpAccount = await fundNewAccount(MIN_TX_FEE + 297, 'bech32')
+
+        const result = await tmpAccount.getMaxSpendable({ to, feeRate: 1 })
+
+        expect(result).toEqual({
+          amount: 297n,
+          fee: BigInt(MIN_TX_FEE),
+          changeValue: 0n
+        })
+
+        tmpAccount._client.close()
+      })
+
+      test('should assume the highest dust limit if to is omitted', async () => {
+        const tmpAccount = await fundNewAccount(FEE_ONE_OUTPUT + 545)
+
+        const result = await tmpAccount.getMaxSpendable({ feeRate: 1 })
+
+        expect(result).toEqual({ amount: 0n, fee: 0n, changeValue: 0n })
+
+        tmpAccount._client.close()
+      })
     })
   })
 
