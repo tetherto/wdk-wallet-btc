@@ -129,7 +129,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * @param {Omit<BtcWalletConfig, 'bip' | 'transactionMaxFee'>} [config] - The configuration object.
    */
   constructor (address, config = {}) {
-    super(address)
+    super(address, config)
 
     /**
      * The read-only wallet account configuration.
