@@ -81,7 +81,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      * @param {BtcTransaction} tx - The transaction to sign.
      * @returns {Promise<string>} The signed raw transaction as a hex string.
      * @throws {MaximumFeeExceededError} If the transaction's cost exceeds the maximum transaction fee option.
-     * @throws {ValueError} If the amount doesn't clear the dust limit, or the spend requires more inputs than allowed.
+     * @throws {ValueError} If the amount doesn't clear the dust limit.
      * @throws {TransactionError} If the account has no unspent outputs, or its balance doesn't cover the amount and its fees.
      */
     signTransaction({ to, value, feeRate, confirmationTarget }: BtcTransaction): Promise<string>;
@@ -90,7 +90,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      *
      * @param {BtcTransaction | string} tx - The transaction, or a signed raw transaction as a hex string.
      * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transaction's quotes.
-     * @throws {ValueError} If the amount doesn't clear the dust limit, or the spend requires more inputs than allowed.
+     * @throws {ValueError} If the amount doesn't clear the dust limit.
      * @throws {TransactionError} If the account has no unspent outputs, or its balance doesn't cover the amount and its fees.
      */
     quoteSendTransaction(tx: BtcTransaction | string): Promise<Omit<TransactionResult, "hash">>;
@@ -101,7 +101,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      * @param {number} [timeoutMs] - Maximum milliseconds to poll for spent inputs to disappear from unspent outputs after broadcast.
      * @returns {Promise<TransactionResult>} The transaction's result.
      * @throws {MaximumFeeExceededError} If the transaction's cost exceeds the maximum transaction fee option.
-     * @throws {ValueError} If the amount doesn't clear the dust limit, or the spend requires more inputs than allowed.
+     * @throws {ValueError} If the amount doesn't clear the dust limit.
      * @throws {TransactionError} If the account has no unspent outputs, or its balance doesn't cover the amount and its fees.
      */
     sendTransaction(tx: BtcTransaction | string, timeoutMs?: number): Promise<TransactionResult>;

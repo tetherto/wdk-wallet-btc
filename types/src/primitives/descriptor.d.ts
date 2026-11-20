@@ -13,8 +13,17 @@ export function getDescriptor(params: DescriptorParams): string;
  * @returns {string} The descriptor.
  */
 export function getAddressDescriptor(address: string): string;
+/**
+ * Returns the script type of an output.
+ *
+ * @param {OutputInstance} output - The output.
+ * @returns {ScriptType} The script type.
+ * @throws {ValueError} If the output's script type cannot be determined.
+ */
+export function getScriptType(output: OutputInstance): ScriptType;
 export type ScriptType = import("./index.js").ScriptType;
 export type BIP32Interface = import("bip32").BIP32Interface;
+export type OutputInstance = import("@bitcoinerlab/descriptors").OutputInstance;
 /**
  * The key origin of a descriptor key, as defined by BIP-380.
  */

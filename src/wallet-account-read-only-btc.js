@@ -14,23 +14,20 @@
 
 'use strict'
 
-import { WalletAccountReadOnly, NoSuchElementError, TransactionError, TransactionErrorReason, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
-
-import { coinselect } from '@bitcoinerlab/coinselect'
+import { WalletAccountReadOnly, NoSuchElementError, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
 
 import { address as btcAddress, networks, Transaction } from 'bitcoinjs-lib'
 
 import FailoverProvider from '@tetherto/wdk-failover-provider'
 
-import { Output, bitcoinMessage } from './crypto-engine.js'
-
-import { getAddressDescriptor } from './primitives/descriptor.js'
+import { bitcoinMessage } from './crypto-engine.js'
 
 import { assertNoBipOption, resolveNetwork } from './primitives/index.js'
 
 import { getDustLimit, getInputVBytes, getMaxDustLimit } from './primitives/dust.js'
 
 import { BlockbookClient, ElectrumTcp, ElectrumSsl, ElectrumTls, ElectrumWs } from './transports/index.js'
+import { planSpend } from './primitives/psbt.js'
 
 /** @typedef {import('./transports/index.js').MempoolElectrumConfig} MempoolElectrumConfig */
 /** @typedef {import('./transports/index.js').MempoolElectrumClient} MempoolElectrumClient */
@@ -206,7 +203,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    *
    * @param {BtcTransaction} tx - The transaction.
    * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transaction's quotes.
-   * @throws {ValueError} If the amount doesn't clear the dust limit, or the spend requires more inputs than allowed.
+   * @throws {ValueError} If the amount doesn't clear the dust limit.
    * @throws {TransactionError} If the account has no unspent outputs, or its balance doesn't cover the amount and its fees.
    */
   async quoteSendTransaction ({ to, value, feeRate, confirmationTarget = 1 }) {
@@ -215,15 +212,17 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     const address = await this.getAddress()
 
     if (!feeRate) {
-      const feeEstimate = await this._client.estimateFee(confirmationTarget)
-      feeRate = Math.max(feeEstimate, 1)
+      feeRate = await this._client.estimateFee(confirmationTarget)
     }
 
-    const { fee } = await this._planSpend({
+    value = BigInt(value)
+    const chainUtxos = await this._client.listUnspent(address)
+    const { fee } = planSpend({
       fromAddress: address,
-      toAddress: to,
-      amount: value,
-      feeRate
+      targets: [{ address: to, value }],
+      feeRate,
+      network: this._network,
+      chainUtxos
     })
 
     return { fee: BigInt(fee) }
@@ -549,115 +548,5 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    */
   async _ensureConnected () {
     await this._client.connect()
-  }
-
-  /** @private */
-  _toBigInt (v) { return typeof v === 'bigint' ? v : BigInt(Math.round(Number(v))) }
-
-  /**
-   * Builds and returns a fee-aware funding plan for sending a transaction.
-   *
-   * Uses descriptors + coinselect to choose inputs, at a given feeRate (sats/vB). Returns the selected
-   * inputs, the outputs to create and the computed fee as a spend plan.
-   *
-   * @protected
-   * @param {Object} tx - The transaction.
-   * @param {string} tx.fromAddress - The sender's address.
-   * @param {string} tx.toAddress - The recipient's address.
-   * @param {number | bigint} tx.amount - The amount to send (in satoshis).
-   * @param {number} tx.feeRate - The fee rate (in sats/vB).
-   * @returns {Promise<SpendPlan>} - The spend plan.
-   * @throws {ValueError} If the amount doesn't clear the dust limit, or the spend requires more inputs than allowed.
-   * @throws {TransactionError} If the account has no unspent outputs, or its balance doesn't cover the amount and its fees.
-   */
-  async _planSpend ({ fromAddress, toAddress, amount, feeRate }) {
-    amount = this._toBigInt(amount)
-    feeRate = Math.max(Number(feeRate), 1)
-
-    const network = this._network
-
-    const fromAddressScript = btcAddress.toOutputScript(fromAddress, network)
-    const toAddressScript = btcAddress.toOutputScript(toAddress, network)
-
-    const toAddressDustLimit = getDustLimit(toAddressScript)
-
-    if (amount < toAddressDustLimit) {
-      throw new ValueError(`The amount must be at least the dust limit (= ${toAddressDustLimit}).`)
-    }
-
-    const fromAddressOutput = new Output({ descriptor: getAddressDescriptor(fromAddress), network })
-    const fromAddressScriptType = fromAddressOutput.isSegwit() ? 'segwit' : 'legacy'
-    const toAddressOutput = new Output({ descriptor: getAddressDescriptor(toAddress), network })
-
-    const chainUtxos = await this._client.listUnspent(fromAddress)
-
-    if (!chainUtxos || chainUtxos.length === 0) {
-      throw new TransactionError('No unspent outputs available.', {
-        reason: TransactionErrorReason.INSUFFICIENT_BALANCE
-      })
-    }
-
-    /** @type {Array<Utxo & { output: OutputInstance }>} */
-    const utxos = chainUtxos.map(chainUtxo => ({
-      ...chainUtxo,
-      script: fromAddressScript,
-      address: fromAddress,
-      scriptType: fromAddressScriptType,
-      output: fromAddressOutput
-    }))
-
-    // coinselect reads only output and value and returns the selected objects as given,
-    // so the other Utxo fields carry through to the selected inputs
-    const result = coinselect({
-      utxos,
-      remainder: fromAddressOutput,
-      targets: [{ output: toAddressOutput, value: amount }],
-      feeRate
-    })
-
-    if (!result) {
-      throw new TransactionError('Insufficient balance to send the transaction.', {
-        reason: TransactionErrorReason.INSUFFICIENT_BALANCE
-      })
-    }
-
-    if (result.utxos.length > MAX_UTXO_INPUTS) {
-      throw new ValueError('Exceeded maximum allowed inputs for transaction.')
-    }
-
-    const fee = result.fee > BigInt(MIN_TX_FEE_SATS) ? result.fee : BigInt(MIN_TX_FEE_SATS)
-
-    /** @type {Utxo[]} */
-    const inputs = result.utxos.map(({ output, ...utxo }) => utxo)
-
-    const total = inputs.reduce((s, u) => s + u.value, 0n)
-    const changeValue = total - fee - amount
-
-    if (changeValue < 0n) {
-      throw new TransactionError('Insufficient balance after fees.', {
-        reason: TransactionErrorReason.INSUFFICIENT_BALANCE
-      })
-    }
-
-    if (changeValue < getDustLimit(fromAddressScript)) {
-      return {
-        inputs,
-        outputs: [{ address: toAddress, value: amount }],
-        fee: fee + changeValue,
-        feeRate,
-        vsize: result.vsize
-      }
-    }
-
-    return {
-      inputs,
-      outputs: [
-        { address: toAddress, value: amount },
-        { address: fromAddress, value: changeValue, isChange: true }
-      ],
-      fee,
-      feeRate,
-      vsize: result.vsize
-    }
   }
 }

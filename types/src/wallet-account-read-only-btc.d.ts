@@ -72,7 +72,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      *
      * @param {BtcTransaction} tx - The transaction.
      * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transaction's quotes.
-     * @throws {ValueError} If the amount doesn't clear the dust limit, or the spend requires more inputs than allowed.
+     * @throws {ValueError} If the amount doesn't clear the dust limit.
      * @throws {TransactionError} If the account has no unspent outputs, or its balance doesn't cover the amount and its fees.
      */
     quoteSendTransaction({ to, value, feeRate, confirmationTarget }: BtcTransaction): Promise<Omit<TransactionResult, "hash">>;
@@ -181,30 +181,6 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @returns {IBtcClient} The bitcoin client.
      */
     protected static _createClient(client: IBtcClient | BtcClientDescriptor, network?: "bitcoin" | "regtest" | "testnet"): IBtcClient;
-    /** @private */
-    private _toBigInt;
-    /**
-     * Builds and returns a fee-aware funding plan for sending a transaction.
-     *
-     * Uses descriptors + coinselect to choose inputs, at a given feeRate (sats/vB). Returns the selected
-     * inputs, the outputs to create and the computed fee as a spend plan.
-     *
-     * @protected
-     * @param {Object} tx - The transaction.
-     * @param {string} tx.fromAddress - The sender's address.
-     * @param {string} tx.toAddress - The recipient's address.
-     * @param {number | bigint} tx.amount - The amount to send (in satoshis).
-     * @param {number} tx.feeRate - The fee rate (in sats/vB).
-     * @returns {Promise<SpendPlan>} - The spend plan.
-     * @throws {ValueError} If the amount doesn't clear the dust limit, or the spend requires more inputs than allowed.
-     * @throws {TransactionError} If the account has no unspent outputs, or its balance doesn't cover the amount and its fees.
-     */
-    protected _planSpend({ fromAddress, toAddress, amount, feeRate }: {
-        fromAddress: string;
-        toAddress: string;
-        amount: number | bigint;
-        feeRate: number;
-    }): Promise<SpendPlan>;
     /**
      * Verifies a message's signature.
      *

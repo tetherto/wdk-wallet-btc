@@ -578,7 +578,7 @@ describe.each(['legacy', 'segwit'])('WalletAccountBtc (%s)', (type) => {
       const promise = account.sendTransaction({ to: recipient, value: 1_000_000_000_000, feeRate: 1 })
 
       await expect(promise).rejects.toThrow(TransactionError)
-      await expect(promise).rejects.toThrow('Insufficient balance to send the transaction')
+      await expect(promise).rejects.toThrow('Insufficient funds to cover the amounts and the fee.')
       await expect(promise).rejects.toMatchObject({ reason: TransactionErrorReason.INSUFFICIENT_BALANCE })
     })
 

@@ -18,6 +18,7 @@ import { ValueError } from '@tetherto/wdk-wallet'
 
 /** @typedef {import('./index.js').ScriptType} ScriptType */
 /** @typedef {import('bip32').BIP32Interface} BIP32Interface */
+/** @typedef {import('@bitcoinerlab/descriptors').OutputInstance} OutputInstance */
 
 /**
  * The key origin of a descriptor key, as defined by BIP-380.
@@ -130,4 +131,20 @@ export function getDescriptor ({ type, ...key }) {
  */
 export function getAddressDescriptor (address) {
   return `addr(${address})`
+}
+
+/**
+ * Returns the script type of an output.
+ *
+ * @param {OutputInstance} output - The output.
+ * @returns {ScriptType} The script type.
+ * @throws {ValueError} If the output's script type cannot be determined.
+ */
+export function getScriptType (output) {
+  const isSegwit = output.isSegwit()
+  if (isSegwit === undefined) {
+    throw new ValueError('Unable to determine the script type of the output.')
+  }
+
+  return isSegwit === true ? 'segwit' : 'legacy'
 }

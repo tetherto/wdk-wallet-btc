@@ -368,31 +368,3 @@ describe('WalletAccountReadOnlyBtc getBalance formula', () => {
     expect(balance).toBe(70_000n)
   })
 })
-
-describe('WalletAccountReadOnlyBtc coin selection', () => {
-  test('should throw if the spend needs more inputs than a transaction allows', async () => {
-    const unspent = Array.from({ length: 300 }, (_, index) => ({
-      outpoint: { txid: 'a'.repeat(64), vout: index },
-      value: 5_000n,
-      height: 1
-    }))
-
-    const account = new WalletAccountReadOnlyBtc(ADDRESSES.segwit, {
-      network: 'regtest',
-      client: {
-        connect: async () => {},
-        listUnspent: async () => unspent
-      }
-    })
-
-    const promise = account._planSpend({
-      fromAddress: ADDRESSES.segwit,
-      toAddress: ADDRESSES.legacy,
-      amount: 1_200_000,
-      feeRate: 1
-    })
-
-    await expect(promise).rejects.toThrow(ValueError)
-    await expect(promise).rejects.toThrow('Exceeded maximum allowed inputs for transaction.')
-  })
-})

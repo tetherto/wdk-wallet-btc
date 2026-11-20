@@ -24,6 +24,7 @@ import { assertNoBipOption, getBtcDerivationPathPrefix } from './primitives/inde
 import SeedSignerBtc from './signers/seed-signer-btc.js'
 import WalletAccountReadOnlyBtc from './wallet-account-read-only-btc.js'
 import { compare, fromHex, toHex } from 'uint8array-tools'
+import { planSpend } from './primitives/psbt.js'
 
 /** @typedef {import('@tetherto/wdk-wallet').IWalletAccount} IWalletAccount */
 
@@ -191,7 +192,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @param {BtcTransaction} tx - The transaction to sign.
    * @returns {Promise<string>} The signed raw transaction as a hex string.
    * @throws {MaximumFeeExceededError} If the transaction's cost exceeds the maximum transaction fee option.
-   * @throws {ValueError} If the amount doesn't clear the dust limit, or the spend requires more inputs than allowed.
+   * @throws {ValueError} If the amount doesn't clear the dust limit.
    * @throws {TransactionError} If the account has no unspent outputs, or its balance doesn't cover the amount and its fees.
    */
   async signTransaction ({ to, value, feeRate, confirmationTarget = 1 }) {
@@ -209,7 +210,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    *
    * @param {BtcTransaction | string} tx - The transaction, or a signed raw transaction as a hex string.
    * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transaction's quotes.
-   * @throws {ValueError} If the amount doesn't clear the dust limit, or the spend requires more inputs than allowed.
+   * @throws {ValueError} If the amount doesn't clear the dust limit.
    * @throws {TransactionError} If the account has no unspent outputs, or its balance doesn't cover the amount and its fees.
    */
   async quoteSendTransaction (tx) {
@@ -232,7 +233,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @param {number} [timeoutMs] - Maximum milliseconds to poll for spent inputs to disappear from unspent outputs after broadcast.
    * @returns {Promise<TransactionResult>} The transaction's result.
    * @throws {MaximumFeeExceededError} If the transaction's cost exceeds the maximum transaction fee option.
-   * @throws {ValueError} If the amount doesn't clear the dust limit, or the spend requires more inputs than allowed.
+   * @throws {ValueError} If the amount doesn't clear the dust limit.
    * @throws {TransactionError} If the account has no unspent outputs, or its balance doesn't cover the amount and its fees.
    */
   async sendTransaction (tx, timeoutMs = 10000) {
@@ -631,11 +632,17 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     await this._ensureConnected()
     const address = await this.getAddress()
     if (!feeRate) {
-      const feeEstimate = await this._client.estimateFee(confirmationTarget)
-      feeRate = Math.max(feeEstimate, 1)
+      feeRate = await this._client.estimateFee(confirmationTarget)
     }
-    const plan = await this._planSpend({
-      fromAddress: address, toAddress: to, amount: value, feeRate
+
+    value = BigInt(value)
+    const chainUtxos = await this._client.listUnspent(address)
+    const plan = planSpend({
+      fromAddress: address,
+      targets: [{ address: to, value }],
+      feeRate,
+      network: this._network,
+      chainUtxos
     })
     const tx = await this._getRawTransaction(plan)
     return { tx, plan }
