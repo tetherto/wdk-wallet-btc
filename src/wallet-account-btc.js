@@ -459,8 +459,9 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
   }
 
   /**
-   * Disposes the wallet account, erasing the private key from memory and closing the connection with the server.
-   * The signer given at construction is wiped only if the account owns it (see {@link SignerOptions}).
+   * Disposes the wallet account and closes the connection with the server. The signer's private key is erased only if
+   * the account owns the signer (created from a seed or private key, or with `shouldWipeSignerOnDisposal`); otherwise a
+   * signer you supplied is left untouched.
    */
   dispose () {
     if (this._disposed) return
