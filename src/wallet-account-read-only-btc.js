@@ -14,9 +14,9 @@
 
 'use strict'
 
-import { WalletAccountReadOnly, NoSuchElementError, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
+import { WalletAccountReadOnly, NoSuchElementError, TransactionError, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
 
-import { address as btcAddress, networks, Transaction } from 'bitcoinjs-lib'
+import { networks, Transaction } from 'bitcoinjs-lib'
 
 import FailoverProvider from '@tetherto/wdk-failover-provider'
 
@@ -24,10 +24,8 @@ import { bitcoinMessage } from './crypto-engine.js'
 
 import { assertNoBipOption, resolveNetwork } from './primitives/index.js'
 
-import { getDustLimit, getInputVBytes, getMaxDustLimit } from './primitives/dust.js'
-
 import { BlockbookClient, ElectrumTcp, ElectrumSsl, ElectrumTls, ElectrumWs } from './transports/index.js'
-import { planSpend } from './primitives/psbt.js'
+import { planSpend, planSweep } from './primitives/psbt.js'
 
 /** @typedef {import('./transports/index.js').MempoolElectrumConfig} MempoolElectrumConfig */
 /** @typedef {import('./transports/index.js').MempoolElectrumClient} MempoolElectrumClient */
@@ -102,8 +100,6 @@ import { planSpend } from './primitives/psbt.js'
  * @property {bigint} changeValue - The estimated change value in satoshis.
  */
 
-const MIN_TX_FEE_SATS = 141
-const MAX_UTXO_INPUTS = 200
 const FINAL_CONFIRMATIONS = 6
 
 export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
@@ -379,90 +375,41 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
   /**
    * Returns an estimation of the maximum spendable amount (in satoshis) that can be sent in
-   * a single transaction, after subtracting estimated transaction fees.
+   * a single transaction, after subtracting the transaction fee.
    *
-   * The estimated maximum spendable amount can differ from the wallet's total balance.
-   * A transaction can only include up to MAX_UTXO_INPUTS (default: 200) unspents.
-   * Wallets holding more than this limit cannot spend their full balance in a
-   * single transaction. There will likely be some satoshis left over as change.
-   *
-   * The recipient must receive at least its dust limit, which depends on the recipient's script type. If `opts.to` is omitted,
-   * the highest dust limit among the address types is assumed, so the estimate can be lower than what a send to a cheaper
-   * output type would allow. When the remainder after fees allows it, a change output set to the dust limit of the account's
-   * own address is reserved. If the funds cannot clear the dust limit, the amount is 0.
+   * All the account's unspent outputs are swept to the recipient, so no change is left over.
+   * If `opts.to` is omitted, the sweep is assumed to go to the account's own address.
+   * If there are no unspent outputs, or the funds cannot cover the fee and the recipient's dust limit, the amount is 0.
    *
    * @param {Object} [opts] - Options.
    * @param {number} [opts.feeRate] - Fee rate in sat/vB. If omitted, estimated via the client.
-   * @param {string} [opts.to] - The recipient's address. If omitted, the highest dust limit is assumed for the recipient.
+   * @param {string} [opts.to] - The recipient's address. If omitted, the sweep is assumed to go to the account's own address.
    * @returns {Promise<BtcMaxSpendableResult>} The estimated maximum spendable result.
+   * @throws {ValueError} If the transaction exceeds the maximum standard size.
    */
   async getMaxSpendable (opts = {}) {
     await this._ensureConnected()
 
     const fromAddress = await this.getAddress()
-
-    let feeRate
-    if (opts.feeRate) {
-      feeRate = Math.max(Number(opts.feeRate), 1)
-    } else {
-      const feeEstimate = await this._client.estimateFee(1)
-      feeRate = Math.max(feeEstimate, 1)
-    }
-
+    const feeRate = opts.feeRate ? opts.feeRate : await this._client.estimateFee(1)
     const chainUtxos = await this._client.listUnspent(fromAddress)
-    if (!chainUtxos || chainUtxos.length === 0) {
-      return { amount: 0n, fee: 0n, changeValue: 0n }
-    }
 
-    const unspent = chainUtxos.map(u => ({ ...u, value: Number(u.value) }))
+    try {
+      const plan = planSweep({ fromAddress, toAddress: opts.to || fromAddress, chainUtxos, network: this._network, feeRate })
 
-    const inputVBytes = getInputVBytes(fromAddress, this._network)
-
-    const perInputFee = Math.ceil(inputVBytes * feeRate)
-    let spendableUtxos = unspent.filter(u => (u.value - perInputFee) > 0)
-    if (spendableUtxos.length === 0) {
-      return { amount: 0n, fee: 0n, changeValue: 0n }
-    }
-
-    if (spendableUtxos.length > MAX_UTXO_INPUTS) {
-      spendableUtxos = spendableUtxos
-        .sort((a, b) => b.value - a.value)
-        .slice(0, MAX_UTXO_INPUTS)
-    }
-
-    const totalInputValueSats = spendableUtxos.reduce((sum, u) => sum + u.value, 0)
-    const inputCount = spendableUtxos.length
-    const txOverheadVBytes = 11
-    const outputVBytes = 34
-
-    const twoOutputsVSize = txOverheadVBytes + (inputCount * inputVBytes) + (2 * outputVBytes)
-    const twoOutputsFeeSats = Math.max(Math.ceil(twoOutputsVSize * feeRate), MIN_TX_FEE_SATS)
-
-    const changeDustLimit = getDustLimit(btcAddress.toOutputScript(fromAddress, this._network))
-    const recipientDustLimit = opts.to
-      ? getDustLimit(btcAddress.toOutputScript(opts.to, this._network))
-      : getMaxDustLimit()
-
-    const twoOutputsRecipientAmountSats = totalInputValueSats - twoOutputsFeeSats - Number(changeDustLimit)
-    if (twoOutputsRecipientAmountSats >= recipientDustLimit) {
       return {
-        amount: BigInt(twoOutputsRecipientAmountSats),
-        fee: BigInt(twoOutputsFeeSats),
-        changeValue: changeDustLimit
+        amount: plan.outputs[0].value,
+        fee: plan.fee,
+        changeValue: 0n
       }
-    }
+    } catch (e) {
+      if (!(e instanceof TransactionError)) throw e
 
-    const oneOutputVSize = txOverheadVBytes + (inputCount * inputVBytes) + outputVBytes
-    const oneOutputFeeSats = Math.max(Math.ceil(oneOutputVSize * feeRate), MIN_TX_FEE_SATS)
-    const oneOutputRecipientAmountSats = totalInputValueSats - oneOutputFeeSats
-    if (oneOutputRecipientAmountSats < recipientDustLimit) {
-      return { amount: 0n, fee: 0n, changeValue: 0n }
-    }
-
-    return {
-      amount: BigInt(oneOutputRecipientAmountSats),
-      fee: BigInt(oneOutputFeeSats),
-      changeValue: 0n
+      return {
+        amount: 0n,
+        fee: 0n,
+        changeValue: 0n
+      }
     }
   }
 

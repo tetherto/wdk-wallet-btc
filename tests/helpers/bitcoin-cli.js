@@ -40,6 +40,7 @@ export default class BitcoinCli {
       '-fallbackfee=0.0001 ' +
       '-paytxfee=0.0001 ' +
       '-minrelaytxfee=0.000001 ' +
+      '-dustrelayfee=0 ' +
       `-rpcbind=${host} ` +
       `-rpcport=${port} ` +
       `-datadir=${dataDir} ` +

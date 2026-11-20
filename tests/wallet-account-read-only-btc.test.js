@@ -3,9 +3,12 @@ import { afterAll, beforeAll, describe, expect, test } from '@jest/globals'
 import { HOST, PORT, ELECTRUM_PORT, ZMQ_PORT, DATA_DIR } from './config.js'
 
 import { BitcoinCli, Waiter } from './helpers/index.js'
+import { sweepFee } from './helpers/utils.js'
 
 import { WalletAccountReadOnlyBtc } from '../index.js'
 import { NoSuchElementError, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
+import { networks } from 'bitcoinjs-lib'
+
 
 const ADDRESSES = {
   // 0'/0/404
@@ -89,94 +92,79 @@ describe.each(['legacy', 'segwit'])('WalletAccountReadOnlyBtc (%s)', (type) => {
   })
 
   describe('getMaxSpendable', () => {
-    const TX_OVERHEAD_VBYTES = 11
-    const OUTPUT_VBYTES = 34
-    const MIN_TX_FEE = 141
+    const network = networks.regtest
     const STARTING_BALANCE = 1_000_000n
-    const INPUT_VBYTES = type === 'legacy' ? 148 : 68
+
+    const fundNewAccount = async (sats, addressType = ADDRESS_TYPES[type]) => {
+      const address = bitcoin.call(`getnewaddress "" ${addressType}`, { rawResult: true })
+      bitcoin.sendToAddress(address, (sats / 1e8).toFixed(8))
+      await waiter.mine()
+
+      return new WalletAccountReadOnlyBtc(address, CONFIGURATION)
+    }
 
     test('should return the correct maximum spendable amount', async () => {
       const satsPerVByte = bitcoin.estimateSatsPerVByte(1)
 
-      const vsize = TX_OVERHEAD_VBYTES + INPUT_VBYTES + (2 * OUTPUT_VBYTES)
-      const expectedFee = BigInt(Math.max(Math.ceil(vsize * satsPerVByte), MIN_TX_FEE))
-      const dustLimit = type === 'legacy' ? 546n : 297n
-      const expectedAmount = STARTING_BALANCE - expectedFee - dustLimit
+      const expectedFee = sweepFee({ from: ADDRESSES[type], to: ADDRESSES[type], network, feeRate: satsPerVByte })
 
       const result = await account.getMaxSpendable({ feeRate: satsPerVByte })
 
       expect(result).toEqual({
-        amount: expectedAmount,
+        amount: STARTING_BALANCE - expectedFee,
         fee: expectedFee,
-        changeValue: dustLimit
+        changeValue: 0n
       })
     })
 
-    test('should return correct max spend when change would be dust (one output)', async () => {
-      const satsPerVByte = bitcoin.estimateSatsPerVByte(1)
+    test('should return an amount equal to the recipient dust limit', async () => {
+      const to = bitcoin.call(`getnewaddress "" ${ADDRESS_TYPES[type]}`, { rawResult: true })
+      const fee = sweepFee({ from: ADDRESSES[type], to, network })
+      const tmpAccount = await fundNewAccount(Number(fee) + DUST_LIMITS[type])
 
-      const tmpAddress = type === 'legacy'
-        ? bitcoin.call('getnewaddress "" legacy', { rawResult: true })
-        : bitcoin.call('getnewaddress "" bech32', { rawResult: true })
-      const tmpAccount = new WalletAccountReadOnlyBtc(tmpAddress, CONFIGURATION)
-      const dustLimit = type === 'legacy' ? 546 : 297
-
-      const vsizeOneOutput = TX_OVERHEAD_VBYTES + INPUT_VBYTES + OUTPUT_VBYTES
-      const feeOneOutput = Math.max(Math.ceil(vsizeOneOutput * satsPerVByte), MIN_TX_FEE)
-
-      const vsizeTwoOutputs = TX_OVERHEAD_VBYTES + INPUT_VBYTES + (2 * OUTPUT_VBYTES)
-      const feeTwoOutputs = Math.max(Math.ceil(vsizeTwoOutputs * satsPerVByte), MIN_TX_FEE)
-
-      const minSpendable = feeOneOutput + dustLimit + 1
-      const maxSpendable = feeTwoOutputs + 2 * dustLimit
-
-      const oneOutputRange = Math.max(1, maxSpendable - minSpendable)
-
-      const fundedAmount = minSpendable + Math.min(1000, oneOutputRange - 1)
-
-      bitcoin.sendToAddress(tmpAddress, (fundedAmount / 1e8).toFixed(8))
-      await waiter.mine()
-
-      const result = await tmpAccount.getMaxSpendable({ feeRate: satsPerVByte })
+      const result = await tmpAccount.getMaxSpendable({ to, feeRate: 1 })
 
       expect(result).toEqual({
-        amount: BigInt(fundedAmount - feeOneOutput),
-        fee: BigInt(feeOneOutput),
+        amount: BigInt(DUST_LIMITS[type]),
+        fee,
         changeValue: 0n
       })
 
       tmpAccount._client.close()
     })
 
-    describe('with a single output', () => {
-      const FEE_ONE_OUTPUT = Math.max(TX_OVERHEAD_VBYTES + INPUT_VBYTES + OUTPUT_VBYTES, MIN_TX_FEE)
+    test('should return zero if the amount is one satoshi below the recipient dust limit', async () => {
+      const to = bitcoin.call(`getnewaddress "" ${ADDRESS_TYPES[type]}`, { rawResult: true })
+      const fee = sweepFee({ from: ADDRESSES[type], to, network })
+      const tmpAccount = await fundNewAccount(Number(fee) + DUST_LIMITS[type] - 1)
 
-      const fundNewAccount = async (sats, addressType = ADDRESS_TYPES[type]) => {
-        const address = bitcoin.call(`getnewaddress "" ${addressType}`, { rawResult: true })
-        bitcoin.sendToAddress(address, (sats / 1e8).toFixed(8))
-        await waiter.mine()
+      const result = await tmpAccount.getMaxSpendable({ to, feeRate: 1 })
 
-        return new WalletAccountReadOnlyBtc(address, CONFIGURATION)
-      }
+      expect(result).toEqual({ amount: 0n, fee: 0n, changeValue: 0n })
 
+      tmpAccount._client.close()
+    })
+
+    describe.each([
+      ['P2SH', 'p2sh-segwit', 540],
+      ['P2TR', 'bech32m', 333]
+    ])('with a %s recipient', (_, addressType, dustLimit) => {
       test('should return an amount equal to the recipient dust limit', async () => {
-        const to = bitcoin.call(`getnewaddress "" ${ADDRESS_TYPES[type]}`, { rawResult: true })
-        const tmpAccount = await fundNewAccount(FEE_ONE_OUTPUT + DUST_LIMITS[type])
+        const to = bitcoin.call(`getnewaddress "" ${addressType}`, { rawResult: true })
+        const fee = sweepFee({ from: ADDRESSES[type], to, network })
+        const tmpAccount = await fundNewAccount(Number(fee) + dustLimit)
 
         const result = await tmpAccount.getMaxSpendable({ to, feeRate: 1 })
 
-        expect(result).toEqual({
-          amount: BigInt(DUST_LIMITS[type]),
-          fee: BigInt(FEE_ONE_OUTPUT),
-          changeValue: 0n
-        })
+        expect(result).toEqual({ amount: BigInt(dustLimit), fee, changeValue: 0n })
 
         tmpAccount._client.close()
       })
 
       test('should return zero if the amount is one satoshi below the recipient dust limit', async () => {
-        const to = bitcoin.call(`getnewaddress "" ${ADDRESS_TYPES[type]}`, { rawResult: true })
-        const tmpAccount = await fundNewAccount(FEE_ONE_OUTPUT + DUST_LIMITS[type] - 1)
+        const to = bitcoin.call(`getnewaddress "" ${addressType}`, { rawResult: true })
+        const fee = sweepFee({ from: ADDRESSES[type], to, network })
+        const tmpAccount = await fundNewAccount(Number(fee) + dustLimit - 1)
 
         const result = await tmpAccount.getMaxSpendable({ to, feeRate: 1 })
 
@@ -184,31 +172,148 @@ describe.each(['legacy', 'segwit'])('WalletAccountReadOnlyBtc (%s)', (type) => {
 
         tmpAccount._client.close()
       })
+    })
 
-      test('should use the dust limit of the recipient address if to is passed', async () => {
-        const to = bitcoin.call('getnewaddress "" bech32', { rawResult: true })
-        const tmpAccount = await fundNewAccount(MIN_TX_FEE + 297, 'bech32')
+    test('should assume the sweep goes to the account\'s own address if to is omitted', async () => {
+      const fee = sweepFee({ from: ADDRESSES[type], to: ADDRESSES[type], network })
+      const tmpAccount = await fundNewAccount(Number(fee) + DUST_LIMITS[type])
 
-        const result = await tmpAccount.getMaxSpendable({ to, feeRate: 1 })
+      const result = await tmpAccount.getMaxSpendable({ feeRate: 1 })
 
-        expect(result).toEqual({
-          amount: 297n,
-          fee: BigInt(MIN_TX_FEE),
-          changeValue: 0n
-        })
+      expect(result).toEqual({ amount: BigInt(DUST_LIMITS[type]), fee, changeValue: 0n })
 
-        tmpAccount._client.close()
+      tmpAccount._client.close()
+    })
+
+    // Waits until electrs has indexed an unconfirmed transaction from the mempool, since getBalance counts unconfirmed funds. Doesn't mine.
+    const waitForMempoolIndexing = async (tmpAccount, sats) => {
+      const start = Date.now()
+
+      while (Date.now() - start < 15_000) {
+        if (await tmpAccount.getBalance() === BigInt(sats)) return
+
+        await new Promise(resolve => setTimeout(resolve, 250))
+      }
+
+      throw new Error('Timed out waiting for the balance.')
+    }
+
+    test('should return zero if the account has no UTXOs', async () => {
+      const address = bitcoin.call(`getnewaddress "" ${ADDRESS_TYPES[type]}`, { rawResult: true })
+      const tmpAccount = new WalletAccountReadOnlyBtc(address, CONFIGURATION)
+
+      const result = await tmpAccount.getMaxSpendable({ feeRate: 1 })
+
+      expect(result).toEqual({ amount: 0n, fee: 0n, changeValue: 0n })
+
+      tmpAccount.dispose()
+    })
+
+    test('should sweep every UTXO of the account', async () => {
+      const values = [300_000, 200_000, 150_000]
+      const address = bitcoin.call(`getnewaddress "" ${ADDRESS_TYPES[type]}`, { rawResult: true })
+      const tmpAccount = new WalletAccountReadOnlyBtc(address, CONFIGURATION)
+
+      for (const sats of values) {
+        bitcoin.sendToAddress(address, (sats / 1e8).toFixed(8))
+        await waiter.mine()
+
+        // The address belongs to the node's wallet, so lock the new UTXO to stop later sends from spending it
+        const outpoints = bitcoin.call(`listunspent 1 9999999 '["${address}"]'`).map(({ txid, vout }) => ({ txid, vout }))
+        bitcoin.call(`lockunspent false '${JSON.stringify(outpoints)}'`)
+      }
+
+      const fee = sweepFee({ from: address, to: address, network, inputCount: values.length })
+
+      const result = await tmpAccount.getMaxSpendable({ feeRate: 1 })
+
+      expect(result).toEqual({ amount: 650_000n - fee, fee, changeValue: 0n })
+
+      tmpAccount.dispose()
+    })
+
+    test('should use the client\'s estimated fee rate if feeRate is omitted', async () => {
+      const feeRate = 2.5
+      const requestedTargets = []
+      const tmpAccount = await fundNewAccount(300_000)
+      const address = await tmpAccount.getAddress()
+      tmpAccount._client.estimateFee = async (target) => {
+        requestedTargets.push(target)
+        return feeRate
+      }
+      const expectedFee = sweepFee({ from: address, to: address, network, feeRate })
+
+      const result = await tmpAccount.getMaxSpendable()
+
+      expect(requestedTargets).toEqual([1])
+      expect(result).toEqual({ amount: 300_000n - expectedFee, fee: expectedFee, changeValue: 0n })
+
+      tmpAccount.dispose()
+    })
+
+    test('should not round a fractional fee rate', async () => {
+      const feeRate = 0.5
+      const expectedFee = sweepFee({ from: ADDRESSES[type], to: ADDRESSES[type], network, feeRate })
+
+      const result = await account.getMaxSpendable({ feeRate })
+
+      expect(expectedFee).toBeLessThan(sweepFee({ from: ADDRESSES[type], to: ADDRESSES[type], network }))
+      expect(result).toEqual({
+        amount: STARTING_BALANCE - expectedFee,
+        fee: expectedFee,
+        changeValue: 0n
       })
+    })
 
-      test('should assume the highest dust limit if to is omitted', async () => {
-        const tmpAccount = await fundNewAccount(FEE_ONE_OUTPUT + 545)
+    test('should exclude unconfirmed UTXOs from the sweep', async () => {
+      const tmpAccount = await fundNewAccount(300_000)
+      const address = await tmpAccount.getAddress()
 
-        const result = await tmpAccount.getMaxSpendable({ feeRate: 1 })
+      bitcoin.sendToAddress(address, '0.00200000')
+      await waitForMempoolIndexing(tmpAccount, 500_000)
 
-        expect(result).toEqual({ amount: 0n, fee: 0n, changeValue: 0n })
+      const fee = sweepFee({ from: address, to: address, network })
 
-        tmpAccount._client.close()
-      })
+      const result = await tmpAccount.getMaxSpendable({ feeRate: 1 })
+
+      expect(result).toEqual({ amount: 300_000n - fee, fee, changeValue: 0n })
+
+      tmpAccount.dispose()
+    })
+
+    test('should return zero if all the UTXOs are unconfirmed', async () => {
+      const address = bitcoin.call(`getnewaddress "" ${ADDRESS_TYPES[type]}`, { rawResult: true })
+      const tmpAccount = new WalletAccountReadOnlyBtc(address, CONFIGURATION)
+
+      bitcoin.sendToAddress(address, '0.00300000')
+      await waitForMempoolIndexing(tmpAccount, 300_000)
+
+      const result = await tmpAccount.getMaxSpendable({ feeRate: 1 })
+
+      expect(result).toEqual({ amount: 0n, fee: 0n, changeValue: 0n })
+
+      tmpAccount.dispose()
+    })
+
+    test('should throw if the sweep exceeds the maximum standard size', async () => {
+      const tmpAccount = new WalletAccountReadOnlyBtc(ADDRESSES[type], CONFIGURATION)
+      await tmpAccount._ensureConnected()
+      tmpAccount._client.listUnspent = async () => Array.from({ length: 1_500 }, (_, index) => ({
+        outpoint: { txid: index.toString(16).padStart(64, '0'), vout: 0 },
+        value: 10_000n,
+        height: 100
+      }))
+
+      const promise = tmpAccount.getMaxSpendable({ feeRate: 1 })
+
+      await expect(promise).rejects.toThrow(ValueError)
+      await expect(promise).rejects.toThrow('The transaction exceeds the maximum standard size.')
+
+      tmpAccount.dispose()
+    })
+
+    test('should throw if the recipient address is invalid', async () => {
+      await expect(account.getMaxSpendable({ to: 'not-an-address', feeRate: 1 })).rejects.toThrow()
     })
   })
 

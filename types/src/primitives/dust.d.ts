@@ -17,3 +17,6 @@ export function getDustLimit(script: Uint8Array): bigint;
  * @returns {bigint} The dust limit in satoshis.
  */
 export function getMaxDustLimit(): bigint;
+export const WITNESS_SCALE_FACTOR: 4;
+export const MAX_STANDARD_TX_WEIGHT: 400000;
+export const MAX_STANDARD_TX_VSIZE: number;

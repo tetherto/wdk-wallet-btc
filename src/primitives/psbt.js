@@ -14,8 +14,8 @@
 'use strict'
 
 import { TransactionError, TransactionErrorReason, ValueError } from '@tetherto/wdk-wallet'
-import { coinselect, vsize } from '@bitcoinerlab/coinselect'
-import { getDustLimit } from './dust.js'
+import { coinselect, maxFunds, vsize } from '@bitcoinerlab/coinselect'
+import { getDustLimit, MAX_STANDARD_TX_VSIZE } from './dust.js'
 import { address as btcAddress } from 'bitcoinjs-lib'
 import { getAddressDescriptor, getScriptType } from './descriptor.js'
 import { Output } from '@bitcoinerlab/descriptors'
@@ -122,6 +122,88 @@ export function planSpend ({ fromAddress, targets, feeRate, network, chainUtxos 
     outputs: [
       ...outputs,
       { address: fromAddress, value: changeValue, isChange: true }
+    ],
+    fee: result.fee,
+    feeRate,
+    vsize: result.vsize
+  }
+}
+
+/**
+ * Builds and returns a fee-aware plan that sends all the sender's funds to a single recipient.
+ *
+ * Uses coinselect's maxFunds to choose inputs, at a given feeRate (sats/vB), dropping unspent outputs
+ * worth less than their own input fee. Returns the selected inputs, the output to create and the
+ * computed fee as a spend plan.
+ *
+ * @param {Object} tx - The transaction.
+ * @param {string} tx.fromAddress - The sender's address.
+ * @param {string} tx.toAddress - The recipient's address.
+ * @param {number} tx.feeRate - The fee rate (in sats/vB).
+ * @param {Network} tx.network - The network.
+ * @param {ChainUtxo[]} tx.chainUtxos - The sender's unspent outputs.
+ * @returns {SpendPlan} - The spend plan.
+ * @throws {ValueError} If the transaction exceeds the maximum standard size.
+ * @throws {TransactionError} If the account has no unspent outputs, or its funds after the fee don't clear the recipient's dust limit.
+ */
+export function planSweep ({ fromAddress, toAddress, feeRate, network, chainUtxos }) {
+  if (chainUtxos.length === 0) {
+    throw new TransactionError('No unspent outputs available.', {
+      reason: TransactionErrorReason.INSUFFICIENT_BALANCE
+    })
+  }
+
+  const fromAddressScript = btcAddress.toOutputScript(fromAddress, network)
+  const fromAddressOutput = new Output({ descriptor: getAddressDescriptor(fromAddress), network })
+  const fromAddressScriptType = getScriptType(fromAddressOutput)
+
+  const toAddressOutput = new Output({ descriptor: getAddressDescriptor(toAddress), network })
+  const toAddressScript = btcAddress.toOutputScript(toAddress, network)
+
+  const candidates = chainUtxos.map(chainUtxo => ({
+    output: fromAddressOutput,
+    value: chainUtxo.value,
+    chainUtxo
+  }))
+
+  const result = maxFunds({
+    utxos: candidates,
+    remainder: toAddressOutput,
+    targets: [],
+    feeRate
+  })
+
+  if (!result) {
+    throw new TransactionError('Insufficient funds to cover the amounts and the fee.', {
+      reason: TransactionErrorReason.INSUFFICIENT_BALANCE
+    })
+  }
+
+  if (result.vsize > MAX_STANDARD_TX_VSIZE) {
+    throw new ValueError('The transaction exceeds the maximum standard size.')
+  }
+
+  /** @type {Utxo[]} */
+  const inputs = result.utxos.map(({ chainUtxo }) => ({
+    ...chainUtxo,
+    script: fromAddressScript,
+    address: fromAddress,
+    scriptType: fromAddressScriptType
+  }))
+  const maxTransferable = inputs.reduce((s, u) => s + u.value, 0n) - result.fee
+
+  // coinselect's dust limit is below Core's for some script types (e.g. P2SH, P2TR),
+  // so validate the amount against Core's limit
+  if (maxTransferable < getDustLimit(toAddressScript)) {
+    throw new TransactionError('Insufficient funds to cover the amounts and the fee.', {
+      reason: TransactionErrorReason.INSUFFICIENT_BALANCE
+    })
+  }
+
+  return {
+    inputs,
+    outputs: [
+      { address: toAddress, value: maxTransferable }
     ],
     fee: result.fee,
     feeRate,

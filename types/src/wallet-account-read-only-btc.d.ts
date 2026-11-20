@@ -140,22 +140,17 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     get defaultWaitTimeout(): number;
     /**
      * Returns an estimation of the maximum spendable amount (in satoshis) that can be sent in
-     * a single transaction, after subtracting estimated transaction fees.
+     * a single transaction, after subtracting the transaction fee.
      *
-     * The estimated maximum spendable amount can differ from the wallet's total balance.
-     * A transaction can only include up to MAX_UTXO_INPUTS (default: 200) unspents.
-     * Wallets holding more than this limit cannot spend their full balance in a
-     * single transaction. There will likely be some satoshis left over as change.
-     *
-     * The recipient must receive at least its dust limit, which depends on the recipient's script type. If `opts.to` is omitted,
-     * the highest dust limit among the address types is assumed, so the estimate can be lower than what a send to a cheaper
-     * output type would allow. When the remainder after fees allows it, a change output set to the dust limit of the account's
-     * own address is reserved. If the funds cannot clear the dust limit, the amount is 0.
+     * All the account's unspent outputs are swept to the recipient, so no change is left over.
+     * If `opts.to` is omitted, the sweep is assumed to go to the account's own address.
+     * If there are no unspent outputs, or the funds cannot cover the fee and the recipient's dust limit, the amount is 0.
      *
      * @param {Object} [opts] - Options.
      * @param {number} [opts.feeRate] - Fee rate in sat/vB. If omitted, estimated via the client.
-     * @param {string} [opts.to] - The recipient's address. If omitted, the highest dust limit is assumed for the recipient.
+     * @param {string} [opts.to] - The recipient's address. If omitted, the sweep is assumed to go to the account's own address.
      * @returns {Promise<BtcMaxSpendableResult>} The estimated maximum spendable result.
+     * @throws {ValueError} If the transaction exceeds the maximum standard size.
      */
     getMaxSpendable(opts?: {
         feeRate?: number;

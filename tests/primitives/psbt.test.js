@@ -7,7 +7,10 @@ import { TransactionError, TransactionErrorReason, ValueError } from '@tetherto/
 
 import { Output } from '../../src/crypto-engine.js'
 import { getAddressDescriptor } from '../../src/primitives/descriptor.js'
-import { planSpend } from '../../src/primitives/psbt.js'
+import { MAX_STANDARD_TX_VSIZE, getDustLimit } from '../../src/primitives/dust.js'
+import { planSpend, planSweep } from '../../src/primitives/psbt.js'
+
+import { sweepFee } from '../helpers/utils.js'
 
 const network = networks.regtest
 
@@ -274,6 +277,178 @@ describe('planSpend', () => {
       const { outputs } = planSpend({ ...DEFAULTS, targets })
 
       expect(outputs[0]).not.toBe(targets[0])
+    })
+  })
+})
+
+describe('planSweep', () => {
+  const outputOf = (address) => new Output({ descriptor: getAddressDescriptor(address), network })
+
+  const dustLimitOf = (address) => getDustLimit(btcAddress.toOutputScript(address, network))
+
+  const sweep = (chainUtxos, { to = TO, feeRate = 1 } = {}) => planSweep({ fromAddress: FROM, toAddress: to, feeRate, network, chainUtxos })
+
+  describe('selection and outputs', () => {
+    test('should spend a single UTXO into one output without change', () => {
+      const chainUtxos = [utxo(100_000)]
+      const fee = sweepFee({ from: FROM, to: TO, network })
+
+      const plan = sweep(chainUtxos)
+
+      expect(plan.inputs).toEqual([{
+        ...chainUtxos[0],
+        script: btcAddress.toOutputScript(FROM, network),
+        address: FROM,
+        scriptType: 'segwit'
+      }])
+      expect(plan.outputs).toEqual([{ address: TO, value: 100_000n - fee }])
+      expect(plan.fee).toBe(fee)
+      expect(plan.feeRate).toBe(1)
+      expect(plan.vsize).toBe(vsize([outputOf(FROM)], [outputOf(TO)]))
+    })
+
+    test('should spend all the UTXOs and sum their values into the output', () => {
+      const chainUtxos = [utxo(30_000, 0), utxo(50_000, 1), utxo(20_000, 2)]
+      const fee = sweepFee({ from: FROM, to: TO, network, inputCount: 3 })
+
+      const plan = sweep(chainUtxos)
+
+      expect(plan.inputs.map(input => input.value)).toEqual([30_000n, 50_000n, 20_000n])
+      expect(plan.outputs).toEqual([{ address: TO, value: 100_000n - fee }])
+      expect(plan.fee).toBe(fee)
+    })
+
+    test('should round the fee up for a decimal fee rate', () => {
+      const feeRate = 1.01
+      const fee = sweepFee({ from: FROM, to: TO, network, feeRate })
+
+      const plan = sweep([utxo(100_000)], { feeRate })
+
+      expect(plan.vsize * feeRate).not.toBe(Math.floor(plan.vsize * feeRate))
+      expect(plan.fee).toBe(fee)
+      expect(plan.fee).toBe(BigInt(Math.floor(plan.vsize * feeRate)) + 1n)
+      expect(plan.feeRate).toBe(feeRate)
+      expect(plan.outputs).toEqual([{ address: TO, value: 100_000n - fee }])
+    })
+
+    test('should sweep to the sender\'s own address', () => {
+      const fee = sweepFee({ from: FROM, to: FROM, network })
+
+      const plan = sweep([utxo(100_000)], { to: FROM })
+
+      expect(plan.outputs).toEqual([{ address: FROM, value: 100_000n - fee }])
+      expect(plan.fee).toBe(fee)
+    })
+
+    test('should pay a fee that depends on the recipient\'s address type', () => {
+      const toP2pkh = sweep([utxo(100_000)], { to: ADDRESSES.p2pkh })
+      const toP2tr = sweep([utxo(100_000)], { to: ADDRESSES.p2tr })
+
+      expect(toP2pkh.fee).toBe(sweepFee({ from: FROM, to: ADDRESSES.p2pkh, network }))
+      expect(toP2tr.fee).toBe(sweepFee({ from: FROM, to: ADDRESSES.p2tr, network }))
+      expect(toP2pkh.fee).not.toBe(toP2tr.fee)
+    })
+  })
+
+  describe('recipient dust limit', () => {
+    test('should accept a balance equal to the fee plus the dust limit', () => {
+      const fee = sweepFee({ from: FROM, to: TO, network })
+
+      const plan = sweep([utxo(fee + dustLimitOf(TO))])
+
+      expect(plan.outputs).toEqual([{ address: TO, value: dustLimitOf(TO) }])
+    })
+
+    test('should throw if the balance is one satoshi below the fee plus the dust limit', () => {
+      const fee = sweepFee({ from: FROM, to: TO, network })
+
+      const build = () => sweep([utxo(fee + dustLimitOf(TO) - 1n)])
+
+      expect(build).toThrow(TransactionError)
+      expect(build).toThrow('Insufficient funds to cover the amounts and the fee.')
+      expect(build).toThrow(expect.objectContaining({ reason: TransactionErrorReason.INSUFFICIENT_BALANCE }))
+    })
+
+    describe.each(['p2pkh', 'p2sh', 'p2wpkh', 'p2wsh', 'p2tr'])('with a %s recipient', (kind) => {
+      const to = ADDRESSES[kind]
+
+      test('should accept exactly the recipient\'s dust limit', () => {
+        const fee = sweepFee({ from: FROM, to, network })
+
+        const plan = sweep([utxo(fee + dustLimitOf(to))], { to })
+
+        expect(plan.outputs).toEqual([{ address: to, value: dustLimitOf(to) }])
+      })
+
+      test('should throw one satoshi below the recipient\'s dust limit', () => {
+        const fee = sweepFee({ from: FROM, to, network })
+
+        const build = () => sweep([utxo(fee + dustLimitOf(to) - 1n)], { to })
+
+        expect(build).toThrow(TransactionError)
+        expect(build).toThrow('Insufficient funds to cover the amounts and the fee.')
+        expect(build).toThrow(expect.objectContaining({ reason: TransactionErrorReason.INSUFFICIENT_BALANCE }))
+      })
+    })
+  })
+
+  describe('insufficient funds', () => {
+    test('should throw if there are no UTXOs', () => {
+      const build = () => sweep([])
+
+      expect(build).toThrow(TransactionError)
+      expect(build).toThrow('No unspent outputs available.')
+      expect(build).toThrow(expect.objectContaining({ reason: TransactionErrorReason.INSUFFICIENT_BALANCE }))
+    })
+
+    test('should throw if the balance is less than the fee', () => {
+      const fee = sweepFee({ from: FROM, to: TO, network })
+
+      const build = () => sweep([utxo(fee - 1n)])
+
+      expect(build).toThrow(TransactionError)
+      expect(build).toThrow('Insufficient funds to cover the amounts and the fee.')
+      expect(build).toThrow(expect.objectContaining({ reason: TransactionErrorReason.INSUFFICIENT_BALANCE }))
+    })
+
+    test('should throw if every UTXO is worth less than the fee it adds', () => {
+      const chainUtxos = Array.from({ length: 20 }, (_, index) => utxo(10, index))
+
+      const build = () => sweep(chainUtxos, { feeRate: 100 })
+
+      expect(build).toThrow(TransactionError)
+      expect(build).toThrow('Insufficient funds to cover the amounts and the fee.')
+      expect(build).toThrow(expect.objectContaining({ reason: TransactionErrorReason.INSUFFICIENT_BALANCE }))
+    })
+
+    test('should leave out UTXOs that cost more in fees than they hold', () => {
+      const chainUtxos = [utxo(1_000_000, 0), utxo(10, 1), utxo(10, 2)]
+      const fee = sweepFee({ from: FROM, to: TO, network, feeRate: 100 })
+
+      const plan = sweep(chainUtxos, { feeRate: 100 })
+
+      expect(plan.inputs.map(input => input.value)).toEqual([1_000_000n])
+      expect(plan.fee).toBe(fee)
+      expect(plan.outputs).toEqual([{ address: TO, value: 1_000_000n - fee }])
+    })
+  })
+
+  describe('standard size', () => {
+    test('should accept a sweep just under the maximum standard size', () => {
+      const chainUtxos = Array.from({ length: 1469 }, (_, index) => utxo(1_000, index))
+
+      const { vsize: planVsize } = planSweep({ fromAddress: FROM, toAddress: TO, feeRate: 1, network, chainUtxos })
+
+      expect(planVsize).toBeLessThanOrEqual(MAX_STANDARD_TX_VSIZE)
+    })
+
+    test('should throw if the sweep exceeds the maximum standard size', () => {
+      const chainUtxos = Array.from({ length: 1470 }, (_, index) => utxo(1_000, index))
+
+      const build = () => planSweep({ fromAddress: FROM, toAddress: TO, feeRate: 1, network, chainUtxos })
+
+      expect(build).toThrow(ValueError)
+      expect(build).toThrow('The transaction exceeds the maximum standard size.')
     })
   })
 })
