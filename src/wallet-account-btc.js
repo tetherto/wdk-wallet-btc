@@ -445,14 +445,17 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
   /**
    * Returns a read-only copy of the account.
    *
+   * The copy is built from the account's configuration, so it follows the same client ownership rules:
+   * clients given as descriptors (including the default Electrum server) are created by the copy, which
+   * opens its own connection and closes it on {@link WalletAccountReadOnlyBtc#dispose}; externally supplied
+   * client instances are shared with the account and never closed by either of them. Disposing the account
+   * does not affect a read-only copy that is still in use.
+   *
    * @returns {Promise<WalletAccountReadOnlyBtc>} The read-only account.
    */
   async toReadOnlyAccount () {
     if (!this._btcReadOnlyAccount) {
-      this._btcReadOnlyAccount = new WalletAccountReadOnlyBtc(await this.getAddress(), {
-        ...this._config,
-        client: this._client
-      })
+      this._btcReadOnlyAccount = new WalletAccountReadOnlyBtc(await this.getAddress(), this._config)
     }
 
     return this._btcReadOnlyAccount
