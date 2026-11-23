@@ -200,10 +200,12 @@ export default class BlockbookClient {
    * Returns unspent transaction outputs for an address.
    *
    * @param {string} address - The bitcoin address.
+   * @param {Object} [opts] - The options.
+   * @param {boolean} [opts.confirmed] - If true, only outputs included in a block are returned (default: false).
    * @returns {Promise<ChainUtxo[]>} List of UTXOs.
    */
-  async listUnspent (address) {
-    const data = await this._get(`/v2/utxo/${address}`)
+  async listUnspent (address, { confirmed = false } = {}) {
+    const data = await this._get(`/v2/utxo/${address}${confirmed ? '?confirmed=true' : ''}`)
 
     return data.map(u => ({
       outpoint: { txid: u.txid, vout: u.vout },

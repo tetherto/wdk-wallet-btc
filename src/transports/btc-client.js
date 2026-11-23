@@ -84,10 +84,12 @@ export default class IBtcClient {
    * Returns unspent transaction outputs for an address.
    *
    * @param {string} address - The bitcoin address.
+   * @param {Object} [opts] - The options.
+   * @param {boolean} [opts.confirmed] - If true, only outputs included in a block are returned (default: false).
    * @returns {Promise<ChainUtxo[]>} List of UTXOs.
    */
-  async listUnspent (address) {
-    throw new NotImplementedError('listUnspent(address)')
+  async listUnspent (address, { confirmed = false } = {}) {
+    throw new NotImplementedError('listUnspent(address, opts)')
   }
 
   /**

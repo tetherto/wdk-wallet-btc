@@ -29,9 +29,13 @@ export default interface IBtcClient {
      * Returns unspent transaction outputs for an address.
      *
      * @param {string} address - The bitcoin address.
+     * @param {Object} [opts] - The options.
+     * @param {boolean} [opts.confirmed] - If true, only outputs included in a block are returned (default: false).
      * @returns {Promise<ChainUtxo[]>} List of UTXOs.
      */
-    listUnspent(address: string): Promise<ChainUtxo[]>;
+    listUnspent(address: string, { confirmed }?: {
+        confirmed?: boolean;
+    }): Promise<ChainUtxo[]>;
     /**
      * Returns transaction history for an address.
      *

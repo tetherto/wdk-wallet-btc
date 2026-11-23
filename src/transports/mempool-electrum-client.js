@@ -221,17 +221,21 @@ export default class MempoolElectrumClient {
    * Returns unspent transaction outputs for an address.
    *
    * @param {string} address - The bitcoin address.
+   * @param {Object} [opts] - The options.
+   * @param {boolean} [opts.confirmed] - If true, only outputs included in a block are returned (default: false).
    * @returns {Promise<ChainUtxo[]>} List of UTXOs.
    */
-  async listUnspent (address) {
+  async listUnspent (address, { confirmed = false } = {}) {
     /** @type {ElectrumUnspent[]} */
     const unspent = await this._client.blockchainScripthash_listunspent(toScriptHash(address, this._network))
 
-    return unspent.map(({ tx_hash: txid, tx_pos: vout, value, height }) => ({
-      outpoint: { txid, vout },
-      value: BigInt(value),
-      height
-    }))
+    return unspent
+      .filter(({ height }) => !confirmed || height > 0)
+      .map(({ tx_hash: txid, tx_pos: vout, value, height }) => ({
+        outpoint: { txid, vout },
+        value: BigInt(value),
+        height
+      }))
   }
 
   /**
