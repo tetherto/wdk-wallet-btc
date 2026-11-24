@@ -254,11 +254,14 @@ export default class ElectrumWs {
   }
 
   /**
-   * Returns unspent transaction outputs for an address.
+   * Returns the unspent transaction outputs (UTXOs) of an address.
+   * To select outputs to spend, use {@link IBtcClient#listSpendable}.
+   *
+   * The Electrum protocol has no confirmation filter, so `confirmed` keeps the UTXOs with a block height.
    *
    * @param {string} address - The bitcoin address.
    * @param {Object} [opts] - The options.
-   * @param {boolean} [opts.confirmed] - If true, only outputs included in a block are returned (default: false).
+   * @param {boolean} [opts.confirmed] - If true, only UTXOs included in a block are returned. Otherwise, confirmed and unconfirmed UTXOs are returned (default: false).
    * @returns {Promise<ChainUtxo[]>} List of UTXOs.
    */
   async listUnspent (address, { confirmed = false } = {}) {
@@ -272,6 +275,21 @@ export default class ElectrumWs {
         value: BigInt(value),
         height
       }))
+  }
+
+  /**
+   * Returns the UTXOs of an address that can be spent: confirmed and not spent by a transaction in the mempool.
+   * Use this to select the outputs of a new transaction.
+   *
+   * Electrum servers omit outputs spent in the mempool, so the confirmed UTXOs are the spendable ones.
+   *
+   * @param {string} address - The bitcoin address.
+   * @returns {Promise<ChainUtxo[]>} List of spendable UTXOs.
+   */
+  async listSpendable (address) {
+    // The server already omits mempool-spent outputs, so only the unconfirmed ones are left to filter out
+    // Checked against the ElectrumX docs (https://electrumx.readthedocs.io/en/latest/protocol-methods.html#blockchain-scripthash-listunspent) and electrs v0.10
+    return this.listUnspent(address, { confirmed: true })
   }
 
   /**

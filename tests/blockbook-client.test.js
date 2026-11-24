@@ -616,4 +616,66 @@ describe('BlockbookClient', () => {
       await expect(promise).rejects.toMatchObject({ reason: ProviderErrorReason.INTERNAL_SERVER_ERROR })
     })
   })
+
+  describe('listUnspent and listSpendable', () => {
+    const ADDRESS = 'MOCK_ADDRESS'
+
+    const confirmedUtxo = { txid: 'a'.repeat(64), vout: 0, value: '100000', height: 105, confirmations: 3 }
+    const unconfirmedUtxo = { txid: 'b'.repeat(64), vout: 1, value: '50000', confirmations: 0 }
+    // A confirmed output that a mempool transaction spends. Blockbook only hides it when confirmed=true is not requested
+    const mempoolSpentUtxo = { txid: 'c'.repeat(64), vout: 2, value: '70000', height: 100, confirmations: 8 }
+
+    // Mimics Blockbook: the default request omits mempool-spent outputs, confirmed=true keeps them
+    const mockBlockbookUtxos = () => fetchMock.mockImplementation(async (url) => ({
+      ok: true,
+      json: async () => url.endsWith('?confirmed=true')
+        ? [confirmedUtxo, mempoolSpentUtxo]
+        : [confirmedUtxo, unconfirmedUtxo]
+    }))
+
+    test('should return confirmed and unconfirmed UTXOs from the default request, mapping a missing height to 0', async () => {
+      mockBlockbookUtxos()
+
+      const utxos = await client.listUnspent(ADDRESS)
+
+      expect(fetchMock).toHaveBeenCalledWith(`https://example.com/api/v2/utxo/${ADDRESS}`)
+      expect(utxos).toEqual([
+        { outpoint: { txid: confirmedUtxo.txid, vout: 0 }, value: 100_000n, height: 105 },
+        { outpoint: { txid: unconfirmedUtxo.txid, vout: 1 }, value: 50_000n, height: 0 }
+      ])
+    })
+
+    test('should request confirmed=true from listUnspent when confirmed is set', async () => {
+      mockBlockbookUtxos()
+
+      await client.listUnspent(ADDRESS, { confirmed: true })
+
+      expect(fetchMock).toHaveBeenCalledWith(`https://example.com/api/v2/utxo/${ADDRESS}?confirmed=true`)
+    })
+
+    test('should return only the confirmed UTXOs that no mempool transaction spends from listSpendable', async () => {
+      mockBlockbookUtxos()
+
+      const utxos = await client.listSpendable(ADDRESS)
+
+      expect(utxos).toEqual([
+        { outpoint: { txid: confirmedUtxo.txid, vout: 0 }, value: 100_000n, height: 105 }
+      ])
+    })
+
+    test('should make the default request from listSpendable, not confirmed=true', async () => {
+      mockBlockbookUtxos()
+
+      await client.listSpendable(ADDRESS)
+
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith(`https://example.com/api/v2/utxo/${ADDRESS}`)
+    })
+
+    test('should return an empty list from listSpendable when every UTXO is unconfirmed', async () => {
+      fetchMock.mockResolvedValueOnce({ ok: true, json: async () => [unconfirmedUtxo] })
+
+      expect(await client.listSpendable(ADDRESS)).toEqual([])
+    })
+  })
 })

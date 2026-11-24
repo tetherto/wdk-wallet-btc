@@ -260,6 +260,11 @@ describe.each(['legacy', 'segwit'])('@wdk/wallet-btc (%s)', (type) => {
     const account0 = await wallet.getAccount(2)
     const account1 = await wallet.getAccount(3)
 
+    // The max spendable test sweeps account 0's whole balance, leaving it with no UTXOs. Fund it again so
+    // sending fails because of the disposed wallet, not because the account is empty.
+    bitcoin.sendToAddress(await account0.getAddress(), 0.01)
+    await waiter.mine()
+
     wallet.dispose()
 
     const MESSAGE = 'Hello, world!'

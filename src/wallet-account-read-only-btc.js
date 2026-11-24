@@ -212,7 +212,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     }
 
     value = BigInt(value)
-    const chainUtxos = await this._client.listUnspent(address)
+    const chainUtxos = await this._client.listSpendable(address)
     const { fee } = planSpend({
       fromAddress: address,
       targets: [{ address: to, value }],
@@ -392,7 +392,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
     const fromAddress = await this.getAddress()
     const feeRate = opts.feeRate ? opts.feeRate : await this._client.estimateFee(1)
-    const chainUtxos = await this._client.listUnspent(fromAddress)
+    const chainUtxos = await this._client.listSpendable(fromAddress)
 
     try {
       const plan = planSweep({ fromAddress, toAddress: opts.to || fromAddress, chainUtxos, network: this._network, feeRate })

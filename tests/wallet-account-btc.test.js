@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from '@jest/globals'
+import { afterAll, afterEach, beforeAll, describe, expect, test } from '@jest/globals'
 
 import { mnemonicToSeedSync } from 'bip39'
 
@@ -7,6 +7,7 @@ import { address as btcAddress, networks, payments, Transaction } from 'bitcoinj
 import { HOST, PORT, ELECTRUM_PORT, ZMQ_PORT, DATA_DIR } from './config.js'
 
 import { BitcoinCli, Waiter } from './helpers/index.js'
+import { sweepFee, waitUntil } from './helpers/utils.js'
 
 import { WalletAccountBtc, WalletAccountReadOnlyBtc } from '../index.js'
 import SeedSignerBtc from '../src/signers/index.js'
@@ -596,6 +597,98 @@ describe.each(['legacy', 'segwit'])('WalletAccountBtc (%s)', (type) => {
     })
   })
 
+  describe('spendable UTXOs', () => {
+    const tmpAccounts = []
+
+    // Accounts are disposed after each test, so a failing test can't leave a client reconnecting
+    const createTmpAccount = (index) => {
+      const tmpAccount = new WalletAccountBtc(SEED_PHRASE, `0'/0/${index}`, CONFIG)
+      tmpAccounts.push(tmpAccount)
+
+      return tmpAccount
+    }
+
+    afterEach(() => {
+      tmpAccounts.splice(0).forEach(tmpAccount => tmpAccount.dispose())
+    })
+
+    const outpointsPaying = (txid, address) => bitcoin.call(`getrawtransaction ${txid} true`).vout
+      .filter(output => output.scriptPubKey.address === address)
+      .map(output => ({ outpoint: `${txid}:${output.n}`, value: BigInt(Math.round(output.value * 1e8)) }))
+
+    test('should exclude a confirmed UTXO spent in the mempool from the maximum spendable amount', async () => {
+      const tmpAccount = createTmpAccount(9_001)
+      const address = await tmpAccount.getAddress()
+
+      const funded = [
+        ...outpointsPaying(bitcoin.sendToAddress(address, '0.00300000'), address),
+        ...outpointsPaying(bitcoin.sendToAddress(address, '0.00200000'), address)
+      ]
+      await waiter.mine()
+
+      const { hash } = await tmpAccount.sendTransaction({ to: recipient, value: 100_000, feeRate: 1 }, 0)
+
+      const spent = new Set(bitcoin.call(`getrawtransaction ${hash} true`).vin.map(input => `${input.txid}:${input.vout}`))
+      const remaining = funded.filter(({ outpoint }) => !spent.has(outpoint))
+      await waitUntil(async () => !(await tmpAccount._client.listUnspent(address))
+        .some(({ outpoint }) => spent.has(`${outpoint.txid}:${outpoint.vout}`)))
+
+      const fee = sweepFee({ from: address, to: address, network: networks.regtest, inputCount: remaining.length })
+      const total = remaining.reduce((sum, { value }) => sum + value, 0n)
+
+      const result = await tmpAccount.getMaxSpendable({ feeRate: 1 })
+
+      expect(remaining).toHaveLength(1)
+      expect(result).toEqual({ amount: total - fee, fee, changeValue: 0n })
+    })
+
+    test('should not select unconfirmed funds when quoting or sending', async () => {
+      const tmpAccount = createTmpAccount(9_002)
+      const address = await tmpAccount.getAddress()
+      const TRANSACTION = { to: recipient, value: 10_000, feeRate: 1 }
+
+      bitcoin.sendToAddress(address, '0.00300000')
+      await waitUntil(async () => await tmpAccount.getBalance() === 300_000n)
+
+      const quote = tmpAccount.quoteSendTransaction(TRANSACTION)
+      const send = tmpAccount.sendTransaction(TRANSACTION)
+
+      for (const promise of [quote, send]) {
+        await expect(promise).rejects.toThrow(TransactionError)
+        await expect(promise).rejects.toMatchObject({ reason: TransactionErrorReason.INSUFFICIENT_BALANCE })
+      }
+
+      await waiter.mine()
+
+      const { fee } = await tmpAccount.quoteSendTransaction(TRANSACTION)
+
+      expect(fee).toBeGreaterThan(0n)
+    })
+
+    test('should not spend the change of a pending transaction until it confirms', async () => {
+      const tmpAccount = createTmpAccount(9_003)
+      const address = await tmpAccount.getAddress()
+      const TRANSACTION = { to: recipient, value: 100_000, feeRate: 1 }
+
+      bitcoin.sendToAddress(address, '0.00300000')
+      await waiter.mine()
+
+      await tmpAccount.sendTransaction(TRANSACTION)
+
+      // The change of the first transaction is unconfirmed, so there is nothing left to spend
+      const second = tmpAccount.sendTransaction(TRANSACTION)
+
+      await expect(second).rejects.toThrow(TransactionError)
+      await expect(second).rejects.toMatchObject({ reason: TransactionErrorReason.INSUFFICIENT_BALANCE })
+
+      await waiter.mine()
+
+      const { hash } = await tmpAccount.sendTransaction(TRANSACTION)
+
+      expect(hash).toMatch(/^[0-9a-f]{64}$/)
+    })
+  })
+
   describe('transfer', () => {
     test('should throw an unsupported operation error', async () => {
       const promise = account.transfer({})
@@ -879,7 +972,7 @@ describe('WalletAccountBtc legacy UTXO verification', () => {
     return tx
   }
 
-  // A rogue provider can misreport `value` via listUnspent, hand back a fabricated
+  // A rogue provider can misreport `value` via listSpendable, hand back a fabricated
   // previous transaction via getTransaction, or claim a txid that doesn't match what
   // getTransaction actually returns — these three calls/fields model each independently.
   const createAccount = ({ reportedValue, prevTx, claimedTxHash = prevTx.getId() }) => new WalletAccountBtc(SEED_PHRASE, "0'/0/0", {
@@ -887,7 +980,7 @@ describe('WalletAccountBtc legacy UTXO verification', () => {
     type: 'legacy',
     client: {
       connect: async () => {},
-      listUnspent: async () => [{ outpoint: { txid: claimedTxHash, vout: 0 }, value: BigInt(reportedValue), height: 1 }],
+      listSpendable: async () => [{ outpoint: { txid: claimedTxHash, vout: 0 }, value: BigInt(reportedValue), height: 1 }],
       getTransaction: async () => prevTx.toHex()
     }
   })
@@ -940,6 +1033,97 @@ describe('WalletAccountBtc legacy UTXO verification', () => {
       Buffer.from(out.script).equals(Buffer.from(recipientScript)) && out.value === BigInt(TRANSACTION.value)
     )
     expect(paysRecipient).toBe(true)
+
+    account.dispose()
+  })
+})
+
+describe('WalletAccountBtc UTXO selection', () => {
+  const network = networks.regtest
+  const FROM = ACCOUNTS.segwit.address
+  const TO = payments.p2wpkh({ hash: Buffer.alloc(20, 7), network }).address
+
+  const utxo = (value, height, index) => ({
+    outpoint: { txid: index.toString(16).padStart(64, '0'), vout: 0 },
+    value: BigInt(value),
+    height
+  })
+
+  const CONFIRMED = utxo(100_000, 5, 1)
+  const UNCONFIRMED = utxo(900_000, 0, 2)
+  const MEMPOOL_SPENT = utxo(800_000, 6, 3)
+
+  const createAccount = ({ spendable, unspent, broadcast = async () => {} }) => new WalletAccountBtc(SEED_PHRASE, "0'/0/0", {
+    network: 'regtest',
+    type: 'segwit',
+    client: {
+      connect: async () => {},
+      listSpendable: async () => spendable,
+      listUnspent: async () => {
+        if (!unspent) throw new Error('listUnspent must not be used to select inputs.')
+
+        return unspent
+      },
+      broadcast
+    }
+  })
+
+  test('should select inputs with listSpendable and never call listUnspent when quoting, signing or sweeping', async () => {
+    const account = createAccount({ spendable: [CONFIRMED] })
+    const fee = sweepFee({ from: FROM, to: TO, network })
+
+    const quote = await account.quoteSendTransaction({ to: TO, value: 10_000, feeRate: 1 })
+    const signedHex = await account.signTransaction({ to: TO, value: 10_000, feeRate: 1 })
+    const maxSpendable = await account.getMaxSpendable({ to: TO, feeRate: 1 })
+
+    expect(quote.fee).toBeGreaterThan(0n)
+    expect(Transaction.fromHex(signedHex).ins).toHaveLength(1)
+    expect(maxSpendable).toEqual({ amount: 100_000n - fee, fee, changeValue: 0n })
+
+    account.dispose()
+  })
+
+  test('should ignore unconfirmed and mempool-spent UTXOs that listUnspent reports', async () => {
+    const account = createAccount({
+      spendable: [CONFIRMED],
+      unspent: [CONFIRMED, UNCONFIRMED, MEMPOOL_SPENT]
+    })
+    const fee = sweepFee({ from: FROM, to: TO, network })
+
+    const maxSpendable = await account.getMaxSpendable({ to: TO, feeRate: 1 })
+
+    expect(maxSpendable).toEqual({ amount: 100_000n - fee, fee, changeValue: 0n })
+
+    // Only the confirmed UTXO is available, so an amount that the decoys would cover must fail
+    const quote = account.quoteSendTransaction({ to: TO, value: 500_000, feeRate: 1 })
+    const signed = account.signTransaction({ to: TO, value: 500_000, feeRate: 1 })
+
+    for (const promise of [quote, signed]) {
+      await expect(promise).rejects.toThrow(TransactionError)
+      await expect(promise).rejects.toMatchObject({ reason: TransactionErrorReason.INSUFFICIENT_BALANCE })
+    }
+
+    account.dispose()
+  })
+
+  test('should broadcast a transaction that spends only the listSpendable UTXOs', async () => {
+    const broadcasted = []
+    const account = createAccount({
+      spendable: [CONFIRMED],
+      unspent: [],
+      broadcast: async (hex) => {
+        broadcasted.push(hex)
+      }
+    })
+
+    const { hash } = await account.sendTransaction({ to: TO, value: 10_000, feeRate: 1 })
+
+    const transaction = Transaction.fromHex(broadcasted[0])
+
+    expect(broadcasted).toHaveLength(1)
+    expect(transaction.ins.map(input => `${Buffer.from(input.hash).reverse().toString('hex')}:${input.index}`))
+      .toEqual([`${CONFIRMED.outpoint.txid}:${CONFIRMED.outpoint.vout}`])
+    expect(hash).toBe(transaction.getId())
 
     account.dispose()
   })

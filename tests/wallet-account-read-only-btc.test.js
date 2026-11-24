@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from '@jest/globals'
+import { afterAll, afterEach, beforeAll, describe, expect, test } from '@jest/globals'
 
 import { HOST, PORT, ELECTRUM_PORT, ZMQ_PORT, DATA_DIR } from './config.js'
 
@@ -95,12 +95,33 @@ describe.each(['legacy', 'segwit'])('WalletAccountReadOnlyBtc (%s)', (type) => {
     const network = networks.regtest
     const STARTING_BALANCE = 1_000_000n
 
+    // The test addresses belong to the node's wallet, so lock their UTXOs to stop later sends from spending them
+    const lockUtxosOf = (address) => {
+      const outpoints = bitcoin.call(`listunspent 1 9999999 '["${address}"]'`).map(({ txid, vout }) => ({ txid, vout }))
+
+      bitcoin.call(`lockunspent false '${JSON.stringify(outpoints)}'`)
+    }
+
+    const tmpAccounts = []
+
+    // Accounts are disposed after each test, so a failing test can't leave a client reconnecting
+    const createTmpAccount = (address) => {
+      const tmpAccount = new WalletAccountReadOnlyBtc(address, CONFIGURATION)
+      tmpAccounts.push(tmpAccount)
+
+      return tmpAccount
+    }
+
+    afterEach(() => {
+      tmpAccounts.splice(0).forEach(tmpAccount => tmpAccount.dispose())
+    })
+
     const fundNewAccount = async (sats, addressType = ADDRESS_TYPES[type]) => {
       const address = bitcoin.call(`getnewaddress "" ${addressType}`, { rawResult: true })
       bitcoin.sendToAddress(address, (sats / 1e8).toFixed(8))
       await waiter.mine()
 
-      return new WalletAccountReadOnlyBtc(address, CONFIGURATION)
+      return createTmpAccount(address)
     }
 
     test('should return the correct maximum spendable amount', async () => {
@@ -129,8 +150,6 @@ describe.each(['legacy', 'segwit'])('WalletAccountReadOnlyBtc (%s)', (type) => {
         fee,
         changeValue: 0n
       })
-
-      tmpAccount._client.close()
     })
 
     test('should return zero if the amount is one satoshi below the recipient dust limit', async () => {
@@ -141,8 +160,6 @@ describe.each(['legacy', 'segwit'])('WalletAccountReadOnlyBtc (%s)', (type) => {
       const result = await tmpAccount.getMaxSpendable({ to, feeRate: 1 })
 
       expect(result).toEqual({ amount: 0n, fee: 0n, changeValue: 0n })
-
-      tmpAccount._client.close()
     })
 
     describe.each([
@@ -157,8 +174,6 @@ describe.each(['legacy', 'segwit'])('WalletAccountReadOnlyBtc (%s)', (type) => {
         const result = await tmpAccount.getMaxSpendable({ to, feeRate: 1 })
 
         expect(result).toEqual({ amount: BigInt(dustLimit), fee, changeValue: 0n })
-
-        tmpAccount._client.close()
       })
 
       test('should return zero if the amount is one satoshi below the recipient dust limit', async () => {
@@ -169,8 +184,6 @@ describe.each(['legacy', 'segwit'])('WalletAccountReadOnlyBtc (%s)', (type) => {
         const result = await tmpAccount.getMaxSpendable({ to, feeRate: 1 })
 
         expect(result).toEqual({ amount: 0n, fee: 0n, changeValue: 0n })
-
-        tmpAccount._client.close()
       })
     })
 
@@ -181,8 +194,6 @@ describe.each(['legacy', 'segwit'])('WalletAccountReadOnlyBtc (%s)', (type) => {
       const result = await tmpAccount.getMaxSpendable({ feeRate: 1 })
 
       expect(result).toEqual({ amount: BigInt(DUST_LIMITS[type]), fee, changeValue: 0n })
-
-      tmpAccount._client.close()
     })
 
     // Waits until electrs has indexed an unconfirmed transaction from the mempool, since getBalance counts unconfirmed funds. Doesn't mine.
@@ -200,27 +211,23 @@ describe.each(['legacy', 'segwit'])('WalletAccountReadOnlyBtc (%s)', (type) => {
 
     test('should return zero if the account has no UTXOs', async () => {
       const address = bitcoin.call(`getnewaddress "" ${ADDRESS_TYPES[type]}`, { rawResult: true })
-      const tmpAccount = new WalletAccountReadOnlyBtc(address, CONFIGURATION)
+      const tmpAccount = createTmpAccount(address)
 
       const result = await tmpAccount.getMaxSpendable({ feeRate: 1 })
 
       expect(result).toEqual({ amount: 0n, fee: 0n, changeValue: 0n })
-
-      tmpAccount.dispose()
     })
 
     test('should sweep every UTXO of the account', async () => {
       const values = [300_000, 200_000, 150_000]
       const address = bitcoin.call(`getnewaddress "" ${ADDRESS_TYPES[type]}`, { rawResult: true })
-      const tmpAccount = new WalletAccountReadOnlyBtc(address, CONFIGURATION)
+      const tmpAccount = createTmpAccount(address)
 
       for (const sats of values) {
         bitcoin.sendToAddress(address, (sats / 1e8).toFixed(8))
         await waiter.mine()
 
-        // The address belongs to the node's wallet, so lock the new UTXO to stop later sends from spending it
-        const outpoints = bitcoin.call(`listunspent 1 9999999 '["${address}"]'`).map(({ txid, vout }) => ({ txid, vout }))
-        bitcoin.call(`lockunspent false '${JSON.stringify(outpoints)}'`)
+        lockUtxosOf(address)
       }
 
       const fee = sweepFee({ from: address, to: address, network, inputCount: values.length })
@@ -228,8 +235,6 @@ describe.each(['legacy', 'segwit'])('WalletAccountReadOnlyBtc (%s)', (type) => {
       const result = await tmpAccount.getMaxSpendable({ feeRate: 1 })
 
       expect(result).toEqual({ amount: 650_000n - fee, fee, changeValue: 0n })
-
-      tmpAccount.dispose()
     })
 
     test('should use the client\'s estimated fee rate if feeRate is omitted', async () => {
@@ -247,8 +252,6 @@ describe.each(['legacy', 'segwit'])('WalletAccountReadOnlyBtc (%s)', (type) => {
 
       expect(requestedTargets).toEqual([1])
       expect(result).toEqual({ amount: 300_000n - expectedFee, fee: expectedFee, changeValue: 0n })
-
-      tmpAccount.dispose()
     })
 
     test('should not round a fractional fee rate', async () => {
@@ -269,6 +272,7 @@ describe.each(['legacy', 'segwit'])('WalletAccountReadOnlyBtc (%s)', (type) => {
       const tmpAccount = await fundNewAccount(300_000)
       const address = await tmpAccount.getAddress()
 
+      lockUtxosOf(address)
       bitcoin.sendToAddress(address, '0.00200000')
       await waitForMempoolIndexing(tmpAccount, 500_000)
 
@@ -277,13 +281,11 @@ describe.each(['legacy', 'segwit'])('WalletAccountReadOnlyBtc (%s)', (type) => {
       const result = await tmpAccount.getMaxSpendable({ feeRate: 1 })
 
       expect(result).toEqual({ amount: 300_000n - fee, fee, changeValue: 0n })
-
-      tmpAccount.dispose()
     })
 
     test('should return zero if all the UTXOs are unconfirmed', async () => {
       const address = bitcoin.call(`getnewaddress "" ${ADDRESS_TYPES[type]}`, { rawResult: true })
-      const tmpAccount = new WalletAccountReadOnlyBtc(address, CONFIGURATION)
+      const tmpAccount = createTmpAccount(address)
 
       bitcoin.sendToAddress(address, '0.00300000')
       await waitForMempoolIndexing(tmpAccount, 300_000)
@@ -291,14 +293,12 @@ describe.each(['legacy', 'segwit'])('WalletAccountReadOnlyBtc (%s)', (type) => {
       const result = await tmpAccount.getMaxSpendable({ feeRate: 1 })
 
       expect(result).toEqual({ amount: 0n, fee: 0n, changeValue: 0n })
-
-      tmpAccount.dispose()
     })
 
     test('should throw if the sweep exceeds the maximum standard size', async () => {
-      const tmpAccount = new WalletAccountReadOnlyBtc(ADDRESSES[type], CONFIGURATION)
+      const tmpAccount = createTmpAccount(ADDRESSES[type])
       await tmpAccount._ensureConnected()
-      tmpAccount._client.listUnspent = async () => Array.from({ length: 1_500 }, (_, index) => ({
+      tmpAccount._client.listSpendable = async () => Array.from({ length: 1_500 }, (_, index) => ({
         outpoint: { txid: index.toString(16).padStart(64, '0'), vout: 0 },
         value: 10_000n,
         height: 100
@@ -308,8 +308,6 @@ describe.each(['legacy', 'segwit'])('WalletAccountReadOnlyBtc (%s)', (type) => {
 
       await expect(promise).rejects.toThrow(ValueError)
       await expect(promise).rejects.toThrow('The transaction exceeds the maximum standard size.')
-
-      tmpAccount.dispose()
     })
 
     test('should throw if the recipient address is invalid', async () => {

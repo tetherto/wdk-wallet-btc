@@ -498,7 +498,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
   /**
    * Verifies each legacy (BIP-44/P2PKH) input's real previous output — fetched from the
    * blockchain — matches what spend planning assumed, rather than trusting the client's
-   * `listUnspent` report as-is.
+   * `listSpendable` report as-is.
    *
    * @private
    * @param {Utxo[]} utxos - The selected unspent outputs.
@@ -636,7 +636,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     }
 
     value = BigInt(value)
-    const chainUtxos = await this._client.listUnspent(address)
+    const chainUtxos = await this._client.listSpendable(address)
     const plan = planSpend({
       fromAddress: address,
       targets: [{ address: to, value }],

@@ -20,3 +20,24 @@ export function sweepFee ({ from, to, network, inputCount = 1, feeRate = 1 }) {
 
   return BigInt(Math.ceil(vsize(inputs, [outputOf(to)]) * feeRate))
 }
+
+/**
+ * Polls until the condition returns true.
+ *
+ * @param {() => boolean | Promise<boolean>} condition - The condition to wait for.
+ * @param {Object} [opts] - The options.
+ * @param {number} [opts.timeout] - The maximum wait in milliseconds.
+ * @param {number} [opts.interval] - The polling interval in milliseconds.
+ * @returns {Promise<void>}
+ */
+export async function waitUntil (condition, { timeout = 15_000, interval = 250 } = {}) {
+  const start = Date.now()
+
+  while (Date.now() - start < timeout) {
+    if (await condition()) return
+
+    await new Promise(resolve => setTimeout(resolve, interval))
+  }
+
+  throw new Error('Timed out waiting for the condition.')
+}

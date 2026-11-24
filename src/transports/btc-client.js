@@ -81,15 +81,27 @@ export default class IBtcClient {
   }
 
   /**
-   * Returns unspent transaction outputs for an address.
+   * Returns the unspent transaction outputs (UTXOs) of an address.
+   * To select outputs to spend, use {@link IBtcClient#listSpendable}.
    *
    * @param {string} address - The bitcoin address.
    * @param {Object} [opts] - The options.
-   * @param {boolean} [opts.confirmed] - If true, only outputs included in a block are returned (default: false).
+   * @param {boolean} [opts.confirmed] - If true, only UTXOs included in a block are returned. Otherwise, confirmed and unconfirmed UTXOs are returned (default: false).
    * @returns {Promise<ChainUtxo[]>} List of UTXOs.
    */
   async listUnspent (address, { confirmed = false } = {}) {
     throw new NotImplementedError('listUnspent(address, opts)')
+  }
+
+  /**
+   * Returns the UTXOs of an address that can be spent: confirmed and not spent by a transaction in the mempool.
+   * Use this to select the outputs of a new transaction.
+   *
+   * @param {string} address - The bitcoin address.
+   * @returns {Promise<ChainUtxo[]>} List of spendable UTXOs.
+   */
+  async listSpendable (address) {
+    throw new NotImplementedError('listSpendable(address)')
   }
 
   /**

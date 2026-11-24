@@ -153,7 +153,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
     /**
      * Verifies each legacy (BIP-44/P2PKH) input's real previous output — fetched from the
      * blockchain — matches what spend planning assumed, rather than trusting the client's
-     * `listUnspent` report as-is.
+     * `listSpendable` report as-is.
      *
      * @private
      * @param {Utxo[]} utxos - The selected unspent outputs.

@@ -197,11 +197,14 @@ export default class BlockbookClient {
   }
 
   /**
-   * Returns unspent transaction outputs for an address.
+   * Returns the unspent transaction outputs (UTXOs) of an address.
+   * To select outputs to spend, use {@link IBtcClient#listSpendable}.
+   *
+   * With `confirmed`, the request sets Blockbook's `confirmed=true` query parameter. Blockbook then also returns confirmed UTXOs that a mempool transaction spends.
    *
    * @param {string} address - The bitcoin address.
    * @param {Object} [opts] - The options.
-   * @param {boolean} [opts.confirmed] - If true, only outputs included in a block are returned (default: false).
+   * @param {boolean} [opts.confirmed] - If true, only UTXOs included in a block are returned. Otherwise, confirmed and unconfirmed UTXOs are returned (default: false).
    * @returns {Promise<ChainUtxo[]>} List of UTXOs.
    */
   async listUnspent (address, { confirmed = false } = {}) {
@@ -212,6 +215,21 @@ export default class BlockbookClient {
       value: BigInt(u.value),
       height: u.height ?? 0
     }))
+  }
+
+  /**
+   * Returns the UTXOs of an address that can be spent: confirmed and not spent by a transaction in the mempool.
+   * Use this to select the outputs of a new transaction.
+   *
+   * @param {string} address - The bitcoin address.
+   * @returns {Promise<ChainUtxo[]>} List of spendable UTXOs.
+   */
+  async listSpendable (address) {
+    // The default request omits mempool-spent outputs, so only the unconfirmed ones are left to filter out
+    // Checked against the Blockbook source and a Blockbook mainnet provider
+    const utxos = await this.listUnspent(address)
+
+    return utxos.filter(({ height }) => height > 0)
   }
 
   /**
