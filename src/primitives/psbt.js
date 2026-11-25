@@ -13,12 +13,13 @@
 // limitations under the License.
 'use strict'
 
-import { TransactionError, TransactionErrorReason, ValueError } from '@tetherto/wdk-wallet'
+import { AssertionError, TransactionError, TransactionErrorReason, ValueError } from '@tetherto/wdk-wallet'
 import { coinselect, maxFunds, vsize } from '@bitcoinerlab/coinselect'
 import { getDustLimit, MAX_STANDARD_TX_VSIZE } from './dust.js'
-import { address as btcAddress } from 'bitcoinjs-lib'
+import { address as btcAddress, Psbt, Transaction } from 'bitcoinjs-lib'
 import { getAddressDescriptor, getScriptType } from './descriptor.js'
 import { Output } from '@bitcoinerlab/descriptors'
+import { compare, fromHex, toHex } from 'uint8array-tools'
 
 /** @typedef {import('./index.js').Utxo} Utxo */
 /** @typedef {import('./index.js').ChainUtxo} ChainUtxo */
@@ -32,6 +33,10 @@ import { Output } from '@bitcoinerlab/descriptors'
  *
  * Uses descriptors + coinselect to choose inputs, at a given feeRate (sats/vB). Returns the selected
  * inputs, the outputs to create and the computed fee as a spend plan.
+ *
+ * The fee and vsize are estimated by coinselect with a worst-case placeholder signature (72 bytes for ECDSA), so the real
+ * signed size does not exceed the estimate for low-S signers. Same approach as Bitcoin Core's `CalculateMaximumSignedTxSize`:
+ * https://github.com/bitcoin/bitcoin/blob/master/src/wallet/spend.cpp
  *
  * @param {Object} tx - The transaction.
  * @param {string} tx.fromAddress - The sender's address.
@@ -136,6 +141,10 @@ export function planSpend ({ fromAddress, targets, feeRate, network, chainUtxos 
  * worth less than their own input fee. Returns the selected inputs, the output to create and the
  * computed fee as a spend plan.
  *
+ * The fee and vsize are estimated by coinselect with a worst-case placeholder signature (72 bytes for ECDSA), so the real
+ * signed size does not exceed the estimate for low-S signers. Same approach as Bitcoin Core's `CalculateMaximumSignedTxSize`:
+ * https://github.com/bitcoin/bitcoin/blob/master/src/wallet/spend.cpp
+ *
  * @param {Object} tx - The transaction.
  * @param {string} tx.fromAddress - The sender's address.
  * @param {string} tx.toAddress - The recipient's address.
@@ -209,4 +218,115 @@ export function planSweep ({ fromAddress, toAddress, feeRate, network, chainUtxo
     feeRate,
     vsize: result.vsize
   }
+}
+
+/**
+ *
+ * @param {Object} param
+ * @param {SpendPlan} param.plan
+ * @param {Network} param.network - The network.
+ * @param {{ [txId: string]: string }} param.prevTxs
+ * @throws {AssertionError} If the plan's inputs minus its outputs don't add up to its fee.
+ */
+export function buildPsbt ({ plan, network, prevTxs }) {
+  verifyLegacyUtxos(plan.inputs.filter(({ scriptType }) => scriptType === 'legacy'), prevTxs)
+
+  const psbt = new Psbt({ network })
+
+  for (const input of plan.inputs) {
+    const baseInput = {
+      hash: input.outpoint.txid,
+      index: input.outpoint.vout
+    }
+
+    if (input.scriptType === 'legacy') {
+      psbt.addInput({
+        ...baseInput,
+        nonWitnessUtxo: fromHex(prevTxs[input.outpoint.txid])
+      })
+    } else {
+      psbt.addInput({
+        ...baseInput,
+        witnessUtxo: {
+          script: input.script,
+          value: input.value
+        }
+      })
+    }
+  }
+
+  for (const output of plan.outputs) {
+    psbt.addOutput({ address: output.address, value: output.value })
+  }
+
+  const totalInput = plan.inputs.reduce((sum, { value }) => sum + value, 0n)
+  const totalOutput = plan.outputs.reduce((sum, { value }) => sum + value, 0n)
+
+  if (totalInput - totalOutput !== plan.fee) {
+    throw new AssertionError('Fee mismatch between the spend plan and the PSBT.')
+  }
+
+  return psbt
+}
+
+/**
+ * Verifies each legacy (BIP-44/P2PKH) input's real previous output — fetched from the
+ * blockchain — matches what spend planning assumed, rather than trusting the client's
+ * `listSpendable` report as-is.
+ *
+ * @param {Utxo[]} utxos - The selected unspent outputs.
+ * @param {{ [txId: string]: string }} prevTxs - The raw hex of the previous transactions, by txid.
+ * @throws {ValueError} If a previous transaction is missing.
+ * @throws {AssertionError} If a previous transaction's id, script, or value doesn't match what was reported.
+ */
+export function verifyLegacyUtxos (utxos, prevTxs) {
+  for (const { outpoint: { txid, vout }, value, script: ownScript } of utxos) {
+    const prevHex = prevTxs[txid]
+
+    if (!prevHex) {
+      throw new ValueError(`Previous transaction not found for input ${txid}:${vout}.`)
+    }
+
+    const prevTx = Transaction.fromHex(prevHex)
+
+    if (prevTx.getId() !== txid) {
+      throw new AssertionError(`Previous transaction id mismatch for input ${txid}:${vout}.`)
+    }
+
+    const prevOut = prevTx.outs[vout]
+
+    if (!prevOut || compare(prevOut.script, ownScript) !== 0) {
+      throw new AssertionError(`Previous output script mismatch for input ${txid}:${vout}.`)
+    }
+
+    if (BigInt(prevOut.value) !== value) {
+      throw new AssertionError(`Previous output value mismatch for input ${txid}:${vout}.`)
+    }
+  }
+}
+
+/**
+ * Computes the fee of a signed transaction from the previous transactions it spends.
+ *
+ * @param {Transaction} transaction - The decoded signed transaction.
+ * @param {{ [txId: string]: string }} prevTxs - The raw hex of the previous transactions, by txid.
+ * @returns {bigint} The fee (in satoshis).
+ * @throws {ValueError} If a previous transaction is missing.
+ */
+export function getSignedTransactionFee (transaction, prevTxs) {
+  const totalInput = transaction.ins.reduce((sum, { hash, index }) => {
+    const txid = toHex(Uint8Array.from(hash).reverse())
+    const prevHex = prevTxs[txid]
+
+    if (!prevHex) {
+      throw new ValueError(`Previous transaction not found for input ${txid}:${index}.`)
+    }
+
+    const prevOut = Transaction.fromHex(prevHex).outs[index]
+
+    return sum + BigInt(prevOut.value)
+  }, 0n)
+  const totalOutput = transaction.outs.reduce((sum, { value }) => sum + BigInt(value), 0n)
+
+  return totalInput - totalOutput
 }

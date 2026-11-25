@@ -16,15 +16,14 @@
 import { address as btcAddress, Psbt, Transaction } from 'bitcoinjs-lib'
 import pLimit from 'p-limit'
 import { LRUCache } from 'lru-cache'
-import { AssertionError, MaximumFeeExceededError, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
+import { AssertionError, MaximumFeeExceededError, UnsupportedOperationError } from '@tetherto/wdk-wallet'
 
-import { getDustLimit } from './primitives/dust.js'
 import PrivateKeySignerBtc from './signers/private-key-signer-btc.js'
 import { assertNoBipOption, getBtcDerivationPathPrefix } from './primitives/index.js'
 import SeedSignerBtc from './signers/seed-signer-btc.js'
 import WalletAccountReadOnlyBtc from './wallet-account-read-only-btc.js'
-import { compare, fromHex, toHex } from 'uint8array-tools'
-import { planSpend } from './primitives/psbt.js'
+import { compare, toHex } from 'uint8array-tools'
+import { buildPsbt, getSignedTransactionFee, planSpend } from './primitives/psbt.js'
 
 /** @typedef {import('@tetherto/wdk-wallet').IWalletAccount} IWalletAccount */
 
@@ -476,158 +475,40 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @returns {Promise<bigint>} The fee (in satoshis).
    */
   async _getSignedTransactionFee (transaction) {
-    let totalInput = 0n
+    const getPrevTxId = ({ hash }) => toHex(Uint8Array.from(hash).reverse())
 
-    for (const input of transaction.ins) {
-      const prevTxId = Buffer.from(input.hash).reverse().toString('hex')
-      const prevHex = await this._client.getTransaction(prevTxId)
-      const prevTx = Transaction.fromHex(prevHex)
+    const prevTxs = await this._getPrevTxs(transaction.ins.map(getPrevTxId))
 
-      totalInput += BigInt(prevTx.outs[input.index].value)
-    }
-
-    let totalOutput = 0n
-
-    for (const output of transaction.outs) {
-      totalOutput += BigInt(output.value)
-    }
-
-    return totalInput - totalOutput
+    return getSignedTransactionFee(transaction, prevTxs)
   }
 
   /**
-   * Verifies each legacy (BIP-44/P2PKH) input's real previous output — fetched from the
-   * blockchain — matches what spend planning assumed, rather than trusting the client's
-   * `listSpendable` report as-is.
+   * Fetches the raw transactions with the given ids, concurrently.
    *
    * @private
-   * @param {Utxo[]} utxos - The selected unspent outputs.
-   * @param {(txid: string) => Promise<string>} getPrevTxHex - Resolves a txid to its raw hex, cached.
-   * @throws {AssertionError} If a previous transaction's id, script, or value doesn't match what was reported.
+   * @param {string[]} txids - The transaction ids (duplicates are fetched once).
+   * @returns {Promise<{ [txId: string]: string }>} The raw hex of the transactions, by txid.
    */
-  async _verifyLegacyUtxos (utxos, getPrevTxHex) {
-    const ownScript = btcAddress.toOutputScript(await this.getAddress(), this._network)
+  async _getPrevTxs (txids) {
+    const limitConcurrency = pLimit(MAX_CONCURRENT_REQUESTS)
 
-    for (const { outpoint: { txid, vout }, value } of utxos) {
-      const prevHex = await getPrevTxHex(txid)
-      const prevTx = Transaction.fromHex(prevHex)
+    return Object.fromEntries(await Promise.all([...new Set(txids)].map(async (txid) => {
+      const hex = await limitConcurrency(() => this._client.getTransaction(txid))
 
-      if (prevTx.getId() !== txid) {
-        throw new AssertionError(`Previous transaction id mismatch for input ${txid}:${vout}.`)
-      }
-
-      const prevOut = prevTx.outs[vout]
-
-      if (!prevOut || compare(prevOut.script, ownScript) !== 0) {
-        throw new AssertionError(`Previous output script mismatch for input ${txid}:${vout}.`)
-      }
-
-      if (BigInt(prevOut.value) !== value) {
-        throw new AssertionError(`Previous output value mismatch for input ${txid}:${vout}.`)
-      }
-    }
+      return [txid, hex]
+    })))
   }
 
   /**
+   * Plans, builds, signs and finalizes a send transaction.
+   *
    * @private
-   * @param {SpendPlan} plan - The spend plan.
+   * @param {BtcTransaction} tx - The transaction to build.
+   * @returns {Promise<{ tx: { txid: string, hex: string, fee: bigint, vsize: number }, plan: SpendPlan }>} The signed transaction and the spend plan it was built from.
+   * @throws {ValueError} If the amount doesn't clear the dust limit, or a legacy input's previous transaction is missing.
+   * @throws {AssertionError} If a legacy input's previous transaction doesn't match what was reported.
+   * @throws {TransactionError} If the account has no unspent outputs, or its balance doesn't cover the amount and its fees.
    */
-  async _getRawTransaction ({ inputs, outputs, fee, feeRate }) {
-    const recipient = outputs.find(({ isChange }) => !isChange)
-    const change = outputs.find(({ isChange }) => isChange)
-
-    const to = recipient.address
-    const value = recipient.value
-    const changeValue = change?.value ?? 0n
-
-    const legacyPrevTxCache = new Map()
-    const getPrevTxHex = async (txid) => {
-      if (legacyPrevTxCache.has(txid)) return legacyPrevTxCache.get(txid)
-      const hex = await this._client.getTransaction(txid)
-      legacyPrevTxCache.set(txid, hex)
-      return hex
-    }
-    if (this._signer.type === 'legacy') {
-      await this._verifyLegacyUtxos(inputs, getPrevTxHex)
-    }
-    const buildUnsignedPsbt = async (rcptVal, chgVal) => {
-      const psbt = new Psbt({ network: this._network })
-
-      for (const utxo of inputs) {
-        const baseInput = {
-          hash: utxo.outpoint.txid,
-          index: utxo.outpoint.vout
-        }
-
-        if (this._signer.type === 'legacy') {
-          const prevHex = await getPrevTxHex(utxo.outpoint.txid)
-          psbt.addInput({
-            ...baseInput,
-            nonWitnessUtxo: fromHex(prevHex)
-          })
-        } else {
-          psbt.addInput({
-            ...baseInput,
-            witnessUtxo: {
-              script: utxo.script,
-              value: utxo.value
-            }
-          })
-        }
-      }
-
-      psbt.addOutput({ address: to, value: rcptVal })
-      if (chgVal > 0n) psbt.addOutput({ address: change.address, value: chgVal })
-
-      return psbt
-    }
-
-    const signAndFinalize = async (psbt) => {
-      const signedBase64 = await this._signer.signPsbt(psbt)
-      const signed = Psbt.fromBase64(signedBase64)
-      signed.finalizeAllInputs()
-      return signed.extractTransaction()
-    }
-
-    let currentRecipientAmnt = value
-    let currentChange = changeValue
-
-    let unsigned = await buildUnsignedPsbt(currentRecipientAmnt, currentChange)
-    let tx = await signAndFinalize(unsigned)
-    let vsize = tx.virtualSize()
-    let requiredFee = BigInt(Math.ceil(vsize * feeRate))
-
-    if (requiredFee <= fee) {
-      return { txid: tx.getId(), hex: tx.toHex(), fee, vsize }
-    }
-
-    const delta = requiredFee - fee
-    fee = requiredFee
-    if (currentChange > 0n) {
-      let newChange = currentChange - delta
-      if (newChange < getDustLimit(btcAddress.toOutputScript(change.address, this._network))) newChange = 0n
-      currentChange = newChange
-      unsigned = await buildUnsignedPsbt(currentRecipientAmnt, currentChange)
-      tx = await signAndFinalize(unsigned)
-    } else {
-      const newRecipientAmnt = currentRecipientAmnt - delta
-      const recipientDustLimit = getDustLimit(btcAddress.toOutputScript(to, this._network))
-      if (newRecipientAmnt < recipientDustLimit) {
-        throw new ValueError(`The amount after fees must be at least the dust limit (= ${recipientDustLimit}).`)
-      }
-      currentRecipientAmnt = newRecipientAmnt
-      unsigned = await buildUnsignedPsbt(currentRecipientAmnt, currentChange)
-      tx = await signAndFinalize(unsigned)
-    }
-
-    vsize = tx.virtualSize()
-    requiredFee = BigInt(Math.ceil(vsize * feeRate))
-    if (requiredFee > fee) throw new AssertionError('Fee shortfall after output rebalance.')
-
-    return { txid: tx.getId(), hex: tx.toHex(), fee, vsize }
-  }
-
-  /** @private */
   async _buildSignedTransaction ({ to, value, feeRate, confirmationTarget = 1 }) {
     await this._ensureConnected()
     const address = await this.getAddress()
@@ -644,7 +525,24 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
       network: this._network,
       chainUtxos
     })
-    const tx = await this._getRawTransaction(plan)
+
+    const prevTxs = await this._getPrevTxs(
+      plan.inputs.filter(({ scriptType }) => scriptType === 'legacy').map(({ outpoint: { txid } }) => txid)
+    )
+
+    const psbt = buildPsbt({ plan, network: this._network, prevTxs })
+    const signed = Psbt.fromBase64(await this._signer.signPsbt(psbt))
+
+    signed.finalizeAllInputs()
+
+    const signedRawTx = signed.extractTransaction()
+
+    if (BigInt(Math.ceil(signedRawTx.virtualSize() * plan.feeRate)) > plan.fee) {
+      throw new AssertionError('Fee shortfall after signing.')
+    }
+
+    const tx = { txid: signedRawTx.getId(), hex: signedRawTx.toHex(), fee: plan.fee, vsize: signedRawTx.virtualSize() }
+
     return { tx, plan }
   }
 }

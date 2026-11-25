@@ -151,22 +151,15 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      */
     private _getSignedTransactionFee;
     /**
-     * Verifies each legacy (BIP-44/P2PKH) input's real previous output — fetched from the
-     * blockchain — matches what spend planning assumed, rather than trusting the client's
-     * `listSpendable` report as-is.
+     * Plans, builds, signs and finalizes a send transaction.
      *
      * @private
-     * @param {Utxo[]} utxos - The selected unspent outputs.
-     * @param {(txid: string) => Promise<string>} getPrevTxHex - Resolves a txid to its raw hex, cached.
-     * @throws {AssertionError} If a previous transaction's id, script, or value doesn't match what was reported.
+     * @param {BtcTransaction} tx - The transaction to build.
+     * @returns {Promise<{ tx: { txid: string, hex: string, fee: bigint, vsize: number }, plan: SpendPlan }>} The signed transaction and the spend plan it was built from.
+     * @throws {ValueError} If the amount doesn't clear the dust limit, or a legacy input's previous transaction is missing.
+     * @throws {AssertionError} If a legacy input's previous transaction doesn't match what was reported.
+     * @throws {TransactionError} If the account has no unspent outputs, or its balance doesn't cover the amount and its fees.
      */
-    private _verifyLegacyUtxos;
-    /**
-     * @private
-     * @param {SpendPlan} plan - The spend plan.
-     */
-    private _getRawTransaction;
-    /** @private */
     private _buildSignedTransaction;
 }
 export type IWalletAccount<TSignedTransaction> = import("@tetherto/wdk-wallet").IWalletAccount<TSignedTransaction>;

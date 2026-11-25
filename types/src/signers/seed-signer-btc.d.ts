@@ -25,7 +25,7 @@ export default class SeedSignerBtc implements ISignerBtc {
      * @param {string | Uint8Array} seed - BIP-39 mnemonic or seed bytes.
      * @param {string} [path] - A BIP-32 path (default: the coin-type node for the configured address type and network, e.g. "m/84'/0'"). A signer at the default path derives the standard accounts below it, so it works as a wallet manager's default signer and `derive("0'/0/0")` yields the first account.
      * @param {BtcSignerConfig} [config] - The signer configuration.
-     * @throws {ValueError} If the given seed phrase is invalid.
+     * @throws {ValueError} If the given seed phrase is invalid, the path is invalid or not absolute, the network or type is not supported, or the path's purpose or coin type disagrees with the type or network.
      */
     constructor(seed: string | Uint8Array, path?: string, config?: BtcSignerConfig);
     /** @private */
