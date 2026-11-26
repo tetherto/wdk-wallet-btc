@@ -629,7 +629,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
     const fromAddressScript = btcAddress.toOutputScript(fromAddress, network)
     const fromAddressPrefix = Object.keys(BIP_BY_ADDRESS_PREFIX).find(p => fromAddress.startsWith(p))
-    const fromAddressScriptType = BIP_BY_ADDRESS_PREFIX[fromAddressPrefix] === 84 ? 'segwit' : 'legacy'
+    const fromAddressScriptType = BIP_BY_ADDRESS_PREFIX[fromAddressPrefix] === 84 ? 'p2wpkh' : 'p2pkh'
     const fromAddressOutput = new Output({ descriptor: `addr(${fromAddress})`, network })
     const toAddressOutput = new Output({ descriptor: `addr(${toAddress})`, network })
 

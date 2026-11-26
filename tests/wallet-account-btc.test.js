@@ -50,7 +50,7 @@ export const FEES = {
 }
 
 describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
-  const SIGNER_CONFIG = { network: 'regtest', type: bip === 44 ? 'legacy' : 'segwit' }
+  const SIGNER_CONFIG = { network: 'regtest', type: bip === 44 ? 'p2pkh' : 'p2wpkh' }
   const CLIENT_CONFIG = { client: { type: 'electrum', clientConfig: { host: HOST, port: ELECTRUM_PORT } } }
   const CONFIG = { network: 'regtest', bip, ...CLIENT_CONFIG }
   const DERIVATION_PATH_PREFIX = `m/${bip}'/1'`

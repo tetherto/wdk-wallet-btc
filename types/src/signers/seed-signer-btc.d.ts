@@ -5,6 +5,7 @@
  * @internal
  * @param {BtcSignerConfig} [config] - The signer configuration.
  * @returns {string} The derivation path prefix (e.g. "84'/0'").
+ * @throws {ValueError} If the given network is not supported.
  */
 export function getBtcDerivationPathPrefix(config?: BtcSignerConfig): string;
 /**
@@ -83,7 +84,7 @@ export default class SeedSignerBtc implements ISignerBtc {
      */
     get network(): "bitcoin" | "regtest" | "testnet";
     /**
-     * The address type of the signer's addresses ("legacy" for P2PKH, "segwit" for P2WPKH).
+     * The address type of the signer's addresses ("p2pkh" for P2PKH, "p2wpkh" for P2WPKH).
      *
      * @type {ScriptType}
      */

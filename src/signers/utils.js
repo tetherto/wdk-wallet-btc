@@ -57,7 +57,7 @@ export function signPsbtWithKey (psbtInstance, account) {
  * @internal
  * @type {ScriptType}
  */
-export const DEFAULT_ADDRESS_TYPE = 'segwit'
+export const DEFAULT_ADDRESS_TYPE = 'p2wpkh'
 
 /**
  * Maps a wallet-level BIP purpose (44 or 84) to the equivalent signer address type.
@@ -72,7 +72,7 @@ export function getSignerTypeForBip (bip) {
   if (![44, 84].includes(bip)) {
     throw new ValueError('Invalid bip specification. Supported bips: 44, 84.')
   }
-  return bip === 44 ? 'legacy' : 'segwit'
+  return bip === 44 ? 'p2pkh' : 'p2wpkh'
 }
 
 /**
@@ -85,7 +85,7 @@ export function getSignerTypeForBip (bip) {
  * @returns {string} The Bitcoin address.
  */
 export function getAddressFromPublicKey (publicKey, network, type) {
-  const { address } = type === 'legacy'
+  const { address } = type === 'p2pkh'
     ? payments.p2pkh({ pubkey: publicKey, network })
     : payments.p2wpkh({ pubkey: publicKey, network })
   return address
@@ -101,5 +101,5 @@ export function getAddressFromPublicKey (publicKey, network, type) {
  * @returns {string} The message's signature.
  */
 export function signMessage (message, privateKey, type) {
-  return toBase64(bitcoinMessage.sign(message, privateKey, true, type === 'legacy' ? undefined : { segwitType: 'p2wpkh' }))
+  return toBase64(bitcoinMessage.sign(message, privateKey, true, type === 'p2pkh' ? undefined : { segwitType: 'p2wpkh' }))
 }

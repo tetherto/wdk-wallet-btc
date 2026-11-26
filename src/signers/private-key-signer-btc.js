@@ -118,7 +118,7 @@ export default class PrivateKeySignerBtc {
   }
 
   /**
-   * The address type of the signer's addresses ("legacy" for P2PKH, "segwit" for P2WPKH).
+   * The address type of the signer's addresses ("p2pkh" for P2PKH, "p2wpkh" for P2WPKH).
    *
    * @type {ScriptType}
    */

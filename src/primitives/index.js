@@ -16,9 +16,9 @@
 /**
  * The type of script an output locks to. Signers use it for address encoding and message signing only, not PSBT signing.
  *
- * @typedef {"legacy" | "segwit"} ScriptType
- *   - "legacy": [P2PKH (BIP-44)](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)
- *   - "segwit": [P2WPKH / native SegWit (BIP-84)](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki)
+ * @typedef {"p2pkh" | "p2wpkh"} ScriptType
+ *   - "p2pkh": [P2PKH (BIP-44)](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)
+ *   - "p2wpkh": [P2WPKH / native SegWit (BIP-84)](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki)
  * @todo Add support for P2SH-wrapped SegWit (BIP-49) and BIP-86 (Taproot).
  */
 

@@ -69,7 +69,7 @@ export function getBtcDerivationPathPrefix (config = {}) {
   if (!networks[network]) {
     throw new ValueError(`Unsupported network "${network}". Supported networks: bitcoin, testnet, regtest.`)
   }
-  return `${type === 'legacy' ? 44 : 84}'/${network === 'bitcoin' ? 0 : 1}'`
+  return `${type === 'p2pkh' ? 44 : 84}'/${network === 'bitcoin' ? 0 : 1}'`
 }
 
 /**
@@ -237,7 +237,7 @@ export default class SeedSignerBtc {
   }
 
   /**
-   * The address type of the signer's addresses ("legacy" for P2PKH, "segwit" for P2WPKH).
+   * The address type of the signer's addresses ("p2pkh" for P2PKH, "p2wpkh" for P2WPKH).
    *
    * @type {ScriptType}
    */

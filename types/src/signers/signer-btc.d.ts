@@ -19,7 +19,7 @@ export class ISignerBtc extends ISigner {
      */
     get network(): "bitcoin" | "regtest" | "testnet";
     /**
-     * The address type of the signer's addresses ("legacy" for P2PKH, "segwit" for P2WPKH).
+     * The address type of the signer's addresses ("p2pkh" for P2PKH, "p2wpkh" for P2WPKH).
      *
      * @type {ScriptType}
      */
@@ -46,7 +46,7 @@ export type BtcSignerConfig = {
      */
     network?: "bitcoin" | "regtest" | "testnet";
     /**
-     * - The signer's address type (default: "segwit").
+     * - The signer's address type (default: "p2wpkh").
      */
     type?: ScriptType;
 };

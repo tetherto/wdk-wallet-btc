@@ -565,7 +565,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
       legacyPrevTxCache.set(txid, hex)
       return hex
     }
-    if (this._signer.type === 'legacy') {
+    if (this._signer.type === 'p2pkh') {
       await this._verifyLegacyUtxos(inputs, getPrevTxHex)
     }
     const buildUnsignedPsbt = async (rcptVal, chgVal) => {
@@ -577,7 +577,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
           index: utxo.outpoint.vout
         }
 
-        if (this._signer.type === 'legacy') {
+        if (this._signer.type === 'p2pkh') {
           const prevHex = await getPrevTxHex(utxo.outpoint.txid)
           psbt.addInput({
             ...baseInput,

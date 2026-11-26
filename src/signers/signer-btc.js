@@ -23,7 +23,7 @@ import { ISigner, NotImplementedError } from '@tetherto/wdk-wallet'
 /**
  * @typedef {Object} BtcSignerConfig
  * @property {"bitcoin" | "regtest" | "testnet"} [network] - The name of the network to use (default: "bitcoin").
- * @property {ScriptType} [type] - The signer's address type (default: "segwit").
+ * @property {ScriptType} [type] - The signer's address type (default: "p2wpkh").
  */
 
 /**
@@ -53,7 +53,7 @@ export class ISignerBtc extends ISigner {
   }
 
   /**
-   * The address type of the signer's addresses ("legacy" for P2PKH, "segwit" for P2WPKH).
+   * The address type of the signer's addresses ("p2pkh" for P2PKH, "p2wpkh" for P2WPKH).
    *
    * @type {ScriptType}
    */

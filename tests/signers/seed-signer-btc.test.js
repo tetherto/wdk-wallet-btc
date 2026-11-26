@@ -108,7 +108,7 @@ describe('SeedSignerBtc', () => {
       expect(signer.path).toBe(COIN_NODE_PATH)
       expect(await signer.getAddress()).toBe(COIN_NODE_ADDRESS)
       expect(signer.network).toBe('bitcoin')
-      expect(signer.type).toBe('segwit')
+      expect(signer.type).toBe('p2wpkh')
 
       signer.dispose()
     })
@@ -134,11 +134,11 @@ describe('SeedSignerBtc', () => {
     })
 
     test('should create a legacy signer with a P2PKH address', async () => {
-      const signer = new SeedSignerBtc(VALID_SEED_PHRASE, undefined, { type: 'legacy' })
+      const signer = new SeedSignerBtc(VALID_SEED_PHRASE, undefined, { type: 'p2pkh' })
 
       expect(signer.path).toBe(LEGACY_COIN_NODE_PATH)
       expect(await signer.getAddress()).toBe(LEGACY_COIN_NODE_ADDRESS)
-      expect(signer.type).toBe('legacy')
+      expect(signer.type).toBe('p2pkh')
 
       signer.dispose()
     })
@@ -285,7 +285,7 @@ describe('SeedSignerBtc', () => {
       const child = await root.derive("0'/0/0")
 
       expect(child.network).toBe('regtest')
-      expect(child.type).toBe('segwit')
+      expect(child.type).toBe('p2wpkh')
       expect(await child.getAddress()).toBe(REGTEST_ADDRESS)
 
       child.dispose()
@@ -337,7 +337,7 @@ describe('SeedSignerBtc', () => {
     })
 
     test('should derive a legacy account when configured as legacy', async () => {
-      const root = SeedSignerBtc.fromXprv(REGTEST_MASTER_TPRV, { ...REGTEST_CONFIG, type: 'legacy' })
+      const root = SeedSignerBtc.fromXprv(REGTEST_MASTER_TPRV, { ...REGTEST_CONFIG, type: 'p2pkh' })
 
       const signer = await root.derive("44'/1'/0'/0/0")
 
