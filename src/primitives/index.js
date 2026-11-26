@@ -76,6 +76,15 @@ import { ValueError } from '@tetherto/wdk-wallet'
  * @property {number} vsize - The estimated virtual size of the transaction.
  */
 
+/**
+ * The key origin of a key.
+ *
+ * @typedef {Object} KeyOrigin
+ * @property {string} masterFingerprint - The fingerprint of the master key (8 hex characters).
+ * @property {string} path - The absolute derivation path of the key (e.g. "m/84'/0'/0'/0/0").
+ * @property {Uint8Array} pubkey - The compressed public key.
+ */
+
 /** @type {ScriptType} */
 export const DEFAULT_SCRIPT_TYPE = 'segwit'
 

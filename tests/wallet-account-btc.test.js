@@ -1,6 +1,7 @@
-import { afterAll, afterEach, beforeAll, describe, expect, test } from '@jest/globals'
+import { afterAll, afterEach, beforeAll, describe, expect, jest, test } from '@jest/globals'
 
 import { mnemonicToSeedSync } from 'bip39'
+import { fromHex } from 'uint8array-tools'
 
 import { address as btcAddress, networks, payments, Transaction } from 'bitcoinjs-lib'
 
@@ -698,6 +699,70 @@ describe.each(['legacy', 'segwit'])('WalletAccountBtc (%s)', (type) => {
     })
   })
 
+  describe('key origins', () => {
+    const PATH = `${DERIVATION_PATH_PREFIX}/0'/0/0`
+
+    const createAccountWith = (overrides) => {
+      const signer = new SeedSignerBtc(SEED_PHRASE, PATH, SIGNER_CONFIG)
+
+      for (const [name, value] of Object.entries(overrides)) {
+        Object.defineProperty(signer, name, { get: () => value })
+      }
+
+      return new WalletAccountBtc(signer, CLIENT_CONFIG)
+    }
+
+    test('should return the signer\'s key origin by the account\'s address', async () => {
+      const keyOrigins = await account._getKeyOrigins()
+
+      expect(Object.keys(keyOrigins)).toEqual([ACCOUNTS[type].address])
+      expect(keyOrigins[ACCOUNTS[type].address].masterFingerprint).toBe(account._signer.masterFingerprint)
+      expect(keyOrigins[ACCOUNTS[type].address].path).toBe(ACCOUNTS[type].path)
+      expect(Buffer.from(keyOrigins[ACCOUNTS[type].address].pubkey).toString('hex')).toBe(ACCOUNTS[type].keyPair.publicKey)
+    })
+
+    test('should return no key origins if the signer has no master fingerprint', async () => {
+      const account = createAccountWith({ masterFingerprint: undefined })
+
+      expect(await account._getKeyOrigins()).toEqual({})
+
+      account.dispose()
+    })
+
+    test('should return no key origins if the signer\'s path is not absolute', async () => {
+      const account = createAccountWith({ path: "0'/0/0" })
+
+      expect(await account._getKeyOrigins()).toEqual({})
+
+      account.dispose()
+    })
+
+    test('should attach the key origin to the inputs and the change output of the PSBT given to the signer', async () => {
+      // The key origin never reaches the chain, so the broadcast transaction can't show it. Spy on the
+      // signer to capture the PSBT the account hands it; the spy calls through, so the send still works.
+      const signPsbt = jest.spyOn(account._signer, 'signPsbt')
+
+      await account.sendTransaction({ to: recipient, value: 1_000, feeRate: 1 })
+      await waiter.mine()
+
+      // The first argument of the first signPsbt call is the PSBT the signer received.
+      const psbt = signPsbt.mock.calls[0][0]
+      // Restore the original method so the spy doesn't leak into the other tests sharing this account.
+      signPsbt.mockRestore()
+
+      const expected = [{ masterFingerprint: fromHex(account._signer.masterFingerprint), path: ACCOUNTS[type].path, pubkey: fromHex(ACCOUNTS[type].keyPair.publicKey) }]
+
+      expect(psbt.data.inputs.length).toBeGreaterThan(0)
+      for (const input of psbt.data.inputs) {
+        expect(input.bip32Derivation).toEqual(expected)
+      }
+
+      psbt.txOutputs.forEach(({ address }, index) => {
+        expect(psbt.data.outputs[index].bip32Derivation).toEqual(address === ACCOUNTS[type].address ? expected : undefined)
+      })
+    })
+  })
+
   describe('PrivateKeySignerBtc integration', () => {
     const MESSAGE = 'Dummy message to sign.'
     let accountPk, recipientPk
@@ -746,6 +811,26 @@ describe.each(['legacy', 'segwit'])('WalletAccountBtc (%s)', (type) => {
 
       const feeSats = bitcoin.getTransactionFeeSats(hash)
       expect(fee).toBe(BigInt(feeSats))
+    })
+
+    test('should return no key origins', async () => {
+      expect(await accountPk._getKeyOrigins()).toEqual({})
+    })
+
+    test('should not attach a key origin to the PSBT given to the signer', async () => {
+      // Spy on the signer to capture the PSBT the account hands it; the spy calls through, so the send still works.
+      const signPsbt = jest.spyOn(accountPk._signer, 'signPsbt')
+
+      await accountPk.sendTransaction({ to: recipientPk, value: 1_000, feeRate: 1 })
+      await waiter.mine()
+
+      const psbt = signPsbt.mock.calls[0][0]
+      // Restore the original method so the spy doesn't leak into the other tests sharing this account.
+      signPsbt.mockRestore()
+
+      for (const entry of [...psbt.data.inputs, ...psbt.data.outputs]) {
+        expect(entry.bip32Derivation).toBeUndefined()
+      }
     })
 
     test('should wipe the internally created signer on disposal', () => {

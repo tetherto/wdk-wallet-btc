@@ -105,6 +105,7 @@ export default class SeedSignerBtc implements ISignerBtc {
      * Returns the extended public key of the signer's node (xpub on mainnet, tpub on testnet and regtest).
      *
      * @returns {Promise<string>} The extended public key in base58 format.
+     * @throws {DisposalError} If the signer has been disposed.
      */
     getExtendedPublicKey(): Promise<string>;
     /**

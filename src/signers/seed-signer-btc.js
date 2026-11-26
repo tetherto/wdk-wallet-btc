@@ -15,7 +15,7 @@
 import { hmac } from '@noble/hashes/hmac.js'
 import { sha512 } from '@noble/hashes/sha2.js'
 import { networks, Psbt } from 'bitcoinjs-lib'
-import { ValueError } from '@tetherto/wdk-wallet'
+import { DisposalError, ValueError } from '@tetherto/wdk-wallet'
 
 import * as bip39 from 'bip39'
 
@@ -270,8 +270,13 @@ export default class SeedSignerBtc {
    * Returns the extended public key of the signer's node (xpub on mainnet, tpub on testnet and regtest).
    *
    * @returns {Promise<string>} The extended public key in base58 format.
+   * @throws {DisposalError} If the signer has been disposed.
    */
   async getExtendedPublicKey () {
+    if (!this._account) {
+      throw new DisposalError('The signer has been disposed.')
+    }
+
     return this._account.neutered().toBase58()
   }
 

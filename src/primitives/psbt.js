@@ -24,6 +24,7 @@ import { compare, fromHex, toHex } from 'uint8array-tools'
 /** @typedef {import('./index.js').Utxo} Utxo */
 /** @typedef {import('./index.js').ChainUtxo} ChainUtxo */
 /** @typedef {import('./index.js').SpendPlan} SpendPlan */
+/** @typedef {import('./index.js').KeyOrigin} KeyOrigin */
 
 /** @typedef {import('@bitcoinerlab/descriptors').OutputInstance} OutputInstance */
 /** @typedef {import('bitcoinjs-lib').Network} Network */
@@ -221,22 +222,33 @@ export function planSweep ({ fromAddress, toAddress, feeRate, network, chainUtxo
 }
 
 /**
+ * Builds an unsigned PSBT from a spend plan, after verifying its legacy inputs against their
+ * previous transactions. Inputs and change outputs carry their key origin when one is given.
  *
  * @param {Object} param
  * @param {SpendPlan} param.plan
  * @param {Network} param.network - The network.
  * @param {{ [txId: string]: string }} param.prevTxs
+ * @param {{ [address: string]: KeyOrigin }} [param.keyOrigins] - The key origins by address, attached to the inputs and the change outputs paying those addresses.
  * @throws {AssertionError} If the plan's inputs minus its outputs don't add up to its fee.
  */
-export function buildPsbt ({ plan, network, prevTxs }) {
+export function buildPsbt ({ plan, network, prevTxs, keyOrigins = {} }) {
   verifyLegacyUtxos(plan.inputs.filter(({ scriptType }) => scriptType === 'legacy'), prevTxs)
 
   const psbt = new Psbt({ network })
+  const getBip32Derivation = (address) => {
+    const origin = keyOrigins[address]
+
+    return origin
+      ? { bip32Derivation: [{ masterFingerprint: fromHex(origin.masterFingerprint), path: origin.path, pubkey: origin.pubkey }] }
+      : {}
+  }
 
   for (const input of plan.inputs) {
     const baseInput = {
       hash: input.outpoint.txid,
-      index: input.outpoint.vout
+      index: input.outpoint.vout,
+      ...getBip32Derivation(input.address)
     }
 
     if (input.scriptType === 'legacy') {
@@ -256,7 +268,11 @@ export function buildPsbt ({ plan, network, prevTxs }) {
   }
 
   for (const output of plan.outputs) {
-    psbt.addOutput({ address: output.address, value: output.value })
+    psbt.addOutput({
+      address: output.address,
+      value: output.value,
+      ...(output.isChange && getBip32Derivation(output.address))
+    })
   }
 
   const totalInput = plan.inputs.reduce((sum, { value }) => sum + value, 0n)

@@ -2,13 +2,14 @@ import { describe, expect, test } from '@jest/globals'
 
 import { address as btcAddress, networks, payments } from 'bitcoinjs-lib'
 import { vsize } from '@bitcoinerlab/coinselect'
+import { fromHex } from 'uint8array-tools'
 
 import { TransactionError, TransactionErrorReason, ValueError } from '@tetherto/wdk-wallet'
 
 import { Output } from '../../src/crypto-engine.js'
 import { getAddressDescriptor } from '../../src/primitives/descriptor.js'
 import { MAX_STANDARD_TX_VSIZE, getDustLimit } from '../../src/primitives/dust.js'
-import { planSpend, planSweep } from '../../src/primitives/psbt.js'
+import { buildPsbt, planSpend, planSweep } from '../../src/primitives/psbt.js'
 
 import { sweepFee } from '../helpers/utils.js'
 
@@ -450,5 +451,77 @@ describe('planSweep', () => {
       expect(build).toThrow(ValueError)
       expect(build).toThrow('The transaction exceeds the maximum standard size.')
     })
+  })
+})
+
+describe('buildPsbt key origins', () => {
+  const FROM_OTHER = payments.p2wpkh({ hash: hashOf(7, 20), network }).address
+
+  function origin (path, seed) {
+    return { masterFingerprint: '0a0b0c0d', path, pubkey: Buffer.concat([Buffer.from([2]), hashOf(seed, 32)]) }
+  }
+
+  const ORIGIN_FROM = origin("m/84'/1'/0'/0/0", 8)
+  const ORIGIN_FROM_OTHER = origin("m/84'/1'/0'/0/1", 9)
+
+  function segwitInput (address, index) {
+    return {
+      outpoint: { txid: index.toString(16).padStart(64, '0'), vout: 0 },
+      value: 100_000n,
+      height: 100,
+      script: btcAddress.toOutputScript(address, network),
+      address,
+      scriptType: 'segwit'
+    }
+  }
+
+  const PLAN = {
+    inputs: [segwitInput(FROM, 1), segwitInput(FROM_OTHER, 2)],
+    outputs: [
+      { address: TO, value: 50_000n },
+      { address: FROM, value: 149_000n, isChange: true }
+    ],
+    fee: 1_000n,
+    feeRate: 1,
+    vsize: 200
+  }
+
+  function build (keyOrigins) {
+    return buildPsbt({ plan: PLAN, network, prevTxs: {}, keyOrigins })
+  }
+
+  test('should attach the key origin to each input by its address', () => {
+    const { inputs } = build({ [FROM]: ORIGIN_FROM, [FROM_OTHER]: ORIGIN_FROM_OTHER }).data
+
+    expect(inputs[0].bip32Derivation).toEqual([{ masterFingerprint: fromHex(ORIGIN_FROM.masterFingerprint), path: ORIGIN_FROM.path, pubkey: ORIGIN_FROM.pubkey }])
+    expect(inputs[1].bip32Derivation).toEqual([{ masterFingerprint: fromHex(ORIGIN_FROM_OTHER.masterFingerprint), path: ORIGIN_FROM_OTHER.path, pubkey: ORIGIN_FROM_OTHER.pubkey }])
+  })
+
+  test('should attach the key origin to the change output', () => {
+    const { outputs } = build({ [FROM]: ORIGIN_FROM }).data
+
+    expect(outputs[1].bip32Derivation).toEqual([{ masterFingerprint: fromHex(ORIGIN_FROM.masterFingerprint), path: ORIGIN_FROM.path, pubkey: ORIGIN_FROM.pubkey }])
+  })
+
+  test('should not attach a key origin to a non-change output, even if its address is mapped', () => {
+    const { outputs } = build({ [TO]: origin("m/84'/1'/0'/0/2", 10) }).data
+
+    expect(outputs[0].bip32Derivation).toBeUndefined()
+  })
+
+  test('should not attach a key origin to an input or change output whose address is not mapped', () => {
+    const { inputs, outputs } = build({ [FROM_OTHER]: ORIGIN_FROM_OTHER }).data
+
+    expect(inputs[0].bip32Derivation).toBeUndefined()
+    expect(inputs[1].bip32Derivation).toEqual([{ masterFingerprint: fromHex(ORIGIN_FROM_OTHER.masterFingerprint), path: ORIGIN_FROM_OTHER.path, pubkey: ORIGIN_FROM_OTHER.pubkey }])
+    expect(outputs[1].bip32Derivation).toBeUndefined()
+  })
+
+  test('should not attach any key origin without key origins', () => {
+    const { inputs, outputs } = build().data
+
+    for (const entry of [...inputs, ...outputs]) {
+      expect(entry.bip32Derivation).toBeUndefined()
+    }
   })
 })

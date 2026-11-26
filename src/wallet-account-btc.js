@@ -23,6 +23,7 @@ import { assertNoBipOption, getBtcDerivationPathPrefix } from './primitives/inde
 import SeedSignerBtc from './signers/seed-signer-btc.js'
 import WalletAccountReadOnlyBtc from './wallet-account-read-only-btc.js'
 import { compare, toHex } from 'uint8array-tools'
+import { BIP32 } from './crypto-engine.js'
 import { buildPsbt, getSignedTransactionFee, planSpend } from './primitives/psbt.js'
 
 /** @typedef {import('@tetherto/wdk-wallet').IWalletAccount} IWalletAccount */
@@ -37,6 +38,7 @@ import { buildPsbt, getSignedTransactionFee, planSpend } from './primitives/psbt
 
 /** @typedef {import('./primitives/index.js').Utxo} Utxo */
 /** @typedef {import('./primitives/index.js').SpendPlan} SpendPlan */
+/** @typedef {import('./primitives/index.js').KeyOrigin} KeyOrigin */
 
 /** @typedef {import('./signers/signer-btc.js').ISignerBtc} ISignerBtc */
 
@@ -124,7 +126,10 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
      */
     this._shouldWipeSignerOnDisposal = isSeed || Boolean(configuration.shouldWipeSignerOnDisposal)
 
-    /** @private */
+    /**
+     * @private
+     * @type {ISignerBtc}
+     */
     this._signer = signer
   }
 
@@ -500,6 +505,24 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
   }
 
   /**
+   * Returns the key origins of the account's addresses, if the signer can provide them.
+   *
+   * @private
+   * @returns {Promise<{ [address: string]: KeyOrigin }>} The key origins by address, empty if the signer has no master fingerprint or derivation path.
+   */
+  async _getKeyOrigins () {
+    const { masterFingerprint, path } = this._signer
+
+    if (!masterFingerprint || !path?.startsWith('m/')) {
+      return {}
+    }
+
+    const { publicKey } = BIP32.fromBase58(await this._signer.getExtendedPublicKey(), this._network)
+
+    return { [await this.getAddress()]: { masterFingerprint, path, pubkey: publicKey } }
+  }
+
+  /**
    * Plans, builds, signs and finalizes a send transaction.
    *
    * @private
@@ -530,7 +553,8 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
       plan.inputs.filter(({ scriptType }) => scriptType === 'legacy').map(({ outpoint: { txid } }) => txid)
     )
 
-    const psbt = buildPsbt({ plan, network: this._network, prevTxs })
+    const keyOrigins = await this._getKeyOrigins()
+    const psbt = buildPsbt({ plan, network: this._network, prevTxs, keyOrigins })
     const signed = Psbt.fromBase64(await this._signer.signPsbt(psbt))
 
     signed.finalizeAllInputs()

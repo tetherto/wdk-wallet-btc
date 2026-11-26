@@ -275,7 +275,7 @@ describe.each(['legacy', 'segwit'])('@wdk/wallet-btc (%s)', (type) => {
       // before signing (the closed client reports no spendable outputs) or at signing (the wiped
       // signer leaves the transaction unsigned, making it impossible to finalize).
       await expect(account.sendTransaction({ to: await account.getAddress(), value: 1_000n, feeRate: 1 }))
-        .rejects.toThrow(/Can not finalize input #0|Insufficient funds to cover the amounts and the fee\./)
+        .rejects.toThrow(/The signer has been disposed\.|Can not finalize input #0|Insufficient funds to cover the amounts and the fee\./)
       await expect(account.sign(MESSAGE)).rejects.toThrow(/Cannot read properties of undefined \(reading 'privateKey'\)/)
     }
   })

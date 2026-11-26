@@ -57,11 +57,14 @@ export function planSweep({ fromAddress, toAddress, feeRate, network, chainUtxos
     chainUtxos: ChainUtxo[];
 }): SpendPlan;
 /**
+ * Builds an unsigned PSBT from a spend plan, after verifying its legacy inputs against their
+ * previous transactions. Inputs and change outputs carry their key origin when one is given.
  *
  * @param {Object} param
  * @param {SpendPlan} param.plan
  * @param {Network} param.network - The network.
  * @param {{ [txId: string]: string }} param.prevTxs
+ * @param {{ [address: string]: KeyOrigin }} [param.keyOrigins] - The key origins by address, attached to the inputs and the change outputs paying those addresses.
  * @throws {AssertionError} If the plan's inputs minus its outputs don't add up to its fee.
  */
 export function buildPsbt(params: {
@@ -69,6 +72,9 @@ export function buildPsbt(params: {
     network: Network;
     prevTxs: {
         [txId: string]: string;
+    };
+    keyOrigins?: {
+        [address: string]: KeyOrigin;
     };
 }): Psbt;
 /**
@@ -98,6 +104,7 @@ export function getSignedTransactionFee(transaction: Transaction, prevTxs: {
 export type Utxo = import("./index.js").Utxo;
 export type ChainUtxo = import("./index.js").ChainUtxo;
 export type SpendPlan = import("./index.js").SpendPlan;
+export type KeyOrigin = import("./index.js").KeyOrigin;
 export type OutputInstance = import("@bitcoinerlab/descriptors").OutputInstance;
 export type Network = import("bitcoinjs-lib").Network;
 export type Psbt = import("bitcoinjs-lib").Psbt;

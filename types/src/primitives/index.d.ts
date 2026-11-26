@@ -97,3 +97,20 @@ export type SpendPlan = {
      */
     vsize: number;
 };
+/**
+ * The key origin of a key.
+ */
+export type KeyOrigin = {
+    /**
+     * - The fingerprint of the master key (8 hex characters).
+     */
+    masterFingerprint: string;
+    /**
+     * - The absolute derivation path of the key (e.g. "m/84'/0'/0'/0/0").
+     */
+    path: string;
+    /**
+     * - The compressed public key.
+     */
+    pubkey: Uint8Array;
+};

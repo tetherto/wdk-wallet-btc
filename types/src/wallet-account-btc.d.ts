@@ -151,6 +151,13 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      */
     private _getSignedTransactionFee;
     /**
+     * Returns the key origins of the account's addresses, if the signer can provide them.
+     *
+     * @private
+     * @returns {Promise<{ [address: string]: KeyOrigin }>} The key origins by address, empty if the signer has no master fingerprint or derivation path.
+     */
+    private _getKeyOrigins;
+    /**
      * Plans, builds, signs and finalizes a send transaction.
      *
      * @private
@@ -171,6 +178,7 @@ export type BtcTransaction = import("./wallet-account-read-only-btc.js").BtcTran
 export type BtcWalletConfig = import("./wallet-account-read-only-btc.js").BtcWalletConfig;
 export type Utxo = import("./primitives/index.js").Utxo;
 export type SpendPlan = import("./primitives/index.js").SpendPlan;
+export type KeyOrigin = import("./primitives/index.js").KeyOrigin;
 export type ISignerBtc = import("./signers/signer-btc.js").ISignerBtc;
 export type BtcSignerConfig = import("./signers/signer-btc.js").BtcSignerConfig;
 export type SignerOptions = {

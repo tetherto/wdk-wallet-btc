@@ -3,7 +3,7 @@ import { describe, expect, test } from '@jest/globals'
 import * as bip39 from 'bip39'
 import { Psbt, networks, payments, Transaction, address as btcAddress } from 'bitcoinjs-lib'
 
-import { ValueError } from '@tetherto/wdk-wallet'
+import { DisposalError, ValueError } from '@tetherto/wdk-wallet'
 
 import SeedSignerBtc from '../../src/signers/seed-signer-btc.js'
 
@@ -480,6 +480,17 @@ describe('SeedSignerBtc', () => {
 
       child.dispose()
       root.dispose()
+    })
+
+    test('should throw a disposal error after dispose', async () => {
+      const signer = new SeedSignerBtc(VALID_SEED_PHRASE, REGTEST_ACCOUNT_PATH, REGTEST_CONFIG)
+
+      signer.dispose()
+
+      const promise = signer.getExtendedPublicKey()
+
+      await expect(promise).rejects.toThrow(DisposalError)
+      await expect(promise).rejects.toThrow('The signer has been disposed.')
     })
   })
 
