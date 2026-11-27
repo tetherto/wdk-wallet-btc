@@ -1,18 +1,28 @@
 export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly implements IDisposable {
     /**
+     * Creates a bitcoin client from a descriptor, or returns the client as-is if already instantiated.
+     *
+     * @protected
+     * @param {IBtcClient | BtcClientDescriptor} client - The bitcoin client or client descriptor.
+     * @param {"bitcoin" | "regtest" | "testnet"} [network] - The network name.
+     * @returns {IBtcClient} The bitcoin client.
+     */
+    protected static _createClient(client: IBtcClient | BtcClientDescriptor, network?: "bitcoin" | "regtest" | "testnet"): IBtcClient;
+    /**
      * Creates a new bitcoin read-only wallet account.
      *
      * @param {string} address - The account's address.
-     * @param {Omit<BtcWalletConfig, 'bip' | 'transactionMaxFee'>} [config] - The configuration object.
+     * @param {Omit<BtcWalletConfig, 'type' | 'transactionMaxFee'>} [config] - The configuration object.
+     * @throws {ValueError} If the removed `bip` option is given.
      */
-    constructor(address: string, config?: Omit<BtcWalletConfig, "bip" | "transactionMaxFee">);
+    constructor(address: string, config?: Omit<BtcWalletConfig, "type" | "transactionMaxFee">);
     /**
      * The read-only wallet account configuration.
      *
      * @protected
-     * @type {Omit<BtcWalletConfig, 'bip' | 'transactionMaxFee'>}
+     * @type {Omit<BtcWalletConfig, 'type' | 'transactionMaxFee'>}
      */
-    protected _config: Omit<BtcWalletConfig, "bip" | "transactionMaxFee">;
+    protected _config: Omit<BtcWalletConfig, "type" | "transactionMaxFee">;
     /**
      * The network.
      *
@@ -41,13 +51,6 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly impl
      * @type {Array<boolean>}
      */
     get _isExternalClient(): Array<boolean>;
-    /**
-     * The dust limit in satoshis based on the BIP type, cached after the first computation.
-     *
-     * @private
-     * @type {bigint | undefined}
-     */
-    private _dustLimit: bigint | undefined;
     /** @private */
     private _disposed;
     /**
@@ -56,8 +59,6 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly impl
      * @type {boolean}
      */
     get disposed(): boolean;
-    /** @private */
-    private _getDustLimit;
     /**
      * Returns the account's bitcoin balance.
      *
@@ -154,12 +155,19 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly impl
      * Wallets holding more than this limit cannot spend their full balance in a
      * single transaction. There will likely be some satoshis left over as change.
      *
+     * The recipient must receive at least its dust limit, which depends on the recipient's script type. If `opts.to` is omitted,
+     * the highest dust limit among the address types is assumed, so the estimate can be lower than what a send to a cheaper
+     * output type would allow. When the remainder after fees allows it, a change output set to the dust limit of the account's
+     * own address is reserved. If the funds cannot clear the dust limit, the amount is 0.
+     *
      * @param {Object} [opts] - Options.
      * @param {number | bigint} [opts.feeRate] - Fee rate in sat/vB. If omitted, estimated via the client.
+     * @param {string} [opts.to] - The recipient's address. If omitted, the highest dust limit is assumed for the recipient.
      * @returns {Promise<BtcMaxSpendableResult>} The estimated maximum spendable result.
      */
     getMaxSpendable(opts?: {
         feeRate?: number | bigint;
+        to?: string;
     }): Promise<BtcMaxSpendableResult>;
     /**
      * Closes any internal connection with the server.
@@ -222,6 +230,7 @@ export type ElectrumWsConfig = import("./transports/ws.js").ElectrumWsConfig;
 export type Utxo = import("./primitives/index.js").Utxo;
 export type SpendPlan = import("./primitives/index.js").SpendPlan;
 export type OutputInstance = import("@bitcoinerlab/descriptors").OutputInstance;
+export type ScriptType = import("./primitives/index.js").ScriptType;
 export type Network = import("bitcoinjs-lib").Network;
 export type BtcTransactionReceipt = import("bitcoinjs-lib").Transaction;
 export type IDisposable = import("@tetherto/wdk-wallet").IDisposable;
@@ -302,9 +311,9 @@ export type BtcWalletConfig = {
      */
     network?: "bitcoin" | "regtest" | "testnet";
     /**
-     * - The BIP address type: 44 (P2PKH / legacy) or 84 (P2WPKH / native SegWit) (default: 84). Wallet classes map it to the signer's address type when constructing signers.
+     * - The script type of the account's address: "p2pkh" (BIP-44) or "p2wpkh" (native SegWit, BIP-84) (default: "p2wpkh"). Wallet classes pass it to the signers they construct.
      */
-    bip?: 44 | 84;
+    type?: ScriptType;
     /**
      * - The number of retries in the failover mechanism.
      */

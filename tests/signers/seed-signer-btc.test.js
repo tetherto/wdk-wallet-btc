@@ -12,26 +12,21 @@ const VALID_SEED_PHRASE = 'cook voyage document eight skate token alien guide dr
 const MESSAGE = 'Dummy message to sign.'
 
 // Coin-type node ("m/84'/0'") of VALID_SEED_PHRASE with the default configuration: the constructor's default path.
-// The default network is mainnet, so the default coin type is 0' (SLIP-0044), as in other BIP-84 wallets.
 const COIN_NODE_PATH = "m/84'/0'"
 const COIN_NODE_ADDRESS = 'bc1q82t6jj0td889z97r850zwm2x2mftf8d82cerxw'
 const COIN_NODE_PRIVATE_KEY = '988213c6d95536875e604e55900468768a53faa261edb812c19db423327eb59a'
 const COIN_NODE_PUBLIC_KEY = '035db6d40d930f25139197aa9e24d877cf19621d4cee7a02c26fee01ad0e25200f'
 
 // First account ("m/84'/0'/0'/0/0") of VALID_SEED_PHRASE with the default configuration.
-const DEFAULT_ACCOUNT_PATH = "m/84'/0'/0'/0/0"
-const DEFAULT_ACCOUNT_ADDRESS = 'bc1qxn0te9ecv864wtu53cccjhuuy5dphvem6ykeyr'
+const ACCOUNT_PATH = "m/84'/0'/0'/0/0"
+const ACCOUNT_ADDRESS = 'bc1qxn0te9ecv864wtu53cccjhuuy5dphvem6ykeyr'
+const ACCOUNT_PRIVATE_KEY = '433c8e1e0064cdafe991f1efb4803d7dfcc2533db7d5cfa963ed53917b720248'
+const ACCOUNT_PUBLIC_KEY = '035a48902f37c03901f36fea0a06aef2be29d9c55da559f5bd02c2d02d2b516382'
 
-// The account at "m/84'/1'/0'/0/0" of VALID_SEED_PHRASE, encoded for mainnet.
-const ACCOUNT_PATH = "m/84'/1'/0'/0/0"
-const ACCOUNT_ADDRESS = 'bc1q8dqnpagwt9rtl7k38nuaa2ahf690avzkn3hdmf'
-const ACCOUNT_PRIVATE_KEY = '007335c465cb8183b8a43d3f4eb7dbeb65f51e3a94c4a42369f3d2979ffa35fa'
-const ACCOUNT_PUBLIC_KEY = '02e928d54a04833586b14e9c910884f589aebdc713a055e655c2fa13306c1b4f7f'
-
-// Other accounts of VALID_SEED_PHRASE, encoded for mainnet.
-const PATH_005_ADDRESS = 'bc1qzlqkg0jy73dek6pj99lu4qa87v0mqlmjq3czvj'
-const CHILD_001_ADDRESS = 'bc1qkr67mkl07s5slnjzsesza3g75qhu4rx6zu3u24'
-const PAST_LEAF_ADDRESS = 'bc1qzfcza368u8nfmcfj9358ds4jws3qt0z9tw0mq3'
+// Other accounts of VALID_SEED_PHRASE with the default configuration.
+const PATH_005_ADDRESS = 'bc1qh6u7fqlf92wth5endv0973z27j2yfwhey2pff4'
+const CHILD_001_ADDRESS = 'bc1qjkplk248q5u9ydezvtqk3kd3f2g8k0ag2tmqwn'
+const PAST_LEAF_ADDRESS = 'bc1qxnen6zj7u3gjljeyxrwycu5gvdgkh4nupaas2c'
 const CUSTOM_ROOT_ADDRESS = 'bc1qplyls7xzppmc3md439nft763ynylx6yzpkuxcq'
 const FROM_M_ADDRESS = 'bc1q908a7wncgavppdhkjl0qncx2889dal3t8km3xe'
 
@@ -44,6 +39,7 @@ const MASTER_FINGERPRINT = '1b1fb3cd'
 
 // Fixtures of VALID_SEED_PHRASE with a regtest configuration.
 const REGTEST_CONFIG = { network: 'regtest' }
+const REGTEST_ACCOUNT_PATH = "m/84'/1'/0'/0/0"
 // The BIP-32 master node of VALID_SEED_PHRASE serialized with testnet/regtest version bytes.
 const REGTEST_MASTER_TPRV = 'tprv8ZgxMBicQKsPdUJHScd9WVMci7rDF7NnwJGLESCz6m56EdD2DaYM4rwf7oMAuFkyLGUKs3qBm1vjjC892KoBt8ZGhh7yQ8e51EdXCxVbWHg'
 // The neutered (public-only) counterpart of REGTEST_MASTER_TPRV.
@@ -61,7 +57,7 @@ const EXPECTED_PSBT_PARTIAL_SIG_SIGNATURE = '3045022100bb13449bdd3b7c10817339e6d
 const EXPECTED_CROSS_TYPE_SEGWIT_SIGNATURE = '3044022028cdb2c1a9565c0cd6b022a2e52e09c4410fc2f76e98d274ecd760b1a5e7c7d202206122722575dbc85aad8fac9a6bb1aaefac2aff7c0d450ef66b3d6c523352b47701'
 const EXPECTED_CROSS_TYPE_LEGACY_SIGNATURE = '3044022047880eabaf5d714ec4412e468317828a58f68f0a2b03b8bda198cf79cbe20c5c022013d46033bc1064923e607671f588e795ccd353e4fc38a87657a993ff2d3f477001'
 
-const INVALID_PATH_MESSAGE = "Invalid format: Expected /^(m\\/)?(\\d+'?\\/)*\\d+'?$/ but received \"a'/b/c\""
+const INVALID_PATH_MESSAGE = "The derivation path 'a'/b/c' is invalid: 'a'' is not a valid segment."
 
 // Foreign (not-ours) regtest address used to add an unrelated PSBT input/output.
 const PSBT_FOREIGN_ADDRESS = 'bcrt1qw508d6qejxtdg4y5r3zarvary0c5xw7kygt080'
@@ -128,9 +124,9 @@ describe('SeedSignerBtc', () => {
     })
 
     test('should create a signer at an explicit path', async () => {
-      const signer = new SeedSignerBtc(VALID_SEED_PHRASE, "m/84'/1'/0'/0/5")
+      const signer = new SeedSignerBtc(VALID_SEED_PHRASE, "m/84'/0'/0'/0/5")
 
-      expect(signer.path).toBe("m/84'/1'/0'/0/5")
+      expect(signer.path).toBe("m/84'/0'/0'/0/5")
       expect(await signer.getAddress()).toBe(PATH_005_ADDRESS)
 
       signer.dispose()
@@ -147,10 +143,10 @@ describe('SeedSignerBtc', () => {
     })
 
     test('should create a derivable signer at an intermediate path', () => {
-      const signer = new SeedSignerBtc(VALID_SEED_PHRASE, "m/84'/1'")
+      const signer = new SeedSignerBtc(VALID_SEED_PHRASE, "m/84'/0'")
 
       expect(signer.isDerivable).toBe(true)
-      expect(signer.path).toBe("m/84'/1'")
+      expect(signer.path).toBe("m/84'/0'")
 
       signer.dispose()
     })
@@ -174,13 +170,6 @@ describe('SeedSignerBtc', () => {
       expect(() => new SeedSignerBtc(VALID_SEED_PHRASE, "a'/b/c"))
         .toThrow(INVALID_PATH_MESSAGE)
     })
-
-    test('should throw if the network is not supported', () => {
-      expect(() => new SeedSignerBtc(VALID_SEED_PHRASE, undefined, { network: 'mainnet' }))
-        .toThrow(ValueError)
-      expect(() => new SeedSignerBtc(VALID_SEED_PHRASE, undefined, { network: 'mainnet' }))
-        .toThrow('Unsupported network "mainnet". Supported networks: bitcoin, testnet, regtest.')
-    })
   })
 
   describe('keyPair', () => {
@@ -196,7 +185,7 @@ describe('SeedSignerBtc', () => {
 
   describe('derive', () => {
     test('should derive a child signer relative to the signer path', async () => {
-      const root = new SeedSignerBtc(VALID_SEED_PHRASE, "m/84'/1'")
+      const root = new SeedSignerBtc(VALID_SEED_PHRASE, "m/84'/0'")
 
       const child = await root.derive("0'/0/0")
 
@@ -211,11 +200,11 @@ describe('SeedSignerBtc', () => {
     })
 
     test('should derive distinct sibling accounts', async () => {
-      const root = new SeedSignerBtc(VALID_SEED_PHRASE, "m/84'/1'")
+      const root = new SeedSignerBtc(VALID_SEED_PHRASE, "m/84'/0'")
 
       const child = await root.derive("0'/0/1")
 
-      expect(child.path).toBe("m/84'/1'/0'/0/1")
+      expect(child.path).toBe("m/84'/0'/0'/0/1")
       expect(await child.getAddress()).toBe(CHILD_001_ADDRESS)
 
       child.dispose()
@@ -227,8 +216,8 @@ describe('SeedSignerBtc', () => {
 
       const child = await root.derive("0'/0/0")
 
-      expect(child.path).toBe(DEFAULT_ACCOUNT_PATH)
-      expect(await child.getAddress()).toBe(DEFAULT_ACCOUNT_ADDRESS)
+      expect(child.path).toBe(ACCOUNT_PATH)
+      expect(await child.getAddress()).toBe(ACCOUNT_ADDRESS)
 
       child.dispose()
       root.dispose()
@@ -251,7 +240,7 @@ describe('SeedSignerBtc', () => {
 
       const child = await leaf.derive('0')
 
-      expect(child.path).toBe("m/84'/1'/0'/0/0/0")
+      expect(child.path).toBe("m/84'/0'/0'/0/0/0")
       expect(await child.getAddress()).toBe(PAST_LEAF_ADDRESS)
 
       child.dispose()
@@ -296,7 +285,7 @@ describe('SeedSignerBtc', () => {
     })
 
     test('should keep a grandchild working after disposing the intermediate signer', async () => {
-      const root = new SeedSignerBtc(VALID_SEED_PHRASE, "m/84'/1'")
+      const root = new SeedSignerBtc(VALID_SEED_PHRASE, "m/84'/0'")
       const intermediate = await root.derive("0'")
 
       const grandchild = await intermediate.derive('0/0')
@@ -314,6 +303,74 @@ describe('SeedSignerBtc', () => {
 
       await expect(signer.derive("a'/b/c")).rejects.toThrow(INVALID_PATH_MESSAGE)
 
+      signer.dispose()
+    })
+
+    test('should throw if the path is absolute', async () => {
+      const signer = new SeedSignerBtc(VALID_SEED_PHRASE, "m/84'/0'")
+
+      await expect(signer.derive("m/84'/0'/0'/0/0")).rejects.toThrow(
+        "The path 'm/84'/0'/0'/0/0' must be relative to the signer's path."
+      )
+
+      signer.dispose()
+    })
+
+    test('should throw if the path is the bare master path', async () => {
+      const signer = new SeedSignerBtc(VALID_SEED_PHRASE, "m/84'/0'")
+
+      await expect(signer.derive('m')).rejects.toThrow(
+        "The path 'm' must be relative to the signer's path."
+      )
+
+      signer.dispose()
+    })
+
+    test('should throw if the path is absolute and the signer is at the master path', async () => {
+      const signer = new SeedSignerBtc(VALID_SEED_PHRASE, 'm')
+
+      await expect(signer.derive("m/44'/0'/0'/0/0")).rejects.toThrow(
+        "The path 'm/44'/0'/0'/0/0' must be relative to the signer's path."
+      )
+
+      signer.dispose()
+    })
+
+    test('should throw if the path is absolute and the signer is a derived child', async () => {
+      const root = new SeedSignerBtc(VALID_SEED_PHRASE, "m/84'/0'")
+      const child = await root.derive("0'")
+
+      await expect(child.derive('m/0/0')).rejects.toThrow(
+        "The path 'm/0/0' must be relative to the signer's path."
+      )
+
+      child.dispose()
+      root.dispose()
+    })
+
+    test('should throw if the path is absolute and the signer is imported from an xprv', async () => {
+      const signer = SeedSignerBtc.fromXprv(REGTEST_MASTER_TPRV, REGTEST_CONFIG)
+
+      await expect(signer.derive("m/84'/1'/0'")).rejects.toThrow(
+        "The path 'm/84'/1'/0'' must be relative to the signer's path."
+      )
+
+      signer.dispose()
+    })
+
+    test('should keep the signer usable after rejecting an absolute path', async () => {
+      const signer = new SeedSignerBtc(VALID_SEED_PHRASE, "m/84'/0'")
+
+      await expect(signer.derive("m/0'")).rejects.toThrow(
+        "The path 'm/0'' must be relative to the signer's path."
+      )
+      const child = await signer.derive("0'/0/0")
+
+      expect(await signer.getAddress()).toBe(COIN_NODE_ADDRESS)
+      expect(child.path).toBe(ACCOUNT_PATH)
+      expect(await child.getAddress()).toBe(ACCOUNT_ADDRESS)
+
+      child.dispose()
       signer.dispose()
     })
   })
@@ -416,7 +473,7 @@ describe('SeedSignerBtc', () => {
 
   describe('getExtendedPublicKey', () => {
     test('should return the account tpub on regtest', async () => {
-      const signer = new SeedSignerBtc(VALID_SEED_PHRASE, ACCOUNT_PATH, REGTEST_CONFIG)
+      const signer = new SeedSignerBtc(VALID_SEED_PHRASE, REGTEST_ACCOUNT_PATH, REGTEST_CONFIG)
 
       const xpub = await signer.getExtendedPublicKey()
 
@@ -440,7 +497,7 @@ describe('SeedSignerBtc', () => {
 
   describe('sign', () => {
     test('should return the correct signature', async () => {
-      const signer = new SeedSignerBtc(VALID_SEED_PHRASE, ACCOUNT_PATH, REGTEST_CONFIG)
+      const signer = new SeedSignerBtc(VALID_SEED_PHRASE, REGTEST_ACCOUNT_PATH, REGTEST_CONFIG)
 
       const signature = await signer.sign(MESSAGE)
 
@@ -452,7 +509,7 @@ describe('SeedSignerBtc', () => {
 
   describe('signPsbt', () => {
     test('should sign owned inputs and leave foreign inputs untouched', async () => {
-      const signer = new SeedSignerBtc(VALID_SEED_PHRASE, ACCOUNT_PATH, REGTEST_CONFIG)
+      const signer = new SeedSignerBtc(VALID_SEED_PHRASE, REGTEST_ACCOUNT_PATH, REGTEST_CONFIG)
       const psbt = buildMixedPsbt(await signer.getAddress())
 
       const signed = await signer.signPsbt(psbt)
@@ -469,7 +526,7 @@ describe('SeedSignerBtc', () => {
     })
 
     test('should sign every input the key controls regardless of script type', async () => {
-      const signer = new SeedSignerBtc(VALID_SEED_PHRASE, ACCOUNT_PATH, REGTEST_CONFIG)
+      const signer = new SeedSignerBtc(VALID_SEED_PHRASE, REGTEST_ACCOUNT_PATH, REGTEST_CONFIG)
       const psbt = buildCrossTypePsbt(signer.keyPair.publicKey)
 
       const signed = await signer.signPsbt(psbt)
@@ -484,7 +541,7 @@ describe('SeedSignerBtc', () => {
     })
 
     test('should throw if the key controls none of the inputs', async () => {
-      const signer = new SeedSignerBtc(VALID_SEED_PHRASE, ACCOUNT_PATH, REGTEST_CONFIG)
+      const signer = new SeedSignerBtc(VALID_SEED_PHRASE, REGTEST_ACCOUNT_PATH, REGTEST_CONFIG)
       const network = networks.regtest
       const foreignScript = btcAddress.toOutputScript(PSBT_FOREIGN_ADDRESS, network)
       const psbt = new Psbt({ network })
@@ -509,7 +566,7 @@ describe('SeedSignerBtc', () => {
     })
 
     test('should throw DisposalError from signing methods once disposed', async () => {
-      const signer = new SeedSignerBtc(VALID_SEED_PHRASE, ACCOUNT_PATH, REGTEST_CONFIG)
+      const signer = new SeedSignerBtc(VALID_SEED_PHRASE, REGTEST_ACCOUNT_PATH, REGTEST_CONFIG)
       const psbt = buildMixedPsbt(await signer.getAddress())
 
       expect(signer.disposed).toBe(false)
@@ -542,7 +599,7 @@ describe('SeedSignerBtc', () => {
     })
 
     test('should not affect the parent when disposing a child', async () => {
-      const root = new SeedSignerBtc(VALID_SEED_PHRASE, "m/84'/1'")
+      const root = new SeedSignerBtc(VALID_SEED_PHRASE, "m/84'/0'")
       const child = await root.derive("0'/0/0")
 
       child.dispose()
@@ -555,7 +612,7 @@ describe('SeedSignerBtc', () => {
     })
 
     test('should not affect derived children when disposing the parent', async () => {
-      const root = new SeedSignerBtc(VALID_SEED_PHRASE, "m/84'/1'")
+      const root = new SeedSignerBtc(VALID_SEED_PHRASE, "m/84'/0'")
       const child = await root.derive("0'/0/0")
 
       root.dispose()

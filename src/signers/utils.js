@@ -13,11 +13,10 @@
 // limitations under the License.
 'use strict'
 
-import { payments } from 'bitcoinjs-lib'
-import { toBase64 } from 'uint8array-tools'
-import { ValueError } from '@tetherto/wdk-wallet'
+import { toBase64, toHex } from 'uint8array-tools'
 
-import { bitcoinMessage } from '../crypto-engine.js'
+import { Output, bitcoinMessage } from '../crypto-engine.js'
+import { getDescriptor } from '../primitives/descriptor.js'
 
 /** @typedef {import('bitcoinjs-lib').Network} Network */
 /** @typedef {import('bitcoinjs-lib').Psbt} Psbt */
@@ -49,30 +48,6 @@ export function signPsbtWithKey (psbtInstance, account) {
 }
 
 /**
- * The address type signers use when the configuration does not specify one.
- *
- * @internal
- * @type {ScriptType}
- */
-export const DEFAULT_ADDRESS_TYPE = 'p2wpkh'
-
-/**
- * Maps a wallet-level BIP purpose (44 or 84) to the equivalent signer address type.
- *
- * @internal
- * @param {44 | 84} [bip] - The BIP address type from the wallet configuration.
- * @returns {ScriptType | undefined} The signer address type, or undefined if no bip was given.
- * @throws {ValueError} If an unsupported BIP is specified.
- */
-export function getSignerTypeForBip (bip) {
-  if (bip === undefined) return undefined
-  if (![44, 84].includes(bip)) {
-    throw new ValueError('Invalid bip specification. Supported bips: 44, 84.')
-  }
-  return bip === 44 ? 'p2pkh' : 'p2wpkh'
-}
-
-/**
  * Derives a Bitcoin address from a public key.
  *
  * @internal
@@ -82,10 +57,8 @@ export function getSignerTypeForBip (bip) {
  * @returns {string} The Bitcoin address.
  */
 export function getAddressFromPublicKey (publicKey, network, type) {
-  const { address } = type === 'p2pkh'
-    ? payments.p2pkh({ pubkey: publicKey, network })
-    : payments.p2wpkh({ pubkey: publicKey, network })
-  return address
+  const descriptor = getDescriptor({ type, pubkey: toHex(publicKey) })
+  return new Output({ descriptor, network }).getAddress()
 }
 
 /**

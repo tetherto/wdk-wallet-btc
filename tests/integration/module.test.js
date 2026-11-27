@@ -20,8 +20,8 @@ function parseRawTransaction (rawTransaction, recipientAddress) {
 }
 
 const fees = {
-  44: 226n,
-  84: 141n
+  p2pkh: 226n,
+  p2wpkh: 141n
 }
 
 const SEED_PHRASE = 'cook voyage document eight skate token alien guide drink uncle term abuse'
@@ -29,16 +29,16 @@ const SEED_PHRASE = 'cook voyage document eight skate token alien guide drink un
 const ACCOUNT_0 = {
   path: "0'/0/2",
   address: {
-    44: 'mkpULF63ogDJnCvHXpiV64VkjLFXSrs7n5',
-    84: 'bcrt1q8y0z8q7k4w3cjuwswszpsg2s6r3gur7rsv9w30'
+    p2pkh: 'mkpULF63ogDJnCvHXpiV64VkjLFXSrs7n5',
+    p2wpkh: 'bcrt1q8y0z8q7k4w3cjuwswszpsg2s6r3gur7rsv9w30'
   }
 }
 
 const ACCOUNT_1 = {
   path: "0'/0/3",
   address: {
-    44: 'mqgYPCauaQ6s13kGRii3Vp9AHh1vn5Lwxt',
-    84: 'bcrt1qep74g0r6mu2euv92jt788urfdneaqetl08wwqv'
+    p2pkh: 'mqgYPCauaQ6s13kGRii3Vp9AHh1vn5Lwxt',
+    p2wpkh: 'bcrt1qep74g0r6mu2euv92jt788urfdneaqetl08wwqv'
   }
 }
 
@@ -56,21 +56,21 @@ const waiter = new Waiter(bitcoin, {
   zmqPort: ZMQ_PORT
 })
 
-describe.each([44, 84])('@wdk/wallet-btc (BIP %i)', (bip) => {
+describe.each(['p2pkh', 'p2wpkh'])('@wdk/wallet-btc (%s)', (type) => {
+  const PURPOSE = type === 'p2pkh' ? 44 : 84
   const CONFIGURATION = {
     client: { type: 'electrum', clientConfig: { host: HOST, port: ELECTRUM_PORT } },
-    network: 'regtest',
-    bip
+    network: 'regtest'
   }
 
   let wallet
 
   beforeAll(async () => {
-    const signer = new SeedSignerBtc(SEED_PHRASE, `m/${bip}'/1'`, { network: CONFIGURATION.network, type: bip === 44 ? 'p2pkh' : 'p2wpkh' })
+    const signer = new SeedSignerBtc(SEED_PHRASE, `m/${PURPOSE}'/1'`, { network: CONFIGURATION.network, type })
     wallet = new WalletManagerBtc(signer, CONFIGURATION)
 
-    bitcoin.sendToAddress(ACCOUNT_0.address[bip], 1)
-    bitcoin.sendToAddress(ACCOUNT_1.address[bip], 1)
+    bitcoin.sendToAddress(ACCOUNT_0.address[type], 1)
+    bitcoin.sendToAddress(ACCOUNT_1.address[type], 1)
 
     await waiter.mine()
   })
@@ -122,7 +122,7 @@ describe.each([44, 84])('@wdk/wallet-btc (BIP %i)', (bip) => {
     const finalBalance0 = await account0.getBalance()
     const finalBalance1 = await account1.getBalance()
 
-    const actualFee = fees[bip]
+    const actualFee = fees[type]
 
     expect(finalBalance0).toBe(initialBalance0 - TRANSACTION.value - actualFee)
     expect(finalBalance1).toBe(initialBalance1 + TRANSACTION.value)

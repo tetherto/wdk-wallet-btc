@@ -18,9 +18,10 @@ import pLimit from 'p-limit'
 import { LRUCache } from 'lru-cache'
 import { AssertionError, DisposalError, MaximumFeeExceededError, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
 
+import { getDustLimit } from './primitives/dust.js'
 import PrivateKeySignerBtc from './signers/private-key-signer-btc.js'
-import SeedSignerBtc, { getBtcDerivationPathPrefix } from './signers/seed-signer-btc.js'
-import { getSignerTypeForBip } from './signers/utils.js'
+import { assertNoBipOption, getBtcDerivationPathPrefix } from './primitives/index.js'
+import SeedSignerBtc from './signers/seed-signer-btc.js'
 import WalletAccountReadOnlyBtc from './wallet-account-read-only-btc.js'
 import { compare, fromHex, toHex } from 'uint8array-tools'
 
@@ -38,7 +39,6 @@ import { compare, fromHex, toHex } from 'uint8array-tools'
 /** @typedef {import('./primitives/index.js').SpendPlan} SpendPlan */
 
 /** @typedef {import('./signers/signer-btc.js').ISignerBtc} ISignerBtc */
-/** @typedef {import('./signers/signer-btc.js').BtcSignerConfig} BtcSignerConfig */
 
 /**
  * @typedef {Object} SignerOptions
@@ -75,17 +75,17 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @param {string | Uint8Array} seed - A [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) mnemonic seed phrase, or a raw BIP-32 master seed (16-64 bytes).
    * @param {string} path - The derivation path suffix (e.g. "0'/0/0").
    * @param {BtcWalletConfig} [config] - The configuration object.
-   * @throws {ValueError} If the given seed phrase is invalid, or the configured bip is not supported.
+   * @throws {ValueError} If the given seed phrase is invalid, or the path, network or type is invalid, or the removed `bip` option is given.
    */
 
   /**
    * Creates a new bitcoin wallet account from a BIP-39 seed, deriving the account's key at the
-   * first account ("0'/0/0") of the configured network and bip.
+   * first account ("0'/0/0") of the configured network and type.
    *
    * @overload
    * @param {string | Uint8Array} seed - A [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) mnemonic seed phrase, or a raw BIP-32 master seed (16-64 bytes).
    * @param {BtcWalletConfig} [config] - The configuration object.
-   * @throws {ValueError} If the given seed phrase is invalid, or the configured bip is not supported.
+   * @throws {ValueError} If the given seed phrase is invalid, or the network or type is invalid, or the removed `bip` option is given.
    */
 
   /**
@@ -93,7 +93,8 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    *
    * @overload
    * @param {ISignerBtc} signer - The signer.
-   * @param {Omit<BtcWalletConfig, 'network' | 'bip'> & SignerOptions} [config] - The configuration object. The network and address type are taken from the signer.
+   * @param {Omit<BtcWalletConfig, 'network' | 'type'> & SignerOptions} [config] - The configuration object. The network and address type are taken from the signer.
+   * @throws {ValueError} If the removed `bip` option is given.
    */
 
   constructor (seedOrSigner, pathOrConfig = {}, config = {}) {
@@ -103,13 +104,14 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     if (isSeed) {
       const hasPath = typeof pathOrConfig === 'string'
       const path = hasPath ? pathOrConfig : DEFAULT_ACCOUNT_PATH
-      const { network, bip, ...accountConfig } = hasPath ? config : pathOrConfig
-      const type = getSignerTypeForBip(bip)
+      assertNoBipOption(hasPath ? config : pathOrConfig)
+      const { network, type, ...accountConfig } = hasPath ? config : pathOrConfig
       signer = new SeedSignerBtc(seedOrSigner, `m/${getBtcDerivationPathPrefix({ network, type })}/${path}`, { network, type })
       configuration = accountConfig
     } else {
+      const { network, type, ...accountConfig } = pathOrConfig
       signer = seedOrSigner
-      configuration = pathOrConfig
+      configuration = accountConfig
     }
 
     super(signer.address, { ...configuration, network: signer.network })
@@ -162,11 +164,12 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * Creates a new bitcoin wallet account from a raw private key.
    *
    * @param {string | Uint8Array} privateKey - The raw private key (hex string or 32 bytes).
-   * @param {Omit<BtcWalletConfig, 'bip'> & Pick<BtcSignerConfig, 'type'>} [config] - The wallet configuration options.
+   * @param {BtcWalletConfig} [config] - The wallet configuration options.
    * @returns {WalletAccountBtc} The wallet account.
-   * @throws {ValueError} If the private key is not 32 bytes.
+   * @throws {ValueError} If the private key is not 32 bytes, or the removed `bip` option is given.
    */
   static fromPrivateKey (privateKey, config = {}) {
+    assertNoBipOption(config)
     const { network, type, ...accountConfig } = config
     const signer = new PrivateKeySignerBtc(privateKey, { network, type })
     return new WalletAccountBtc(signer, { ...accountConfig, shouldWipeSignerOnDisposal: true })
@@ -619,20 +622,19 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
       return { txid: tx.getId(), hex: tx.toHex(), fee, vsize }
     }
 
-    const dustLimit = await this._getDustLimit()
-
     const delta = requiredFee - fee
     fee = requiredFee
     if (currentChange > 0n) {
       let newChange = currentChange - delta
-      if (newChange <= dustLimit) newChange = 0n
+      if (newChange < getDustLimit(btcAddress.toOutputScript(change.address, this._network))) newChange = 0n
       currentChange = newChange
       unsigned = await buildUnsignedPsbt(currentRecipientAmnt, currentChange)
       tx = await signAndFinalize(unsigned)
     } else {
       const newRecipientAmnt = currentRecipientAmnt - delta
-      if (newRecipientAmnt <= dustLimit) {
-        throw new ValueError(`The amount after fees must be bigger than the dust limit (= ${dustLimit}).`)
+      const recipientDustLimit = getDustLimit(btcAddress.toOutputScript(to, this._network))
+      if (newRecipientAmnt < recipientDustLimit) {
+        throw new ValueError(`The amount after fees must be at least the dust limit (= ${recipientDustLimit}).`)
       }
       currentRecipientAmnt = newRecipientAmnt
       unsigned = await buildUnsignedPsbt(currentRecipientAmnt, currentChange)

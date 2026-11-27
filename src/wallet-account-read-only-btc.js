@@ -24,6 +24,12 @@ import FailoverProvider from '@tetherto/wdk-failover-provider'
 
 import { Output, bitcoinMessage } from './crypto-engine.js'
 
+import { getAddressDescriptor } from './primitives/descriptor.js'
+
+import { assertNoBipOption, resolveNetwork } from './primitives/index.js'
+
+import { getDustLimit, getMaxDustLimit } from './primitives/dust.js'
+
 import { BlockbookClient, ElectrumTcp, ElectrumSsl, ElectrumTls, ElectrumWs } from './transports/index.js'
 
 /** @typedef {import('./transports/index.js').MempoolElectrumConfig} MempoolElectrumConfig */
@@ -35,6 +41,7 @@ import { BlockbookClient, ElectrumTcp, ElectrumSsl, ElectrumTls, ElectrumWs } fr
 /** @typedef {import('./primitives/index.js').Utxo} Utxo */
 /** @typedef {import('./primitives/index.js').SpendPlan} SpendPlan */
 /** @typedef {import('@bitcoinerlab/descriptors').OutputInstance} OutputInstance */
+/** @typedef {import('./primitives/index.js').ScriptType} ScriptType */
 /** @typedef {import('bitcoinjs-lib').Network} Network */
 /** @typedef {import('bitcoinjs-lib').Transaction} BtcTransactionReceipt */
 
@@ -87,7 +94,7 @@ import { BlockbookClient, ElectrumTcp, ElectrumSsl, ElectrumTls, ElectrumWs } fr
  * @typedef {Object} BtcWalletConfig
  * @property {IBtcClient | BtcClientDescriptor | Array<IBtcClient | BtcClientDescriptor>} [client] - The bitcoin client, or a list of bitcoin client options for connection fallback.
  * @property {"bitcoin" | "regtest" | "testnet"} [network] - The name of the network to use (default: "bitcoin").
- * @property {44 | 84} [bip] - The BIP address type: 44 (P2PKH / legacy) or 84 (P2WPKH / native SegWit) (default: 84). Wallet classes map it to the signer's address type when constructing signers.
+ * @property {ScriptType} [type] - The script type of the account's address: "p2pkh" (BIP-44) or "p2wpkh" (native SegWit, BIP-84) (default: "p2wpkh"). Wallet classes pass it to the signers they construct.
  * @property {number} [retries] - The number of retries in the failover mechanism.
  * @property {number | bigint} [transactionMaxFee] - The maximum fee amount for sendTransaction and signTransaction operations.
  */
@@ -103,38 +110,26 @@ const MIN_TX_FEE_SATS = 141
 const MAX_UTXO_INPUTS = 200
 const FINAL_CONFIRMATIONS = 6
 
-const BIP_BY_ADDRESS_PREFIX = {
-  1: 44,
-  m: 44,
-  n: 44,
-  bc1q: 84,
-  tb1q: 84,
-  bcrt1q: 84
-}
-
-const DUST_LIMIT = {
-  44: 546n,
-  84: 294n
-}
-
 /** @implements {IDisposable} */
 export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
   /**
    * Creates a new bitcoin read-only wallet account.
    *
    * @param {string} address - The account's address.
-   * @param {Omit<BtcWalletConfig, 'bip' | 'transactionMaxFee'>} [config] - The configuration object.
+   * @param {Omit<BtcWalletConfig, 'type' | 'transactionMaxFee'>} [config] - The configuration object.
+   * @throws {ValueError} If the removed `bip` option is given.
    */
   constructor (address, config = {}) {
-    super(address, config)
+    super(address)
+    assertNoBipOption(config)
 
     /**
      * The read-only wallet account configuration.
      *
      * @protected
-     * @type {Omit<BtcWalletConfig, 'bip' | 'transactionMaxFee'>}
+     * @type {Omit<BtcWalletConfig, 'type' | 'transactionMaxFee'>}
      */
-    this._config = config
+    this._config = { ...config, network: resolveNetwork(config.network) }
 
     /**
      * The network.
@@ -142,7 +137,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @protected
      * @type {Network}
      */
-    this._network = networks[this._config.network] || networks.bitcoin
+    this._network = networks[this._config.network]
 
     const clientOptions = config.client ? [config.client].flat() : [{ type: 'electrum', clientConfig: { host: 'electrum.blockstream.info', port: 50_001 } }]
 
@@ -171,14 +166,6 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     }
 
     /**
-     * The dust limit in satoshis based on the BIP type, cached after the first computation.
-     *
-     * @private
-     * @type {bigint | undefined}
-     */
-    this._dustLimit = undefined
-
-    /**
      * True if the read-only wallet account has been disposed.
      *
      * @protected
@@ -194,16 +181,6 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    */
   get disposed () {
     return this._disposed
-  }
-
-  /** @private */
-  async _getDustLimit () {
-    if (this._dustLimit === undefined) {
-      const address = await this.getAddress()
-      const prefix = Object.keys(BIP_BY_ADDRESS_PREFIX).find(p => address.startsWith(p))
-      this._dustLimit = DUST_LIMIT[BIP_BY_ADDRESS_PREFIX[prefix] || 44]
-    }
-    return this._dustLimit
   }
 
   /**
@@ -429,8 +406,14 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * Wallets holding more than this limit cannot spend their full balance in a
    * single transaction. There will likely be some satoshis left over as change.
    *
+   * The recipient must receive at least its dust limit, which depends on the recipient's script type. If `opts.to` is omitted,
+   * the highest dust limit among the address types is assumed, so the estimate can be lower than what a send to a cheaper
+   * output type would allow. When the remainder after fees allows it, a change output set to the dust limit of the account's
+   * own address is reserved. If the funds cannot clear the dust limit, the amount is 0.
+   *
    * @param {Object} [opts] - Options.
    * @param {number | bigint} [opts.feeRate] - Fee rate in sat/vB. If omitted, estimated via the client.
+   * @param {string} [opts.to] - The recipient's address. If omitted, the highest dust limit is assumed for the recipient.
    * @returns {Promise<BtcMaxSpendableResult>} The estimated maximum spendable result.
    */
   async getMaxSpendable (opts = {}) {
@@ -453,12 +436,8 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
     const unspent = chainUtxos.map(u => ({ ...u, value: Number(u.value) }))
 
-    const addr = String(fromAddress).toLowerCase()
-    const isP2WPKH =
-      addr.startsWith('bc1q') ||
-      addr.startsWith('tb1q') ||
-      addr.startsWith('bcrt1q')
-    const inputVBytes = isP2WPKH ? 68 : 148
+    const fromAddressOutput = new Output({ descriptor: getAddressDescriptor(fromAddress), network: this._network })
+    const inputVBytes = fromAddressOutput.inputWeight(fromAddressOutput.isSegwit(), 'DANGEROUSLY_USE_FAKE_SIGNATURES') / 4
 
     const perInputFee = Math.ceil(inputVBytes * feeRate)
     let spendableUtxos = unspent.filter(u => (u.value - perInputFee) > 0)
@@ -479,21 +458,25 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
     const twoOutputsVSize = txOverheadVBytes + (inputCount * inputVBytes) + (2 * outputVBytes)
     const twoOutputsFeeSats = Math.max(Math.ceil(twoOutputsVSize * feeRate), MIN_TX_FEE_SATS)
-    const dustLimit = await this._getDustLimit()
 
-    const twoOutputsRecipientAmountSats = totalInputValueSats - twoOutputsFeeSats - Number(dustLimit)
-    if (twoOutputsRecipientAmountSats > Number(dustLimit)) {
+    const changeDustLimit = getDustLimit(btcAddress.toOutputScript(fromAddress, this._network))
+    const recipientDustLimit = opts.to
+      ? getDustLimit(btcAddress.toOutputScript(opts.to, this._network))
+      : getMaxDustLimit()
+
+    const twoOutputsRecipientAmountSats = totalInputValueSats - twoOutputsFeeSats - Number(changeDustLimit)
+    if (twoOutputsRecipientAmountSats >= recipientDustLimit) {
       return {
         amount: BigInt(twoOutputsRecipientAmountSats),
         fee: BigInt(twoOutputsFeeSats),
-        changeValue: dustLimit
+        changeValue: changeDustLimit
       }
     }
 
     const oneOutputVSize = txOverheadVBytes + (inputCount * inputVBytes) + outputVBytes
     const oneOutputFeeSats = Math.max(Math.ceil(oneOutputVSize * feeRate), MIN_TX_FEE_SATS)
     const oneOutputRecipientAmountSats = totalInputValueSats - oneOutputFeeSats
-    if (oneOutputRecipientAmountSats <= dustLimit) {
+    if (oneOutputRecipientAmountSats < recipientDustLimit) {
       return { amount: 0n, fee: 0n, changeValue: 0n }
     }
 
@@ -615,19 +598,20 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     amount = this._toBigInt(amount)
     feeRate = Math.max(Number(feeRate), 1)
 
-    const dustLimit = await this._getDustLimit()
-
-    if (amount <= dustLimit) {
-      throw new ValueError(`The amount must be bigger than the dust limit (= ${dustLimit}).`)
-    }
-
     const network = this._network
 
     const fromAddressScript = btcAddress.toOutputScript(fromAddress, network)
-    const fromAddressPrefix = Object.keys(BIP_BY_ADDRESS_PREFIX).find(p => fromAddress.startsWith(p))
-    const fromAddressScriptType = BIP_BY_ADDRESS_PREFIX[fromAddressPrefix] === 84 ? 'p2wpkh' : 'p2pkh'
-    const fromAddressOutput = new Output({ descriptor: `addr(${fromAddress})`, network })
-    const toAddressOutput = new Output({ descriptor: `addr(${toAddress})`, network })
+    const toAddressScript = btcAddress.toOutputScript(toAddress, network)
+
+    const toAddressDustLimit = getDustLimit(toAddressScript)
+
+    if (amount < toAddressDustLimit) {
+      throw new ValueError(`The amount must be at least the dust limit (= ${toAddressDustLimit}).`)
+    }
+
+    const fromAddressOutput = new Output({ descriptor: getAddressDescriptor(fromAddress), network })
+    const fromAddressScriptType = fromAddressOutput.isSegwit() ? 'p2wpkh' : 'p2pkh'
+    const toAddressOutput = new Output({ descriptor: getAddressDescriptor(toAddress), network })
 
     const chainUtxos = await this._client.listUnspent(fromAddress)
 
@@ -679,7 +663,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
       })
     }
 
-    if (changeValue <= dustLimit) {
+    if (changeValue < getDustLimit(fromAddressScript)) {
       return {
         inputs,
         outputs: [{ address: toAddress, value: amount }],
