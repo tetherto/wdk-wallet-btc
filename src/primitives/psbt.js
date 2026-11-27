@@ -222,7 +222,7 @@ export function planSweep ({ fromAddress, toAddress, feeRate, network, chainUtxo
 }
 
 /**
- * Builds an unsigned PSBT from a spend plan, after verifying its legacy inputs against their
+ * Builds an unsigned PSBT from a spend plan, after verifying its inputs against their
  * previous transactions. Inputs and change outputs carry their key origin when one is given.
  *
  * @param {Object} param
@@ -233,7 +233,7 @@ export function planSweep ({ fromAddress, toAddress, feeRate, network, chainUtxo
  * @throws {AssertionError} If the plan's inputs minus its outputs don't add up to its fee.
  */
 export function buildPsbt ({ plan, network, prevTxs, keyOrigins = {} }) {
-  verifyLegacyUtxos(plan.inputs.filter(({ scriptType }) => scriptType === 'legacy'), prevTxs)
+  verifyUtxos(plan.inputs, prevTxs)
 
   const psbt = new Psbt({ network })
   const getBip32Derivation = (address) => {
@@ -286,7 +286,7 @@ export function buildPsbt ({ plan, network, prevTxs, keyOrigins = {} }) {
 }
 
 /**
- * Verifies each legacy (BIP-44/P2PKH) input's real previous output — fetched from the
+ * Verifies each input's real previous output — fetched from the
  * blockchain — matches what spend planning assumed, rather than trusting the client's
  * `listSpendable` report as-is.
  *
@@ -295,7 +295,7 @@ export function buildPsbt ({ plan, network, prevTxs, keyOrigins = {} }) {
  * @throws {ValueError} If a previous transaction is missing.
  * @throws {AssertionError} If a previous transaction's id, script, or value doesn't match what was reported.
  */
-export function verifyLegacyUtxos (utxos, prevTxs) {
+export function verifyUtxos (utxos, prevTxs) {
   for (const { outpoint: { txid, vout }, value, script: ownScript } of utxos) {
     const prevHex = prevTxs[txid]
 

@@ -8,7 +8,7 @@ import { address as btcAddress, networks, payments, Psbt, Transaction } from 'bi
 import { HOST, PORT, ELECTRUM_PORT, ZMQ_PORT, DATA_DIR } from './config.js'
 
 import { BitcoinCli, Waiter } from './helpers/index.js'
-import { sweepFee, waitUntil } from './helpers/utils.js'
+import { createPrevTx, sweepFee, waitUntil } from './helpers/utils.js'
 
 import { WalletAccountBtc, WalletAccountReadOnlyBtc } from '../index.js'
 import SeedSignerBtc from '../src/signers/index.js'
@@ -1227,11 +1227,15 @@ describe('WalletAccountBtc UTXO selection', () => {
   const FROM = ACCOUNTS.segwit.address
   const TO = payments.p2wpkh({ hash: Buffer.alloc(20, 7), network }).address
 
-  const utxo = (value, height, index) => ({
-    outpoint: { txid: index.toString(16).padStart(64, '0'), vout: 0 },
-    value: BigInt(value),
-    height
-  })
+  const prevTxs = {}
+
+  const utxo = (value, height, index) => {
+    const { txid, hex } = createPrevTx({ script: btcAddress.toOutputScript(FROM, network), value, index })
+
+    prevTxs[txid] = hex
+
+    return { outpoint: { txid, vout: 0 }, value: BigInt(value), height }
+  }
 
   const CONFIRMED = utxo(100_000, 5, 1)
   const UNCONFIRMED = utxo(900_000, 0, 2)
@@ -1248,6 +1252,7 @@ describe('WalletAccountBtc UTXO selection', () => {
 
         return unspent
       },
+      getTransaction: async (txid) => prevTxs[txid],
       broadcast
     }
   })

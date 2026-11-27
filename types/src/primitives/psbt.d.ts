@@ -57,7 +57,7 @@ export function planSweep({ fromAddress, toAddress, feeRate, network, chainUtxos
     chainUtxos: ChainUtxo[];
 }): SpendPlan;
 /**
- * Builds an unsigned PSBT from a spend plan, after verifying its legacy inputs against their
+ * Builds an unsigned PSBT from a spend plan, after verifying its inputs against their
  * previous transactions. Inputs and change outputs carry their key origin when one is given.
  *
  * @param {Object} param
@@ -78,7 +78,7 @@ export function buildPsbt(params: {
     };
 }): Psbt;
 /**
- * Verifies each legacy (BIP-44/P2PKH) input's real previous output — fetched from the
+ * Verifies each input's real previous output — fetched from the
  * blockchain — matches what spend planning assumed, rather than trusting the client's
  * `listSpendable` report as-is.
  *
@@ -87,7 +87,7 @@ export function buildPsbt(params: {
  * @throws {ValueError} If a previous transaction is missing.
  * @throws {AssertionError} If a previous transaction's id, script, or value doesn't match what was reported.
  */
-export function verifyLegacyUtxos(utxos: Utxo[], prevTxs: {
+export function verifyUtxos(utxos: Utxo[], prevTxs: {
     [txId: string]: string;
 }): void;
 /**

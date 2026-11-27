@@ -528,8 +528,8 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @private
    * @param {BtcTransaction} tx - The transaction to build.
    * @returns {Promise<{ tx: { txid: string, hex: string, fee: bigint, vsize: number }, plan: SpendPlan }>} The signed transaction and the spend plan it was built from.
-   * @throws {ValueError} If the amount doesn't clear the dust limit, or a legacy input's previous transaction is missing.
-   * @throws {AssertionError} If a legacy input's previous transaction doesn't match what was reported, or the signed size exceeds the planned fee.
+   * @throws {ValueError} If the amount doesn't clear the dust limit, or an input's previous transaction is missing.
+   * @throws {AssertionError} If an input's previous transaction doesn't match what was reported, or the signed size exceeds the planned fee.
    * @throws {InvalidSignerError} If the signer returns an invalid PSBT, or doesn't sign every input.
    * @throws {TransactionError} If the account has no unspent outputs, or its balance doesn't cover the amount and its fees.
    */
@@ -550,9 +550,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
       chainUtxos
     })
 
-    const prevTxs = await this._getPrevTxs(
-      plan.inputs.filter(({ scriptType }) => scriptType === 'legacy').map(({ outpoint: { txid } }) => txid)
-    )
+    const prevTxs = await this._getPrevTxs(plan.inputs.map(({ outpoint: { txid } }) => txid))
 
     const keyOrigins = await this._getKeyOrigins()
     const psbt = buildPsbt({ plan, network: this._network, prevTxs, keyOrigins })

@@ -11,7 +11,7 @@ import { getAddressDescriptor } from '../../src/primitives/descriptor.js'
 import { MAX_STANDARD_TX_VSIZE, getDustLimit } from '../../src/primitives/dust.js'
 import { buildPsbt, getSignedTransactionFee, planSpend, planSweep } from '../../src/primitives/psbt.js'
 
-import { sweepFee } from '../helpers/utils.js'
+import { createPrevTx, sweepFee } from '../helpers/utils.js'
 
 const network = networks.regtest
 
@@ -464,12 +464,19 @@ describe('buildPsbt key origins', () => {
   const ORIGIN_FROM = origin("m/84'/1'/0'/0/0", 8)
   const ORIGIN_FROM_OTHER = origin("m/84'/1'/0'/0/1", 9)
 
+  const PREV_TXS = {}
+
   function segwitInput (address, index) {
+    const script = btcAddress.toOutputScript(address, network)
+    const { txid, hex } = createPrevTx({ script, value: 100_000n, index })
+
+    PREV_TXS[txid] = hex
+
     return {
-      outpoint: { txid: index.toString(16).padStart(64, '0'), vout: 0 },
+      outpoint: { txid, vout: 0 },
       value: 100_000n,
       height: 100,
-      script: btcAddress.toOutputScript(address, network),
+      script,
       address,
       scriptType: 'segwit'
     }
@@ -487,7 +494,7 @@ describe('buildPsbt key origins', () => {
   }
 
   function build (keyOrigins) {
-    return buildPsbt({ plan: PLAN, network, prevTxs: {}, keyOrigins })
+    return buildPsbt({ plan: PLAN, network, prevTxs: PREV_TXS, keyOrigins })
   }
 
   test('should attach the key origin to each input by its address', () => {
@@ -540,5 +547,43 @@ describe('getSignedTransactionFee', () => {
   test('should throw if a previous transaction\'s id doesn\'t match the input that spends it', () => {
     expect(() => getSignedTransactionFee(spend, { [prevTxId]: rogueTx.toHex() })).toThrow(AssertionError)
     expect(() => getSignedTransactionFee(spend, { [prevTxId]: rogueTx.toHex() })).toThrow('Previous transaction id mismatch')
+  })
+})
+
+describe.each([
+  ['segwit', FROM],
+  ['legacy', ADDRESSES.p2pkh]
+])('buildPsbt %s input verification', (scriptType, address) => {
+  const script = btcAddress.toOutputScript(address, network)
+
+  function build ({ prevScript = script, prevValue = 100_000n } = {}) {
+    const { txid, hex } = createPrevTx({ script: prevScript, value: prevValue })
+    const plan = {
+      inputs: [{ outpoint: { txid, vout: 0 }, value: 100_000n, height: 100, script, address, scriptType }],
+      outputs: [{ address: TO, value: 99_000n }],
+      fee: 1_000n,
+      feeRate: 1,
+      vsize: 110
+    }
+
+    return () => buildPsbt({ plan, network, prevTxs: { [txid]: hex } })
+  }
+
+  test('should build a PSBT if the previous output matches the reported script and value', () => {
+    expect(build()).not.toThrow()
+  })
+
+  test('should throw if the previous output\'s value doesn\'t match the reported value', () => {
+    const act = build({ prevValue: 90_000n })
+
+    expect(act).toThrow(AssertionError)
+    expect(act).toThrow('Previous output value mismatch')
+  })
+
+  test('should throw if the previous output\'s script doesn\'t match the reported script', () => {
+    const act = build({ prevScript: btcAddress.toOutputScript(ADDRESSES.p2wpkhOther, network) })
+
+    expect(act).toThrow(AssertionError)
+    expect(act).toThrow('Previous output script mismatch')
   })
 })
