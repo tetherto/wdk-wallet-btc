@@ -3,7 +3,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, jest, test } from '@j
 import { mnemonicToSeedSync } from 'bip39'
 import { fromHex } from 'uint8array-tools'
 
-import { address as btcAddress, networks, payments, Transaction } from 'bitcoinjs-lib'
+import { address as btcAddress, networks, payments, Psbt, Transaction } from 'bitcoinjs-lib'
 
 import { HOST, PORT, ELECTRUM_PORT, ZMQ_PORT, DATA_DIR } from './config.js'
 
@@ -12,7 +12,7 @@ import { sweepFee, waitUntil } from './helpers/utils.js'
 
 import { WalletAccountBtc, WalletAccountReadOnlyBtc } from '../index.js'
 import SeedSignerBtc from '../src/signers/index.js'
-import { AssertionError, MaximumFeeExceededError, TransactionError, TransactionErrorReason, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
+import { AssertionError, InvalidSignerError, MaximumFeeExceededError, TransactionError, TransactionErrorReason, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
 
 const SEED_PHRASE = 'cook voyage document eight skate token alien guide drink uncle term abuse'
 
@@ -746,7 +746,7 @@ describe.each(['legacy', 'segwit'])('WalletAccountBtc (%s)', (type) => {
       await waiter.mine()
 
       // The first argument of the first signPsbt call is the PSBT the signer received.
-      const psbt = signPsbt.mock.calls[0][0]
+      const psbt = Psbt.fromBase64(signPsbt.mock.calls[0][0], { network: networks.regtest })
       // Restore the original method so the spy doesn't leak into the other tests sharing this account.
       signPsbt.mockRestore()
 
@@ -760,6 +760,61 @@ describe.each(['legacy', 'segwit'])('WalletAccountBtc (%s)', (type) => {
       psbt.txOutputs.forEach(({ address }, index) => {
         expect(psbt.data.outputs[index].bip32Derivation).toEqual(address === ACCOUNTS[type].address ? expected : undefined)
       })
+    })
+  })
+
+  describe('signer trust boundary', () => {
+    const buildTransaction = () => ({ to: recipient, value: 1_000, feeRate: 1 })
+
+    const createAccountWith = (signPsbt) => {
+      const signer = new SeedSignerBtc(SEED_PHRASE, `${DERIVATION_PATH_PREFIX}/0'/0/0`, SIGNER_CONFIG)
+      const wrapped = Object.create(signer, { signPsbt: { value: (base64) => signPsbt(signer, base64) } })
+
+      return { signer, account: new WalletAccountBtc(wrapped, CLIENT_CONFIG) }
+    }
+
+    test('should hand the signer a base64 copy of the PSBT, never its own object', async () => {
+      let received
+      const { signer, account } = createAccountWith(async (signer, psbt) => {
+        received = psbt
+        return signer.signPsbt(psbt)
+      })
+
+      await account.signTransaction(buildTransaction())
+
+      expect(typeof received).toBe('string')
+      expect(() => Psbt.fromBase64(received)).not.toThrow()
+
+      account.dispose()
+      signer.dispose()
+    })
+
+    test('should reject a signer that returns a PSBT with a different unsigned transaction', async () => {
+      const { signer, account } = createAccountWith(async (signer, base64) => {
+        const copy = Psbt.fromBase64(base64, { network: networks.regtest })
+        copy.addOutput({ address: bitcoin.getNewAddress(), value: 1_000n })
+        return signer.signPsbt(copy)
+      })
+
+      const promise = account.sendTransaction(buildTransaction())
+
+      await expect(promise).rejects.toThrow(InvalidSignerError)
+      await expect(promise).rejects.toThrow('The signer returned an invalid PSBT.')
+
+      account.dispose()
+      signer.dispose()
+    })
+
+    test('should reject a signer that returns the PSBT without signing it', async () => {
+      const { signer, account } = createAccountWith(async (signer, base64) => base64)
+
+      const promise = account.signTransaction(buildTransaction())
+
+      await expect(promise).rejects.toThrow(InvalidSignerError)
+      await expect(promise).rejects.toThrow('The signer did not sign every input.')
+
+      account.dispose()
+      signer.dispose()
     })
   })
 
@@ -824,7 +879,7 @@ describe.each(['legacy', 'segwit'])('WalletAccountBtc (%s)', (type) => {
       await accountPk.sendTransaction({ to: recipientPk, value: 1_000, feeRate: 1 })
       await waiter.mine()
 
-      const psbt = signPsbt.mock.calls[0][0]
+      const psbt = Psbt.fromBase64(signPsbt.mock.calls[0][0])
       // Restore the original method so the spy doesn't leak into the other tests sharing this account.
       signPsbt.mockRestore()
 

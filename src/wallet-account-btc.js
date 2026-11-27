@@ -16,7 +16,7 @@
 import { address as btcAddress, Psbt, Transaction } from 'bitcoinjs-lib'
 import pLimit from 'p-limit'
 import { LRUCache } from 'lru-cache'
-import { AssertionError, MaximumFeeExceededError, UnsupportedOperationError } from '@tetherto/wdk-wallet'
+import { AssertionError, InvalidSignerError, MaximumFeeExceededError, UnsupportedOperationError } from '@tetherto/wdk-wallet'
 
 import PrivateKeySignerBtc from './signers/private-key-signer-btc.js'
 import { assertNoBipOption, getBtcDerivationPathPrefix } from './primitives/index.js'
@@ -529,7 +529,8 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * @param {BtcTransaction} tx - The transaction to build.
    * @returns {Promise<{ tx: { txid: string, hex: string, fee: bigint, vsize: number }, plan: SpendPlan }>} The signed transaction and the spend plan it was built from.
    * @throws {ValueError} If the amount doesn't clear the dust limit, or a legacy input's previous transaction is missing.
-   * @throws {AssertionError} If a legacy input's previous transaction doesn't match what was reported.
+   * @throws {AssertionError} If a legacy input's previous transaction doesn't match what was reported, or the signed size exceeds the planned fee.
+   * @throws {InvalidSignerError} If the signer returns an invalid PSBT, or doesn't sign every input.
    * @throws {TransactionError} If the account has no unspent outputs, or its balance doesn't cover the amount and its fees.
    */
   async _buildSignedTransaction ({ to, value, feeRate, confirmationTarget = 1 }) {
@@ -555,11 +556,25 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
 
     const keyOrigins = await this._getKeyOrigins()
     const psbt = buildPsbt({ plan, network: this._network, prevTxs, keyOrigins })
-    const signed = Psbt.fromBase64(await this._signer.signPsbt(psbt))
 
-    signed.finalizeAllInputs()
+    // Passing the PSBT object would expose it to modification by the signer, so pass a copy and only combine the signatures:
+    // - the signer gets a copy of the PSBT, never this object
+    // - combine rejects a PSBT with a different unsigned transaction
+    const signedBase64 = await this._signer.signPsbt(psbt.toBase64())
 
-    const signedRawTx = signed.extractTransaction()
+    try {
+      psbt.combine(Psbt.fromBase64(signedBase64))
+    } catch (error) {
+      throw new InvalidSignerError('The signer returned an invalid PSBT.', { cause: error })
+    }
+
+    try {
+      psbt.finalizeAllInputs()
+    } catch (error) {
+      throw new InvalidSignerError('The signer did not sign every input.', { cause: error })
+    }
+
+    const signedRawTx = psbt.extractTransaction()
 
     if (BigInt(Math.ceil(signedRawTx.virtualSize() * plan.feeRate)) > plan.fee) {
       throw new AssertionError('Fee shortfall after signing.')
