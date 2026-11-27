@@ -33,7 +33,6 @@
     "@bitcoinerlab/btcmessage": "4.0.1",
     "@bitcoinerlab/coinselect": "2.0.1",
     "@bitcoinerlab/descriptors": "3.1.7",
-    "@bitcoinerlab/secp256k1": "1.2.0",
     "@mempool/electrum-client": "1.1.9",
     "@noble/hashes": "^1.8.0",
     "@tetherto/wdk-failover-provider": "1.0.0-beta.2",
