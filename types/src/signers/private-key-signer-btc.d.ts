@@ -46,6 +46,7 @@ export default class PrivateKeySignerBtc implements ISignerBtc {
      * @type {string | null}
      */
     get path(): string | null;
+    get masterFingerprint(): undefined;
     /**
      * The account's Bitcoin address.
      *
