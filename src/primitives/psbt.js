@@ -328,6 +328,7 @@ export function verifyLegacyUtxos (utxos, prevTxs) {
  * @param {{ [txId: string]: string }} prevTxs - The raw hex of the previous transactions, by txid.
  * @returns {bigint} The fee (in satoshis).
  * @throws {ValueError} If a previous transaction is missing.
+ * @throws {AssertionError} If a previous transaction's id doesn't match the input that spends it.
  */
 export function getSignedTransactionFee (transaction, prevTxs) {
   const totalInput = transaction.ins.reduce((sum, { hash, index }) => {
@@ -338,9 +339,13 @@ export function getSignedTransactionFee (transaction, prevTxs) {
       throw new ValueError(`Previous transaction not found for input ${txid}:${index}.`)
     }
 
-    const prevOut = Transaction.fromHex(prevHex).outs[index]
+    const prevTx = Transaction.fromHex(prevHex)
 
-    return sum + BigInt(prevOut.value)
+    if (prevTx.getId() !== txid) {
+      throw new AssertionError(`Previous transaction id mismatch for input ${txid}:${index}.`)
+    }
+
+    return sum + BigInt(prevTx.outs[index].value)
   }, 0n)
   const totalOutput = transaction.outs.reduce((sum, { value }) => sum + BigInt(value), 0n)
 

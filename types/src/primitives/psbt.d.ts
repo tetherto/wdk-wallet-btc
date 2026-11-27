@@ -97,6 +97,7 @@ export function verifyLegacyUtxos(utxos: Utxo[], prevTxs: {
  * @param {{ [txId: string]: string }} prevTxs - The raw hex of the previous transactions, by txid.
  * @returns {bigint} The fee (in satoshis).
  * @throws {ValueError} If a previous transaction is missing.
+ * @throws {AssertionError} If a previous transaction's id doesn't match the input that spends it.
  */
 export function getSignedTransactionFee(transaction: Transaction, prevTxs: {
     [txId: string]: string;

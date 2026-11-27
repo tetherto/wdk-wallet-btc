@@ -1178,6 +1178,50 @@ describe('WalletAccountBtc legacy UTXO verification', () => {
   })
 })
 
+describe('WalletAccountBtc provider transaction id verification', () => {
+  const REQUESTED_TXID = 'a'.repeat(64)
+
+  const rogueTx = new Transaction()
+  rogueTx.addInput(Buffer.alloc(32), 0)
+  rogueTx.addOutput(btcAddress.toOutputScript(ACCOUNTS.legacy.address, networks.regtest), 1_000n)
+
+  const createAccount = () => new WalletAccountBtc(SEED_PHRASE, "0'/0/0", {
+    network: 'regtest',
+    type: 'legacy',
+    client: {
+      connect: async () => {},
+      getHistory: async () => [{ tx_hash: REQUESTED_TXID, height: 1 }],
+      getTransaction: async () => rogueTx.toHex()
+    }
+  })
+
+  test('should throw from getTransactionReceipt if the provider returns a transaction that doesn\'t match the hash', async () => {
+    const account = createAccount()
+
+    const promise = account.getTransactionReceipt(REQUESTED_TXID)
+
+    await expect(promise).rejects.toThrow(AssertionError)
+    await expect(promise).rejects.toThrow('Transaction id mismatch')
+
+    account.dispose()
+  })
+
+  test('should throw from quoteSendTransaction if the provider returns a previous transaction that doesn\'t match the input', async () => {
+    const account = createAccount()
+
+    const spend = new Transaction()
+    spend.addInput(Buffer.alloc(32, 1), 0)
+    spend.addOutput(btcAddress.toOutputScript(ACCOUNTS.segwit.address, networks.regtest), 500n)
+
+    const promise = account.quoteSendTransaction(spend.toHex())
+
+    await expect(promise).rejects.toThrow(AssertionError)
+    await expect(promise).rejects.toThrow('Previous transaction id mismatch')
+
+    account.dispose()
+  })
+})
+
 describe('WalletAccountBtc UTXO selection', () => {
   const network = networks.regtest
   const FROM = ACCOUNTS.segwit.address

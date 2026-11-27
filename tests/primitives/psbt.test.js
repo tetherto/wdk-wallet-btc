@@ -1,15 +1,15 @@
 import { describe, expect, test } from '@jest/globals'
 
-import { address as btcAddress, networks, payments } from 'bitcoinjs-lib'
+import { address as btcAddress, networks, payments, Transaction } from 'bitcoinjs-lib'
 import { vsize } from '@bitcoinerlab/coinselect'
 import { fromHex } from 'uint8array-tools'
 
-import { TransactionError, TransactionErrorReason, ValueError } from '@tetherto/wdk-wallet'
+import { AssertionError, TransactionError, TransactionErrorReason, ValueError } from '@tetherto/wdk-wallet'
 
 import { Output } from '../../src/crypto-engine.js'
 import { getAddressDescriptor } from '../../src/primitives/descriptor.js'
 import { MAX_STANDARD_TX_VSIZE, getDustLimit } from '../../src/primitives/dust.js'
-import { buildPsbt, planSpend, planSweep } from '../../src/primitives/psbt.js'
+import { buildPsbt, getSignedTransactionFee, planSpend, planSweep } from '../../src/primitives/psbt.js'
 
 import { sweepFee } from '../helpers/utils.js'
 
@@ -523,5 +523,22 @@ describe('buildPsbt key origins', () => {
     for (const entry of [...inputs, ...outputs]) {
       expect(entry.bip32Derivation).toBeUndefined()
     }
+  })
+})
+
+describe('getSignedTransactionFee', () => {
+  const spend = new Transaction()
+  spend.addInput(Buffer.alloc(32, 1), 0)
+  spend.addOutput(Buffer.from([0x6a]), 0n)
+
+  const prevTxId = '01'.repeat(32)
+
+  const rogueTx = new Transaction()
+  rogueTx.addInput(Buffer.alloc(32), 0)
+  rogueTx.addOutput(Buffer.from([0x6a]), 1_000n)
+
+  test('should throw if a previous transaction\'s id doesn\'t match the input that spends it', () => {
+    expect(() => getSignedTransactionFee(spend, { [prevTxId]: rogueTx.toHex() })).toThrow(AssertionError)
+    expect(() => getSignedTransactionFee(spend, { [prevTxId]: rogueTx.toHex() })).toThrow('Previous transaction id mismatch')
   })
 })

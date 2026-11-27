@@ -14,7 +14,7 @@
 
 'use strict'
 
-import { WalletAccountReadOnly, NoSuchElementError, TransactionError, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
+import { WalletAccountReadOnly, AssertionError, NoSuchElementError, TransactionError, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
 
 import { networks, Transaction } from 'bitcoinjs-lib'
 
@@ -244,6 +244,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * @param {string} hash - The transaction's hash.
    * @returns {Promise<BtcTransactionReceipt | null>} – The receipt, or null if the transaction has not been included in a block yet.
    * @throws {ValueError} If the hash is not a valid transaction hash.
+   * @throws {AssertionError} If the fetched transaction's id doesn't match the hash.
    */
   async getTransactionReceipt (hash) {
     if (!/^[0-9a-fA-F]{64}$/.test(hash)) {
@@ -264,6 +265,10 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
 
     const transaction = Transaction.fromHex(hex)
 
+    if (transaction.getId() !== hash) {
+      throw new AssertionError(`Transaction id mismatch for ${hash}.`)
+    }
+
     return transaction
   }
 
@@ -274,6 +279,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * @returns {Promise<TransactionReceipt & BtcTransactionDetails>} The normalized receipt.
    * @throws {ValueError} If the hash is not a valid transaction hash.
    * @throws {NoSuchElementError} If no transaction has been found for the given hash.
+   * @throws {AssertionError} If the fetched transaction's id doesn't match the hash.
    */
   async getTransaction (hash) {
     // Normalize to lowercase: txids are case-insensitive but Electrum reports
@@ -295,6 +301,10 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     }
 
     const transaction = Transaction.fromHex(await this._client.getTransaction(txid))
+
+    if (transaction.getId() !== txid) {
+      throw new AssertionError(`Transaction id mismatch for ${txid}.`)
+    }
 
     if (!item.height || item.height <= 0) {
       return {

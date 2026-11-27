@@ -6,8 +6,8 @@ import { BitcoinCli, Waiter } from './helpers/index.js'
 import { sweepFee } from './helpers/utils.js'
 
 import { WalletAccountReadOnlyBtc } from '../index.js'
-import { NoSuchElementError, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
-import { networks } from 'bitcoinjs-lib'
+import { AssertionError, NoSuchElementError, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
+import { networks, Transaction } from 'bitcoinjs-lib'
 
 
 const ADDRESSES = {
@@ -469,5 +469,29 @@ describe('WalletAccountReadOnlyBtc getBalance formula', () => {
     const balance = await account.getBalance()
 
     expect(balance).toBe(70_000n)
+  })
+})
+
+describe('WalletAccountReadOnlyBtc provider transaction id verification', () => {
+  const REQUESTED_TXID = 'a'.repeat(64)
+
+  const rogueTx = new Transaction()
+  rogueTx.addInput(Buffer.alloc(32), 0)
+  rogueTx.addOutput(Buffer.from([0x6a]), 0n)
+
+  test('should throw from getTransaction if the provider returns a transaction that doesn\'t match the hash', async () => {
+    const account = new WalletAccountReadOnlyBtc(ADDRESSES.segwit, {
+      network: 'regtest',
+      client: {
+        connect: async () => {},
+        getHistory: async () => [{ tx_hash: REQUESTED_TXID, height: 1 }],
+        getTransaction: async () => rogueTx.toHex()
+      }
+    })
+
+    const promise = account.getTransaction(REQUESTED_TXID)
+
+    await expect(promise).rejects.toThrow(AssertionError)
+    await expect(promise).rejects.toThrow('Transaction id mismatch')
   })
 })
