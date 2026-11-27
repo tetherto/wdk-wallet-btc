@@ -66,7 +66,7 @@ describe.each([44, 84])('@wdk/wallet-btc (BIP %i)', (bip) => {
   let wallet
 
   beforeAll(async () => {
-    const signer = new SeedSignerBtc(SEED_PHRASE, `m/${bip}'/1'`, { network: CONFIGURATION.network, type: bip === 44 ? 'legacy' : 'segwit' })
+    const signer = new SeedSignerBtc(SEED_PHRASE, `m/${bip}'/1'`, { network: CONFIGURATION.network, type: bip === 44 ? 'p2pkh' : 'p2wpkh' })
     wallet = new WalletManagerBtc(signer, CONFIGURATION)
 
     bitcoin.sendToAddress(ACCOUNT_0.address[bip], 1)

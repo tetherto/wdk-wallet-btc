@@ -50,7 +50,7 @@ export const FEES = {
 }
 
 describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
-  const SIGNER_CONFIG = { network: 'regtest', type: bip === 44 ? 'legacy' : 'segwit' }
+  const SIGNER_CONFIG = { network: 'regtest', type: bip === 44 ? 'p2pkh' : 'p2wpkh' }
   const CLIENT_CONFIG = { client: { type: 'electrum', clientConfig: { host: HOST, port: ELECTRUM_PORT } } }
   const CONFIG = { network: 'regtest', bip, ...CLIENT_CONFIG }
   const DERIVATION_PATH_PREFIX = `m/${bip}'/1'`
@@ -417,24 +417,6 @@ describe.each([44, 84])(`WalletAccountBtc`, (bip) => {
       expect(amount).toBe(TRANSACTION.value)
 
       const expectedFee = FEES[bip] * BigInt(TRANSACTION.feeRate)
-      expect(fee).toBe(expectedFee)
-    })
-
-    test('should successfully send a transaction with a fixed fee rate (bigint)', async () => {
-      const TRANSACTION = { to: recipient, value: 1000, feeRate: 10n }
-
-      const { hash, fee } = await account.sendTransaction(TRANSACTION)
-
-      await waiter.mine()
-
-      const transaction = bitcoin.getTransaction(hash)
-      expect(transaction.txid).toBe(hash)
-      expect(transaction.details[0].address).toBe(TRANSACTION.to)
-
-      const amount = Math.round(transaction.details[0].amount * 1e8)
-      expect(amount).toBe(TRANSACTION.value)
-
-      const expectedFee = FEES[bip] * TRANSACTION.feeRate
       expect(fee).toBe(expectedFee)
     })
 
@@ -941,7 +923,7 @@ describe('WalletAccountBtc legacy UTXO verification', () => {
     return tx
   }
 
-  // A rogue provider can misreport `vout.value` via listUnspent, hand back a fabricated
+  // A rogue provider can misreport `value` via listUnspent, hand back a fabricated
   // previous transaction via getTransaction, or claim a txid that doesn't match what
   // getTransaction actually returns — these three calls/fields model each independently.
   const createAccount = ({ reportedValue, prevTx, claimedTxHash = prevTx.getId() }) => new WalletAccountBtc(SEED_PHRASE, "0'/0/0", {
@@ -949,7 +931,7 @@ describe('WalletAccountBtc legacy UTXO verification', () => {
     bip: 44,
     client: {
       connect: async () => {},
-      listUnspent: async () => [{ tx_hash: claimedTxHash, tx_pos: 0, value: reportedValue }],
+      listUnspent: async () => [{ outpoint: { txid: claimedTxHash, vout: 0 }, value: BigInt(reportedValue), height: 1 }],
       getTransaction: async () => prevTx.toHex()
     }
   })

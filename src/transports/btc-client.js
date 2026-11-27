@@ -19,6 +19,8 @@ import { sha256 } from '@noble/hashes/sha2'
 import { toHex } from 'uint8array-tools'
 
 /** @typedef {import('@tetherto/wdk-wallet').ProviderError} ProviderError */
+/** @typedef {import('../primitives/index.js').ChainUtxo} ChainUtxo */
+/** @typedef {import('./mempool-electrum-client.js').ElectrumUnspent} ElectrumUnspent */
 
 /**
  * @typedef {Object} BtcClientConfig
@@ -32,14 +34,6 @@ import { toHex } from 'uint8array-tools'
  * @property {number} [unconfirmedOutgoing] - Amount leaving the address through unconfirmed transactions, in satoshis.
  *   Clients that implement this should follow the same trust rule as {@link BlockbookClient}'s `getUnconfirmedOutgoing`,
  *   so `getBalance()` behaves consistently regardless of which client backs it.
- */
-
-/**
- * @typedef {Object} BtcUtxo
- * @property {string} tx_hash - The transaction hash containing this UTXO.
- * @property {number} tx_pos - The output index within the transaction.
- * @property {number} value - The UTXO value in satoshis.
- * @property {number} [height] - The block height (0 if unconfirmed).
  */
 
 /**
@@ -91,7 +85,7 @@ export default class IBtcClient {
    * Returns unspent transaction outputs for an address.
    *
    * @param {string} address - The bitcoin address.
-   * @returns {Promise<BtcUtxo[]>} List of UTXOs.
+   * @returns {Promise<ChainUtxo[]>} List of UTXOs.
    */
   async listUnspent (address) {
     throw new NotImplementedError('listUnspent(address)')
@@ -142,7 +136,7 @@ export default class IBtcClient {
    * Returns the estimated fee rate.
    *
    * @param {number} blocks - The confirmation target in blocks.
-   * @returns {Promise<number>} Fee rate in BTC/kB.
+   * @returns {Promise<number>} Fee rate in sat/vB (may be fractional).
    * @throws {ProviderError} If fee estimation is unavailable.
    */
   async estimateFee (blocks) {
@@ -161,4 +155,31 @@ export function toScriptHash (address, network) {
   const script = btcAddress.toOutputScript(address, network)
   const hash = sha256(script)
   return toHex(Uint8Array.from(hash).reverse())
+}
+
+/**
+ * Converts the unspent outputs an Electrum server reports into canonical chain UTXOs.
+ *
+ * @param {ElectrumUnspent[]} unspent - The unspent outputs as reported by the server.
+ * @returns {ChainUtxo[]} The canonical chain UTXOs.
+ */
+export function fromElectrumUnspent (unspent) {
+  return unspent.map(({ tx_hash: txid, tx_pos: vout, value, height }) => ({
+    outpoint: { txid, vout },
+    value: BigInt(value),
+    height
+  }))
+}
+
+/**
+ * Converts a fee rate from BTC/kvB, as `estimatefee` reports it, to sat/vB.
+ *
+ * Rounds to whole sat/kvB before dividing, which removes float noise and keeps a resolution of 0.001 sat/vB.
+ * That is finer than the practical floor of 0.1 sat/vB, so no real fee rate loses precision.
+ *
+ * @param {number} btcPerKvb - The fee rate in BTC/kvB.
+ * @returns {number} The fee rate in sat/vB.
+ */
+export function toSatPerVb (btcPerKvb) {
+  return Math.round(btcPerKvb * 1e8) / 1000
 }

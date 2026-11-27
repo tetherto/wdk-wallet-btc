@@ -14,44 +14,44 @@
  */
 export function signPsbtWithKey(psbtInstance: Psbt, account: SignerLike): string;
 /**
- * The address type signers use when the configuration does not specify one.
- *
- * @internal
- * @type {BtcAddressType}
- */
-export const DEFAULT_ADDRESS_TYPE: BtcAddressType;
-/**
  * Maps a wallet-level BIP purpose (44 or 84) to the equivalent signer address type.
  *
  * @internal
  * @param {44 | 84} [bip] - The BIP address type from the wallet configuration.
- * @returns {BtcAddressType | undefined} The signer address type, or undefined if no bip was given.
+ * @returns {ScriptType | undefined} The signer address type, or undefined if no bip was given.
  * @throws {ValueError} If an unsupported BIP is specified.
  */
-export function getSignerTypeForBip(bip?: 44 | 84): BtcAddressType | undefined;
+export function getSignerTypeForBip(bip?: 44 | 84): ScriptType | undefined;
 /**
  * Derives a Bitcoin address from a public key.
  *
  * @internal
  * @param {Uint8Array} publicKey - The public key.
  * @param {Network} network - The network configuration.
- * @param {BtcAddressType} type - The address type.
+ * @param {ScriptType} type - The address type.
  * @returns {string} The Bitcoin address.
  */
-export function getAddressFromPublicKey(publicKey: Uint8Array, network: Network, type: BtcAddressType): string;
+export function getAddressFromPublicKey(publicKey: Uint8Array, network: Network, type: ScriptType): string;
 /**
  * Signs a message.
  *
  * @internal
  * @param {string} message - The message to sign.
  * @param {Uint8Array} privateKey - The private key.
- * @param {BtcAddressType} type - The address type.
+ * @param {ScriptType} type - The address type.
  * @returns {string} The message's signature.
  */
-export function signMessage(message: string, privateKey: Uint8Array, type: BtcAddressType): string;
+export function signMessage(message: string, privateKey: Uint8Array, type: ScriptType): string;
+/**
+ * The address type signers use when the configuration does not specify one.
+ *
+ * @internal
+ * @type {ScriptType}
+ */
+export const DEFAULT_ADDRESS_TYPE: ScriptType;
 export type Network = import("bitcoinjs-lib").Network;
 export type Psbt = import("bitcoinjs-lib").Psbt;
 export type BtcSignerConfig = import("./signer-btc.js").BtcSignerConfig;
-export type BtcAddressType = import("./signer-btc.js").BtcAddressType;
+export type ScriptType = import("../primitives/index.js").ScriptType;
 export type ValueError = import("@tetherto/wdk-wallet").ValueError;
 export type SignerLike = import("ecpair").ECPairInterface | import("bip32").BIP32Interface;

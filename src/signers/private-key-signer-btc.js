@@ -25,7 +25,7 @@ import { DEFAULT_ADDRESS_TYPE, getAddressFromPublicKey, signMessage, signPsbtWit
 
 /** @typedef {import('./signer-btc.js').ISignerBtc} ISignerBtc */
 /** @typedef {import('./signer-btc.js').BtcSignerConfig} BtcSignerConfig */
-/** @typedef {import('./signer-btc.js').BtcAddressType} BtcAddressType */
+/** @typedef {import('../primitives/index.js').ScriptType} ScriptType */
 /** @typedef {import('@tetherto/wdk-wallet').KeyPair} KeyPair */
 
 /**
@@ -118,9 +118,9 @@ export default class PrivateKeySignerBtc {
   }
 
   /**
-   * The address type of the signer's addresses ("legacy" for P2PKH, "segwit" for P2WPKH).
+   * The address type of the signer's addresses ("p2pkh" for P2PKH, "p2wpkh" for P2WPKH).
    *
-   * @type {BtcAddressType}
+   * @type {ScriptType}
    */
   get type () {
     return this._config.type ?? DEFAULT_ADDRESS_TYPE

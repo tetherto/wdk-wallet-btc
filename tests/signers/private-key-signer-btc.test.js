@@ -12,7 +12,7 @@ const EXPECTED_PUBLIC_KEY = '02f8044c82d6b9dfcfc3e6f3424cb11cc747bb34766bcbef72d
 const MESSAGE = 'Dummy message to sign.'
 
 // Fixtures for VALID_PRIVATE_KEY with a legacy regtest (P2PKH) configuration.
-const LEGACY_REGTEST_CONFIG = { type: 'legacy', network: 'regtest' }
+const LEGACY_REGTEST_CONFIG = { type: 'p2pkh', network: 'regtest' }
 const LEGACY_REGTEST_ADDRESS = 'mjsVx6s5oH9VqwmhfjCyVo6t7APRGY6T8o'
 const LEGACY_REGTEST_EXPECTED_SIGNATURE = 'H4RwJWJzRmVkgQDqmTgX0qCbSONLQjvjfXH7ZdKZs5S3BWbpfjqbGdIJQXy/+ppW4Lvaw0wZ/UaDOLhMw5TIDuk='
 
@@ -20,7 +20,7 @@ const LEGACY_REGTEST_EXPECTED_SIGNATURE = 'H4RwJWJzRmVkgQDqmTgX0qCbSONLQjvjfXH7Z
 const DEFAULT_ADDRESS = 'bc1q9lpn7ks92lekmr6m0gpy4qyzyq8g98nufpddma'
 
 // Fixtures for VALID_PRIVATE_KEY with a segwit regtest (P2WPKH) configuration.
-const SEGWIT_REGTEST_CONFIG = { type: 'segwit', network: 'regtest' }
+const SEGWIT_REGTEST_CONFIG = { type: 'p2wpkh', network: 'regtest' }
 const EXPECTED_PSBT_PARTIAL_SIG_PUBKEY = '02f8044c82d6b9dfcfc3e6f3424cb11cc747bb34766bcbef72d2f52f6c4e8e07aa'
 const EXPECTED_PSBT_PARTIAL_SIG_SIGNATURE = '3045022100baf90a97ad07d0cd320ad9c4e7028eb52f9f02b4b87bbb399c4883b324e78ff202204ed486957a17a03bc5cf96a13acdf6b05cc7ac18bc1a61d5d29806cd0f8cb78401'
 
@@ -76,7 +76,7 @@ describe('PrivateKeySignerBtc', () => {
       expect(signer.path).toBeNull()
       expect(await signer.getAddress()).toBe(LEGACY_REGTEST_ADDRESS)
       expect(signer.network).toBe('regtest')
-      expect(signer.type).toBe('legacy')
+      expect(signer.type).toBe('p2pkh')
 
       signer.dispose()
     })
@@ -117,7 +117,7 @@ describe('PrivateKeySignerBtc', () => {
 
       expect(await signer.getAddress()).toBe(DEFAULT_ADDRESS)
       expect(signer.network).toBe('bitcoin')
-      expect(signer.type).toBe('segwit')
+      expect(signer.type).toBe('p2wpkh')
 
       signer.dispose()
     })

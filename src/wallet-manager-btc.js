@@ -204,7 +204,9 @@ export default class WalletManagerBtc extends WalletManager {
   /**
    * Returns the current fee rates.
    *
-   * @returns {Promise<FeeRates>} The fee rates (in satoshis).
+   * The rates are mempool.space's recommended fees, which are rounded to whole sat/vB.
+   *
+   * @returns {Promise<FeeRates>} The fee rates (in sat/vB, rounded).
    */
   async getFeeRates () {
     const response = await fetch(`${MEMPOOL_SPACE_URL}/api/v1/fees/recommended`)

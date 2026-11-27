@@ -61,11 +61,11 @@ export default class PrivateKeySignerBtc implements ISignerBtc {
      */
     get network(): "bitcoin" | "regtest" | "testnet";
     /**
-     * The address type of the signer's addresses ("legacy" for P2PKH, "segwit" for P2WPKH).
+     * The address type of the signer's addresses ("p2pkh" for P2PKH, "p2wpkh" for P2WPKH).
      *
-     * @type {BtcAddressType}
+     * @type {ScriptType}
      */
-    get type(): BtcAddressType;
+    get type(): ScriptType;
     /**
      * The account's key pair (public and private keys).
      *
@@ -121,7 +121,7 @@ export default class PrivateKeySignerBtc implements ISignerBtc {
 }
 export type ISignerBtc = import("./signer-btc.js").ISignerBtc;
 export type BtcSignerConfig = import("./signer-btc.js").BtcSignerConfig;
-export type BtcAddressType = import("./signer-btc.js").BtcAddressType;
+export type ScriptType = import("../primitives/index.js").ScriptType;
 export type KeyPair = import("@tetherto/wdk-wallet").KeyPair;
 export type UnsupportedOperationError = import("@tetherto/wdk-wallet").UnsupportedOperationError;
 export type ValueError = import("@tetherto/wdk-wallet").ValueError;
